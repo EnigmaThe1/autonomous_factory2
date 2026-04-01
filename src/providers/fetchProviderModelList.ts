@@ -3,8 +3,9 @@ import { SecretStore } from "../storage/SecretStore";
 import { fetchWithPolicy } from "./fetchWithPolicy";
 import { PROVIDER_MODEL_PRESETS } from "./providerModelResolution";
 import { parseOpenAiStyleModelsWithCreated } from "./providerModelListParsers";
-import { geminiCatalogIdsFromListModels, type GeminiModelRecord } from "./geminiModelCatalogParse";
 import { rankFullAndShortlist, type RankCatalogOpts } from "./modelCatalogRank";
+import { fetchGeminiModelListResult } from "./fetchGeminiModelList";
+import { fetchAnthropicModelListLive } from "./fetchAnthropicModelList";
 
 /** `cache` is used only when the host reapplies a persisted snapshot (not returned from `fetchProviderModelList`). */
 export type ModelListSource = "live" | "fallback" | "environment" | "unavailable" | "cache";
@@ -65,7 +66,7 @@ export async function fetchProviderModelList(secrets: SecretStore, providerId: s
       }
       const base = cfg.get<string>("myAi.anthropic.baseUrl", "https://api.anthropic.com/v1").replace(/\/$/, "");
       try {
-        return await fetchAnthropicModelListLive(base, key);
+        return await fetchAnthropicModelListLive(base, key, policy(), finalize, anthropicFromPresets);
       } catch (e) {
         return anthropicFromPresets(e instanceof Error ? e.message : String(e), "unavailable");
       }
@@ -197,7 +198,7 @@ export async function fetchProviderModelList(secrets: SecretStore, providerId: s
       }
       const root = cfg.get<string>("myAi.gemini.baseUrl", "https://generativelanguage.googleapis.com").replace(/\/$/, "");
       try {
-        return await fetchGeminiModelListResult(root, key);
+        return await fetchGeminiModelListResult(root, key, policy(), finalize);
       } catch (e) {
         return finalize(
           "gemini",
@@ -235,109 +236,3 @@ export async function fetchProviderModelList(secrets: SecretStore, providerId: s
   }
 }
 
-/** One page from `models.list` (Gemini Developer API / Google AI). */
-type GeminiListModelsResponse = {
-  models?: GeminiModelRecord[];
-  nextPageToken?: string;
-};
-
-const GEMINI_LIST_MAX_PAGES = 25;
-const GEMINI_CATALOG_CAP = 800;
-
-async function fetchGeminiModelListResult(root: string, key: string): Promise<ModelListResult> {
-  const pol = policy();
-  const headers = { "x-goog-api-key": key };
-  const merged: GeminiModelRecord[] = [];
-  let pageToken: string | undefined;
-  let pages = 0;
-
-  do {
-    const url = new URL(`${root}/v1beta/models`);
-    url.searchParams.set("pageSize", "1000");
-    if (pageToken) url.searchParams.set("pageToken", pageToken);
-
-    const res = await fetchWithPolicy(url.toString(), { headers }, pol);
-    if (!res.ok) {
-      return finalize(
-        "gemini",
-        [...(PROVIDER_MODEL_PRESETS.gemini || [])],
-        "fallback",
-        `Gemini HTTP ${res.status}; curated list.`
-      );
-    }
-    const j = (await res.json()) as GeminiListModelsResponse;
-    for (const m of j.models || []) merged.push(m);
-    pageToken = j.nextPageToken?.trim() || undefined;
-    pages += 1;
-    if (pages >= GEMINI_LIST_MAX_PAGES) break;
-  } while (pageToken);
-
-  const use = geminiCatalogIdsFromListModels(merged);
-  const capped = use.slice(0, GEMINI_CATALOG_CAP);
-  const pageHint = pages > 1 ? ` (${pages} API pages)` : "";
-  return capped.length
-    ? finalize("gemini", capped, "live", `${merged.length} record(s) from ${root}/v1beta/models${pageHint}; ids favor baseModelId + generateContent.`)
-    : finalize("gemini", [...(PROVIDER_MODEL_PRESETS.gemini || [])], "fallback", "No Gemini models parsed after list; curated list.");
-}
-
-type AnthropicListModelsResponse = {
-  data?: Array<{ id?: string; created_at?: string }>;
-  has_more?: boolean;
-  last_id?: string;
-};
-
-const ANTHROPIC_LIST_MAX_PAGES = 50;
-
-async function fetchAnthropicModelListLive(base: string, key: string): Promise<ModelListResult> {
-  const merged: { id: string; created_at?: string }[] = [];
-  let afterId: string | undefined;
-  const pol = policy();
-
-  for (let page = 0; page < ANTHROPIC_LIST_MAX_PAGES; page++) {
-    const url = new URL(`${base}/models`);
-    url.searchParams.set("limit", "1000");
-    if (afterId) url.searchParams.set("after_id", afterId);
-
-    const res = await fetchWithPolicy(
-      url.toString(),
-      {
-        headers: {
-          "x-api-key": key,
-          "anthropic-version": "2023-06-01"
-        }
-      },
-      pol
-    );
-
-    if (!res.ok) {
-      return anthropicFromPresets(`Anthropic HTTP ${res.status}.`, "fallback");
-    }
-
-    const j = (await res.json()) as AnthropicListModelsResponse;
-    const batch = j.data || [];
-    for (const row of batch) {
-      const id = row.id?.trim();
-      if (id) merged.push({ id, created_at: row.created_at });
-    }
-
-    if (!j.has_more) break;
-    const next = j.last_id?.trim();
-    if (!next || batch.length === 0) break;
-    afterId = next;
-  }
-
-  const ids = merged.map((m) => m.id);
-  if (!ids.length) {
-    return anthropicFromPresets("Anthropic returned no models.", "fallback");
-  }
-
-  const createdById: Record<string, number> = {};
-  for (const m of merged) {
-    if (m.created_at) {
-      const t = Date.parse(m.created_at);
-      if (Number.isFinite(t)) createdById[m.id] = t / 1000;
-    }
-  }
-  const apiListOrder = merged.map((m) => m.id);
-  return finalize("anthropic", ids, "live", `From ${base}/models (${ids.length} id(s)).`, { createdById, apiListOrder });
-}

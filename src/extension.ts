@@ -17,6 +17,7 @@ import { GlobalMemoryStore } from "./memory/GlobalMemoryStore";
 import { ExternalToolAdapterRegistry } from "./tools/ExternalToolAdapterRegistry";
 import { McpRegistry } from "./tools/McpRegistry";
 import { MissionTemplateStore } from "./missions/MissionTemplateStore";
+import { wireAgentStreamThrottle } from "./ui/agentStreamThrottle";
 
 export async function activate(context: vscode.ExtensionContext) {
   console.info(`[my-ai] activate ${context.extension.id}@${context.extension.packageJSON.version}`);
@@ -68,29 +69,7 @@ export async function activate(context: vscode.ExtensionContext) {
   runner.onSignificantMissionMutation = () => {
     sidebar.scheduleMissionSectionAfterHostTruthEdge();
   };
-  const STREAM_THROTTLE_MS = 50;
-  let streamBuf = { missionId: "", workItemId: "", role: "", text: "" };
-  let streamTimer: ReturnType<typeof setTimeout> | undefined;
-  const flushStreamBuf = () => {
-    if (streamBuf.text) {
-      sidebar.forwardToWebview({ type: "agentStreamChunk", ...streamBuf });
-      streamBuf = { missionId: "", workItemId: "", role: "", text: "" };
-    }
-    streamTimer = undefined;
-  };
-  orchestrator.onAgentStreamChunk = (missionId, workItemId, role, text) => {
-    if (streamBuf.workItemId !== workItemId) {
-      flushStreamBuf();
-    }
-    streamBuf = { missionId, workItemId, role, text: streamBuf.text + text };
-    if (!streamTimer) {
-      streamTimer = setTimeout(flushStreamBuf, STREAM_THROTTLE_MS);
-    }
-  };
-  orchestrator.onAgentStreamDone = (missionId, workItemId) => {
-    flushStreamBuf();
-    sidebar.forwardToWebview({ type: "agentStreamDone", missionId, workItemId });
-  };
+  wireAgentStreamThrottle(orchestrator, sidebar);
 
   context.subscriptions.push(
     vscode.window.registerWebviewViewProvider("myAi.sidebar", sidebar, {
