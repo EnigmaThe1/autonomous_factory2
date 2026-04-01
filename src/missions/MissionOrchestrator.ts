@@ -128,6 +128,8 @@ export class MissionOrchestrator {
   onAgentStreamChunk?: (missionId: string, workItemId: string, role: string, text: string) => void;
   /** External callback when an agent's LLM stream finishes for a work item. */
   onAgentStreamDone?: (missionId: string, workItemId: string) => void;
+  /** External callback when a mission reaches terminal status (completed/blocked/failed/cancelled). */
+  onMissionTerminal?: (missionId: string, status: string) => void;
 
   constructor(
     private readonly providers: ProviderRegistry,
@@ -1378,6 +1380,7 @@ export class MissionOrchestrator {
           .map((m) => `- ${m.text}`)
           .join("\n")
       });
+      this.onMissionTerminal?.(id, terminalStatus);
       return "terminal";
     }
     const terminalCompletionReason =
@@ -1418,6 +1421,7 @@ export class MissionOrchestrator {
         .join("\n"),
       ...(terminalStatus === "completed" && terminalCompletionReason ? { completionReason: terminalCompletionReason } : {})
     });
+    this.onMissionTerminal?.(id, terminalStatus);
     return "terminal";
   }
 

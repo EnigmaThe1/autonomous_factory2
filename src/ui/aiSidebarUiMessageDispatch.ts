@@ -25,6 +25,7 @@ import {
   dispatchUi_editMissionDag,
   dispatchUi_editMissionPolicy,
   dispatchUi_reviewBundleSummary,
+  dispatchUi_generateMissionReport,
   dispatchUi_saveMissionRouting,
   dispatchUi_setMissionListIncludeArchived,
   dispatchUi_unarchiveMission
@@ -145,6 +146,8 @@ export async function dispatchUiToExtMessage(
       return await dispatchUi_saveMissionRouting(host, msg);
     case "searchGlobalMemory":
       return await dispatchUi_searchGlobalMemory(host, msg);
+    case "generateMissionReport":
+      return await dispatchUi_generateMissionReport(host, msg);
     case "saveQuickSettings":
       return await dispatchUi_saveQuickSettings(host, msg, msgInteractionId);
     case "saveProviderCredential":

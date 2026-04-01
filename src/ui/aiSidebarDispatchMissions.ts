@@ -6,6 +6,7 @@ import {
   editMissionPolicyForMission,
   openApprovalBundleSummaryForMission
 } from "../commands/registerCommands";
+import { generateMissionReport } from "../missions/missionReport";
 import { MISSION_LIST_INCLUDE_ARCHIVED_KEY } from "./aiSidebarConstants";
 import type { UiToExtMessage } from "./protocol";
 import type { AiSidebarUiDispatchHost } from "./aiSidebarUiDispatchHost";
@@ -423,5 +424,19 @@ export async function dispatchUi_saveMissionRouting(
   host.postMessage({ type: "formCommitted", scope: "routingPanel" });
   host.postMissionDashboardSnapshotImmediate(undefined);
   host.scheduleBackgroundDashboardReconciliation();
+  return true;
+}
+
+export async function dispatchUi_generateMissionReport(
+  host: AiSidebarUiDispatchHost,
+  msg: Extract<UiToExtMessage, { type: "generateMissionReport" }>
+): Promise<boolean> {
+  const mission = host.missionStore.get(msg.missionId);
+  if (!mission) {
+    host.postMessage({ type: "error", message: "Mission not found." });
+    return true;
+  }
+  const report = generateMissionReport(mission);
+  host.postMessage({ type: "missionReportReady", missionId: msg.missionId, markdown: report.markdown });
   return true;
 }

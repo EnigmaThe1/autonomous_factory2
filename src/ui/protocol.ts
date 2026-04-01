@@ -180,6 +180,13 @@ export interface SidebarSnapshot {
   missionDownstreamGatingCardHints?: Record<string, string>;
   /** Visible list: mission id → compact latest mappable operator-action headline (non-focused cards; host-derived). */
   missionListLatestOperatorActionHeadlines?: Record<string, string>;
+  /** Focused mission: compact report summary (files changed, error count, completion %). */
+  focusedMissionReportSummary?: {
+    filesModifiedCount: number;
+    errorPatternCount: number;
+    completionPercent: number;
+    retriedItems: number;
+  };
   /** Per-mission progress stats for dashboard rendering. */
   missionProgressStats?: Record<string, MissionProgressStats>;
   globalMemoryRecent: Array<{ id: string; ts: number; kind: string; text: string }>;
@@ -253,6 +260,7 @@ export type UiToExtMessage =
   | { type: "listMcpTools" }
   | { type: "listMcpSessions" }
   | { type: "searchGlobalMemory"; query: string }
+  | { type: "generateMissionReport"; missionId: string }
   | { type: "saveQuickSettings"; defaultProvider: string; defaultModel: string; heartbeatSeconds: number; allowTerminal: boolean; requireWriteApproval: boolean; autoRevealOnActivation: boolean; defaultTab: string }
   | { type: "saveProviderCredential"; providerId: string; apiKey: string }
   | { type: "clearProviderCredential"; providerId: string }
@@ -316,4 +324,5 @@ export type ExtToUiMessage =
       /** True when `entries` is a tail slice of the host buffer. */
       traceUiTruncated?: boolean;
     }
-  | { type: "traceExportResult"; path: string };
+  | { type: "traceExportResult"; path: string }
+  | { type: "missionReportReady"; missionId: string; markdown: string };

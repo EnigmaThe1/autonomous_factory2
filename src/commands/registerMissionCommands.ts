@@ -4,6 +4,7 @@ import { MissionOrchestrator } from "../missions/MissionOrchestrator";
 import { MissionStore } from "../missions/MissionStore";
 import { resolveModelForProvider } from "../providers/providerModelResolution";
 import { presetRoutingFragment } from "../missions/missionRouting";
+import { generateMissionReport } from "../missions/missionReport";
 import { AgentRole, MissionAgentRouting, MissionPolicy, WorkItem } from "../types";
 import { presentResumeMissionOutcome, presentStartMissionOutcome } from "../ui/missionActionOutcomePresentation";
 import { presentResumeMissionOutcomeEvent, presentStartMissionOutcomeEvent } from "../missions/missionActionOutcomeEventPresentation";
@@ -342,6 +343,39 @@ export function registerMissionCommands(
       if (!target) return;
       await vscode.workspace.fs.writeFile(target, Buffer.from(JSON.stringify(mission, null, 2), "utf8"));
       void vscode.window.showInformationMessage(`Exported mission bundle to ${target.fsPath}`);
+    })
+  );
+
+  disposables.push(
+    vscode.commands.registerCommand("myAi.viewMissionReport", async () => {
+      const picked = await chooseMission(store, "Select a mission to generate report for");
+      if (!picked) return;
+      const mission = store.get(picked.missionId);
+      if (!mission) return;
+      const report = generateMissionReport(mission);
+      const doc = await vscode.workspace.openTextDocument({ language: "markdown", content: report.markdown });
+      await vscode.window.showTextDocument(doc, { preview: false });
+    })
+  );
+
+  disposables.push(
+    vscode.commands.registerCommand("myAi.exportMissionReport", async () => {
+      const picked = await chooseMission(store, "Select a mission to export report for");
+      if (!picked) return;
+      const mission = store.get(picked.missionId);
+      if (!mission) return;
+      const report = generateMissionReport(mission);
+      const target = await vscode.window.showSaveDialog({
+        defaultUri: vscode.Uri.file(`${mission.title.replace(/[^a-z0-9]+/gi, "_").toLowerCase()}__report.md`),
+        filters: { "Markdown": ["md"], "JSON": ["json"] }
+      });
+      if (!target) return;
+      const isJson = target.fsPath.endsWith(".json");
+      const content = isJson
+        ? JSON.stringify({ ...report, markdown: undefined }, null, 2)
+        : report.markdown;
+      await vscode.workspace.fs.writeFile(target, Buffer.from(content, "utf8"));
+      void vscode.window.showInformationMessage(`Mission report saved to ${target.fsPath}`);
     })
   );
 

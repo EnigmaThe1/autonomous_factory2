@@ -48,6 +48,10 @@ export async function activate(context: vscode.ExtensionContext) {
   tools.fileTracker = fileTracker;
   void wsIndex.build().then((n) => { if (n > 0) console.info(`[my-ai] Workspace index: ${n} files`); });
   const orchestrator = new MissionOrchestrator(providers, collector, missionStore, tools, globalMemory);
+  orchestrator.onMissionTerminal = (missionId) => {
+    fileTracker.flush(missionId);
+    fileTracker.clear(missionId);
+  };
   const templates = new MissionTemplateStore(paths);
   await templates.hydrate();
   const runner = new BackgroundMissionRunner(orchestrator, missionStore);

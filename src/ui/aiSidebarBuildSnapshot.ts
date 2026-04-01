@@ -11,7 +11,7 @@ import { focusedMissionLifecycleSummaryForSnapshot } from "../missions/missionLi
 import { focusedMissionRequiredWorkHintForSnapshot } from "../missions/missionRequiredWorkPresentation";
 import type { ExtensionTraceLogger } from "../diagnostics/ExtensionTraceLogger";
 import { routingPresetTemplatesForUi } from "../missions/missionRouting";
-import { computeAllMissionProgressStats } from "./missionProgressStats";
+import { computeAllMissionProgressStats, computeMissionProgressStats } from "./missionProgressStats";
 import { buildGlobalMemoryContextHostSlice, missionAllAndVisibleForFingerprint } from "./aiSidebarSnapshotMisc";
 import type { GlobalMemoryStore } from "../memory/GlobalMemoryStore";
 import type { MissionStore } from "../missions/MissionStore";
@@ -163,6 +163,19 @@ export async function buildSidebarDashboardSnapshot(host: AiSidebarBuildSnapshot
         .filter(([, v]) => typeof v === "string" && v.length > 0) as Array<[string, string]>
     ),
     missionListLatestOperatorActionHeadlines: missionListLatestOperatorActionHeadlinesForMissions(missions),
+    focusedMissionReportSummary: focusedMission
+      ? (() => {
+          const stats = computeMissionProgressStats(focusedMission);
+          const errorEvents = (focusedMission.events || []).filter((e) => e.level === "error");
+          const uniqueErrors = new Set(errorEvents.map((e) => e.message.replace(/[a-f0-9]{8,}/gi, "").replace(/\d{4}-\d{2}-\d{2}T[\d:.]+Z?/g, "").trim()));
+          return {
+            filesModifiedCount: (focusedMission.filesModified || []).length,
+            errorPatternCount: uniqueErrors.size,
+            completionPercent: stats.completionPercent,
+            retriedItems: focusedMission.queue.filter((w) => (w.retryCount || 0) > 0).length,
+          };
+        })()
+      : undefined,
     missionProgressStats: computeAllMissionProgressStats(missions),
     ...memSlice,
     consoleLines,

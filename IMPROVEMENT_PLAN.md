@@ -153,3 +153,20 @@ Phase 10 (Intelligence/UX)          ← uses everything above
 Phases 4, 5, 6, 7 can proceed in parallel once Phase 1 is done.
 Phases 8 and 9 can also be parallelized.
 Phase 10 is the capstone.
+
+---
+
+## Post-Plan Hardening (all completed)
+
+- [x] **Tool Retry** — `withRetry` utility with exponential backoff for transient network errors
+- [x] **Input Validation** — `inputValidation` module for command injection, SQL injection, unsafe URLs, invalid paths
+- [x] **Auto-Retry Failed Work Items** — Orchestrator re-enqueues failed items with error context injection
+- [x] **Mission File Tracking** — `MissionFileTracker` records all mutated files per mission
+- [x] **Mission Report Generator** — `generateMissionReport()` with stats, error patterns, timeline, markdown output
+- [x] **Event Compaction** — `compactEvents()` digests older events to manage context window size
+- [x] **Agent Self-Correction Protocol** — 6-step instructions in agent prompts for error diagnosis/fix
+- [x] **Mission Report Command** — `myAi.viewMissionReport` and `myAi.exportMissionReport` VS Code commands
+- [x] **Webview Report Protocol** — `generateMissionReport` UI→Ext message type with `missionReportReady` response
+- [x] **Focused Mission Report Summary** — `focusedMissionReportSummary` on sidebar snapshot (files, errors, %, retries)
+- [x] **File Tracker Flush on Terminal** — `onMissionTerminal` callback flushes tracked files to mission store
+- [x] **678 tests** (604 host + 74 webview), 0 failures, 0 lint errors

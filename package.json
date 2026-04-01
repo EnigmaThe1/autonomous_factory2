@@ -65,6 +65,14 @@
         "title": "My AI: Export Mission Bundle"
       },
       {
+        "command": "myAi.viewMissionReport",
+        "title": "My AI: View Mission Report"
+      },
+      {
+        "command": "myAi.exportMissionReport",
+        "title": "My AI: Export Mission Report"
+      },
+      {
         "command": "myAi.listMcpTools",
         "title": "My AI: List MCP Tools"
       },

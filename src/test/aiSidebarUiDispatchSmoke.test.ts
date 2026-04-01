@@ -13,6 +13,7 @@ import {
   dispatchUi_requestTraceLog,
   dispatchUi_searchGlobalMemory
 } from "../ui/aiSidebarDispatchMemoryTrace";
+import { dispatchUi_generateMissionReport } from "../ui/aiSidebarDispatchMissions";
 
 const repoRoot = join(__dirname, "..", "..");
 
@@ -123,6 +124,61 @@ test("dispatchUi_requestTraceLog: tail-limits entries when buffer exceeds TRACE_
   assert.equal(m.entries.length, 800);
   assert.equal(m.traceUiTruncated, true);
   assert.equal(m.traceUiTailMax, 800);
+});
+
+test("dispatchUi_generateMissionReport: posts missionReportReady for valid mission", async () => {
+  const posted: unknown[] = [];
+  const host = {
+    missionStore: {
+      get: (id: string) =>
+        id === "m1"
+          ? {
+              id: "m1",
+              title: "Test Mission",
+              status: "done",
+              prompt: "Fix bugs",
+              queue: [
+                { id: "w1", title: "Fix A", role: "implementer", status: "done", output: "done" }
+              ],
+              events: [],
+              memory: [],
+              policy: { maxAutoRounds: 5 },
+              createdAt: 1000,
+              updatedAt: 2000,
+              filesModified: ["src/a.ts"],
+              roundsCompleted: 1
+            }
+          : undefined
+    },
+    postMessage: (m: unknown) => posted.push(m)
+  } as unknown as AiSidebarUiDispatchHost;
+
+  const suppress = await dispatchUi_generateMissionReport(host, {
+    type: "generateMissionReport",
+    missionId: "m1"
+  });
+  assert.equal(suppress, true);
+  const m = posted[0] as { type: string; missionId: string; markdown: string };
+  assert.equal(m.type, "missionReportReady");
+  assert.equal(m.missionId, "m1");
+  assert.ok(m.markdown.includes("Test Mission"));
+});
+
+test("dispatchUi_generateMissionReport: posts error for missing mission", async () => {
+  const posted: unknown[] = [];
+  const host = {
+    missionStore: { get: () => undefined },
+    postMessage: (m: unknown) => posted.push(m)
+  } as unknown as AiSidebarUiDispatchHost;
+
+  const suppress = await dispatchUi_generateMissionReport(host, {
+    type: "generateMissionReport",
+    missionId: "nonexistent"
+  });
+  assert.equal(suppress, true);
+  const m = posted[0] as { type: string; message: string };
+  assert.equal(m.type, "error");
+  assert.ok(m.message.includes("not found"));
 });
 
 test("dispatchUi_approve: resolveApproval + mission section + reconcile, returns true", async () => {
