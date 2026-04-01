@@ -759,6 +759,49 @@ test("missionInspectorSig and missionsListPanelSig: focused lifecycle summary (f
   assert.equal(list.fls, "Running now; implementer is active.");
 });
 
+test("missionReportInspectorCacheSig and missionInspectorSig: frs + rmc", async () => {
+  const { composeMissionsForMissionList } = await import(mediaChatUrl("missionQuickFilters.js"));
+  const { missionInspectorSig, missionReportInspectorCacheSig } = await import(mediaChatUrl("webviewSignatures.js"));
+  const run = {
+    id: "r",
+    status: "running",
+    title: "r",
+    queue: [{ id: "w1", title: "W", role: "implementer", status: "running", prompt: "p" }],
+    approvals: [],
+    events: [],
+    checkpoints: [],
+    memory: [],
+    updatedAt: 1,
+    routing: { preset: "default" },
+    policy: { policyPreset: "custom" },
+    activeProviderId: "p",
+    activeModel: "m",
+    currentStep: 0,
+    validationState: "pending"
+  };
+  const snap = {
+    missions: [run],
+    focusedMission: run,
+    focusedMissionId: "r",
+    focusedMissionReportSummary: {
+      filesModifiedCount: 2,
+      errorPatternCount: 1,
+      completionPercent: 50,
+      retriedItems: 0
+    },
+    missionList: { includeArchived: false, totalCount: 1, archivedCount: 0 },
+    defaultModel: "dm"
+  };
+  const composed = composeMissionsForMissionList(snap.missions, "all");
+  const ins0 = JSON.parse(missionInspectorSig(snap, "all", composed, ""));
+  assert.equal(ins0.frs, "50|2|1|0");
+  assert.equal(ins0.rmc, "");
+  const rmc = missionReportInspectorCacheSig("r", { missionId: "r", markdown: "abc" });
+  assert.equal(rmc, "r:3");
+  const ins1 = JSON.parse(missionInspectorSig(snap, "all", composed, rmc));
+  assert.equal(ins1.rmc, "r:3");
+});
+
 test("missionsListPanelSig: includes per-row downstream gating card hint (dgh)", async () => {
   const { missionsListPanelSig } = await import(mediaChatUrl("webviewSignatures.js"));
   const snap = {
@@ -1318,6 +1361,7 @@ test("createMessageHandler: init, snapshot, snapshotSection x4, chatChunk, memor
     chatHistory: mockChatHistory(),
     activeTab: "chat",
     snapshot: null,
+    missionReportCache: null,
     dirty: { quickSettings: false, providersForm: false, chatRow: false, routingPanel: false }
   };
   const handler = createMessageHandler({
@@ -1332,6 +1376,7 @@ test("createMessageHandler: init, snapshot, snapshotSection x4, chatChunk, memor
     renderSnapshot: () => calls.push("renderSnapshot"),
     renderChat: () => calls.push("renderChat"),
     renderMemory: () => calls.push("renderMemory"),
+    renderMissions: () => calls.push("renderMissions"),
     updateQuickDirtyBadge: () => calls.push("quickBadge"),
     updateProvidersDirtyBadge: () => calls.push("provBadge"),
     setActiveTab: (t) => calls.push(`tab:${t}`)
@@ -1423,6 +1468,14 @@ test("createMessageHandler: init, snapshot, snapshotSection x4, chatChunk, memor
     data: { type: "memorySearchResults", query: "q", results: [{ id: "1", ts: 1, kind: "k", text: "t" }] }
   });
   assert.ok(calls.includes("renderMemory"));
+
+  state.snapshot = snap;
+  state.missionReportCache = null;
+  calls.length = 0;
+  handler({ data: { type: "missionReportReady", missionId: "m99", markdown: "# Report\n" } });
+  assert.equal(state.missionReportCache?.missionId, "m99");
+  assert.ok(String(state.missionReportCache?.markdown || "").includes("Report"));
+  assert.ok(calls.includes("renderMissions"));
 });
 
 test("createSnapshotApply: renderSnapshot invokes renderMissions before chat (order)", async () => {

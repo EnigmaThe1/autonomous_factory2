@@ -46,7 +46,9 @@ const state = {
   lastAppliedProviderChromeSectionSeq: 0,
   lastAppliedGlobalMemorySectionSeq: 0,
   /** Fingerprint for skipping redundant trace panel DOM updates (auto-refresh). */
-  lastTraceLogRenderFp: null
+  lastTraceLogRenderFp: null,
+  /** Last markdown report from host (`missionReportReady`), keyed to `missionId` for inspector preview. */
+  missionReportCache: null
 };
 
 const sigCache = createPanelSigCache();
@@ -211,6 +213,7 @@ const onWindowMessage = createMessageHandler({
   renderSnapshot: snapshotApi.renderSnapshot,
   renderChat: panels.renderChat,
   renderMemory: panels.renderMemory,
+  renderMissions,
   updateQuickDirtyBadge: panels.updateQuickDirtyBadge,
   updateProvidersDirtyBadge: panels.updateProvidersDirtyBadge,
   setActiveTab: tabCtl.setActiveTab

@@ -13,6 +13,7 @@ export function createMessageHandler(deps) {
     renderSnapshot,
     renderChat,
     renderMemory,
+    renderMissions,
     updateQuickDirtyBadge,
     updateProvidersDirtyBadge,
     setActiveTab
@@ -149,6 +150,19 @@ export function createMessageHandler(deps) {
         state.agentStream = null;
       }
       renderChat(state.snapshot);
+    } else if (msg.type === "missionReportReady") {
+      const mid = msg.missionId;
+      const md = typeof msg.markdown === "string" ? msg.markdown : "";
+      if (mid) {
+        state.missionReportCache = { missionId: mid, markdown: md };
+      }
+      const missionStatusEl = globalThis.document?.getElementById?.("missionActionStatus");
+      if (missionStatusEl) {
+        missionStatusEl.textContent = mid ? "Mission report ready — see inspector preview." : "";
+      }
+      if (state.snapshot) {
+        renderMissions(state.snapshot, msg.traceContext?.interactionId, { force: true });
+      }
     }
   };
 }

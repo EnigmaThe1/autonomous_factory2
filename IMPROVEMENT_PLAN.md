@@ -169,4 +169,5 @@ Phase 10 is the capstone.
 - [x] **Webview Report Protocol** — `generateMissionReport` UI→Ext message type with `missionReportReady` response
 - [x] **Focused Mission Report Summary** — `focusedMissionReportSummary` on sidebar snapshot (files, errors, %, retries)
 - [x] **File Tracker Flush on Terminal** — `onMissionTerminal` callback flushes tracked files to mission store
-- [x] **678 tests** (604 host + 74 webview), 0 failures, 0 lint errors
+- [x] **Webview mission report UI** — Missions tab: Report button on cards; inspector shows host `focusedMissionReportSummary`, Generate/Regenerate + markdown preview; `missionReportReady` handler updates cache and re-renders inspector (`missionReportInspectorCacheSig` in inspector signature)
+- [x] **679 tests** (604 host + 75 webview smoke), 0 failures, 0 lint errors

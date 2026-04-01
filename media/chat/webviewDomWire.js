@@ -94,6 +94,7 @@ document.body.addEventListener('click', e => {
     return;
   }
   if (action === 'editMissionDag') return post('editMissionDag', { missionId });
+  if (action === 'generateMissionReport' && missionId) return post('generateMissionReport', { missionId });
   if (action === 'approve') return postWithInteractionId('approve', { missionId, approvalId });
   if (action === 'reject') return postWithInteractionId('reject', { missionId, approvalId });
   if (action === 'reviewPendingDiff') return post('reviewPendingDiff', { missionId, approvalId });

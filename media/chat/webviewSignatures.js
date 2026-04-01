@@ -15,6 +15,13 @@ function focusedMissionOperatorActionHeadlinesSigFragment(headlines) {
     .join("\n");
 }
 
+/** Fingerprint for webview-cached mission markdown report (inspector must re-render when cache changes). */
+export function missionReportInspectorCacheSig(focusedMissionId, cache) {
+  if (!cache || !focusedMissionId || cache.missionId !== focusedMissionId) return "";
+  const len = typeof cache.markdown === "string" ? cache.markdown.length : 0;
+  return `${cache.missionId}:${len}`;
+}
+
 export function providersPanelSig(snapshot) {
   return JSON.stringify({
     c: snapshot.providerCredentialStatus,
@@ -152,12 +159,16 @@ export function missionsListPanelSig(snapshot, missionQuickFilter = "all", order
  * @param {string} [missionQuickFilter]
  * @param {object[]|null} [displayMissions] Same composed list as mission cards; omit to recompose from snapshot.
  */
-export function missionInspectorSig(snapshot, missionQuickFilter = "all", displayMissions = null) {
+export function missionInspectorSig(snapshot, missionQuickFilter = "all", displayMissions = null, reportCacheSig = "") {
   const m = snapshot.focusedMission;
   const foc = snapshot.focusedMissionId || null;
   const qf = normalizeMissionQuickFilter(missionQuickFilter);
   const ordered = displayMissions ?? composeMissionsForMissionList(snapshot.missions || [], qf);
   const fhl = focusedMissionHiddenFromComposedList(m, ordered);
+  const frs = snapshot.focusedMissionReportSummary;
+  const frsKey = frs
+    ? `${frs.completionPercent}|${frs.filesModifiedCount}|${frs.errorPatternCount}|${frs.retriedItems}`
+    : "";
   if (!m) {
     return JSON.stringify({
       empty: true,
@@ -169,7 +180,9 @@ export function missionInspectorSig(snapshot, missionQuickFilter = "all", displa
       dgh: snapshot.focusedMissionDownstreamGatingHint ?? "",
       loa: snapshot.focusedMissionLatestOperatorActionNote ?? "",
       fls: snapshot.focusedMissionLifecycleSummary ?? "",
-      oah: focusedMissionOperatorActionHeadlinesSigFragment(snapshot.focusedMissionOperatorActionHeadlines)
+      oah: focusedMissionOperatorActionHeadlinesSigFragment(snapshot.focusedMissionOperatorActionHeadlines),
+      frs: frsKey,
+      rmc: reportCacheSig
     });
   }
   const q = (m.queue || []).map((w) => ({
@@ -195,6 +208,8 @@ export function missionInspectorSig(snapshot, missionQuickFilter = "all", displa
     loa: snapshot.focusedMissionLatestOperatorActionNote ?? "",
     fls: snapshot.focusedMissionLifecycleSummary ?? "",
     oah: focusedMissionOperatorActionHeadlinesSigFragment(snapshot.focusedMissionOperatorActionHeadlines),
+    frs: frsKey,
+    rmc: reportCacheSig,
     ua: m.updatedAt,
     title: m.title,
     status: m.status,

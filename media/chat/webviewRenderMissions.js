@@ -1,4 +1,4 @@
-import { missionsListPanelSig, missionInspectorSig } from "./webviewSignatures.js";
+import { missionsListPanelSig, missionInspectorSig, missionReportInspectorCacheSig } from "./webviewSignatures.js";
 import {
   formatMissionCompletionReason,
   formatNonTerminalMissionNotesHtml,
@@ -72,7 +72,8 @@ export function createMissionRenderer(deps) {
 
     const listSig = missionsListPanelSig(snapshot, qf, displayMissions);
     const skipList = !opts.force && listSig === sigCache.lastMissionsListSig;
-    const insSig = missionInspectorSig(snapshot, qf, displayMissions);
+    const reportCacheSig = missionReportInspectorCacheSig(snapshot.focusedMissionId, state.missionReportCache);
+    const insSig = missionInspectorSig(snapshot, qf, displayMissions, reportCacheSig);
     const skipInspector = !opts.force && insSig === sigCache.lastMissionInspectorSig;
     const focusedResumeBtn = document.getElementById("resumeFocusedMission");
     const focusedResumeUi = getMissionResumeUiState(snapshot.focusedMission);
@@ -186,6 +187,7 @@ export function createMissionRenderer(deps) {
         <button data-action="editMissionPolicy" data-mission-id="${m.id}" class="ghost">Policy</button>
         <button data-action="openRoutingTab" data-mission-id="${m.id}" class="ghost">Routing</button>
         <button data-action="editMissionDag" data-mission-id="${m.id}" class="ghost">DAG</button>
+        <button data-action="generateMissionReport" data-mission-id="${m.id}" class="ghost" title="Build markdown report in inspector">Report</button>
         ${
           m.archivedAt
             ? `<button data-action="unarchiveMission" data-mission-id="${m.id}" class="ghost">Unarchive</button>`
@@ -267,6 +269,17 @@ export function createMissionRenderer(deps) {
         const rt = m.runtime || { stalledHeartbeats: 0, autoReplans: 0, loopGuardTrips: 0 };
         const queueProgressInspector = formatInspectorQueueProgressHtml(computeQueueProgressStats(m.queue), escapeHtml);
         const currentNextInspector = formatInspectorCurrentNextHtml(describeMissionCurrentNext(m.queue), escapeHtml);
+        const frs = snapshot.focusedMissionReportSummary;
+        const reportSummaryHtml =
+          frs && typeof frs === "object"
+            ? `<div class="mission-report-summary-bar meta" style="margin:8px 0;padding:8px 10px;border-radius:8px;border:1px solid var(--vscode-widget-border, rgba(255,255,255,.12));background:var(--vscode-editor-inactiveSelectionBackground, rgba(127,127,127,.12));"><div class="section-title small" style="margin-bottom:4px;">Report snapshot</div>${frs.completionPercent}% complete • ${frs.filesModifiedCount} file(s) touched • ${frs.errorPatternCount} error pattern(s) • ${frs.retriedItems} retried item(s)</div>`
+            : "";
+        const cache = state.missionReportCache;
+        const hasPreview = !!(cache && cache.missionId === m.id && cache.markdown && cache.markdown.length > 0);
+        const reportActions = `<div class="row compact wrap" style="margin:8px 0;"><button type="button" class="ghost" data-action="generateMissionReport" data-mission-id="${m.id}">${hasPreview ? "Regenerate report" : "Generate report"}</button></div>`;
+        const reportPreviewHtml = hasPreview
+          ? `<details class="mission-report-preview" style="margin-bottom:12px;"><summary>Markdown report preview</summary><pre class="small-pre" style="max-height:280px;overflow:auto;white-space:pre-wrap;word-break:break-word;">${escapeHtml(String(cache.markdown).slice(0, 16000))}</pre></details>`
+          : "";
         const filterLabel = getMissionQuickFilterLabel(qf);
         const focusHiddenFromList = focusedMissionHiddenFromComposedList(m, displayMissions);
         const filterHintHtml = focusHiddenFromList
@@ -314,6 +327,9 @@ export function createMissionRenderer(deps) {
       </div>
       ${queueProgressInspector}
       ${currentNextInspector}
+      ${reportSummaryHtml}
+      ${reportActions}
+      ${reportPreviewHtml}
       <div class="inspector-section"><div class="section-title small">Runtime</div><div class="meta-block"><div class="meta">last progress: ${rt.lastProgressAt ? new Date(rt.lastProgressAt).toLocaleString() : "n/a"} (${relTime(rt.lastProgressAt)})</div><div class="meta">last heartbeat: ${rt.lastRunnerHeartbeatAt ? new Date(rt.lastRunnerHeartbeatAt).toLocaleString() : "n/a"} (${relTime(rt.lastRunnerHeartbeatAt)})</div><div class="meta">stalled heartbeats: ${rt.stalledHeartbeats || 0}</div><div class="meta">loop guard trips: ${rt.loopGuardTrips || 0}</div><div class="meta">validation: ${escapeHtml(m.validationState || "pending")}</div></div></div>
       <div class="inspector-section"><div class="section-title small">Work queue</div>${queue}</div>
       <div class="inspector-section"><div class="section-title small">Recent checkpoints</div>${checkpoints}</div>

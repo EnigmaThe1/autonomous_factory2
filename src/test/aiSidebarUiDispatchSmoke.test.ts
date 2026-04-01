@@ -46,6 +46,7 @@ test("router wires representative families to expected dispatch imports", () => 
     ["saveQuickSettings", /case "saveQuickSettings":\s*\n\s*return await dispatchUi_saveQuickSettings/],
     ["listMcpTools", /case "listMcpTools":\s*\n\s*return await dispatchUi_listMcpTools/],
     ["searchGlobalMemory", /case "searchGlobalMemory":\s*\n\s*return await dispatchUi_searchGlobalMemory/],
+    ["generateMissionReport", /case "generateMissionReport":\s*\n\s*return await dispatchUi_generateMissionReport/],
     ["requestTraceLog", /case "requestTraceLog":\s*\n\s*return await dispatchUi_requestTraceLog/],
     ["refreshDashboard", /case "refreshDashboard":\s*\n\s*return await dispatchUi_refreshDashboard/]
   ];
