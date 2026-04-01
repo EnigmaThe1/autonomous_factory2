@@ -16,6 +16,8 @@ import { runTests, runLinter } from "./TestRunner";
 import { httpRequest } from "./HttpClient";
 import * as dockerTools from "./DockerTools";
 import type { WorkspaceIndex } from "../memory/WorkspaceIndex";
+import { withRetry } from "./toolRetry";
+import { validateCommand, validateContainerName, validateDbEngine, validateSqlQuery, validateUrl, validateFilePath } from "./inputValidation";
 
 function buildDiffHunks(beforeText: string, afterText: string) {
   const before = beforeText.split(/\r?\n/);
@@ -354,21 +356,37 @@ export class ToolRegistry {
       case "docker.ps":
         result = await dockerTools.dockerPs();
         break;
-      case "docker.logs":
-        result = await dockerTools.dockerLogs(String(call.args.container || ""), call.args.tail ? Number(call.args.tail) : undefined);
+      case "docker.logs": {
+        const cv = validateContainerName(String(call.args.container || ""));
+        if (!cv.valid) return { ok: false, summary: `docker.logs rejected: ${cv.reason}` };
+        result = await dockerTools.dockerLogs(String(call.args.container), call.args.tail ? Number(call.args.tail) : undefined);
         break;
-      case "docker.exec":
-        result = await dockerTools.dockerExec(String(call.args.container || ""), String(call.args.command || ""));
+      }
+      case "docker.exec": {
+        const cv = validateContainerName(String(call.args.container || ""));
+        if (!cv.valid) return { ok: false, summary: `docker.exec rejected: ${cv.reason}` };
+        const cmdV = validateCommand(String(call.args.command || ""));
+        if (!cmdV.valid) return { ok: false, summary: `docker.exec command rejected: ${cmdV.reason}` };
+        result = await dockerTools.dockerExec(String(call.args.container), String(call.args.command));
         break;
+      }
       case "docker.compose_status":
         result = await dockerTools.dockerComposeStatus();
         break;
-      case "db.query":
-        result = await dockerTools.dbQuery(String(call.args.engine || ""), String(call.args.connectionString || ""), String(call.args.query || ""));
+      case "db.query": {
+        const ev = validateDbEngine(String(call.args.engine || ""));
+        if (!ev.valid) return { ok: false, summary: ev.reason! };
+        const qv = validateSqlQuery(String(call.args.query || ""));
+        if (!qv.valid) return { ok: false, summary: `db.query rejected: ${qv.reason}` };
+        result = await dockerTools.dbQuery(String(call.args.engine), String(call.args.connectionString || ""), String(call.args.query));
         break;
-      case "db.schema":
-        result = await dockerTools.dbSchema(String(call.args.engine || ""), String(call.args.connectionString || ""));
+      }
+      case "db.schema": {
+        const ev = validateDbEngine(String(call.args.engine || ""));
+        if (!ev.valid) return { ok: false, summary: ev.reason! };
+        result = await dockerTools.dbSchema(String(call.args.engine), String(call.args.connectionString || ""));
         break;
+      }
       default:
         return { ok: false, summary: `Unknown infra tool: ${call.tool}` };
     }
@@ -390,6 +408,8 @@ export class ToolRegistry {
   }
 
   private async readFile(missionId: string, fsPath: string): Promise<ToolResult> {
+    const fpv = validateFilePath(fsPath);
+    if (!fpv.valid) return { ok: false, summary: `readFile rejected: ${fpv.reason}` };
     const resolvedPath = this.resolveWorkspacePath(fsPath);
     const decision = this.policyEngine().decide({ action: "read_file", targetPath: resolvedPath });
     if (!decision.allowed) return this.policyBlocked(decision.reason);
@@ -429,6 +449,8 @@ export class ToolRegistry {
   }
 
   private async writeFile(missionId: string, fsPath: string, content: string, approved: boolean): Promise<ToolResult> {
+    const fpv = validateFilePath(fsPath);
+    if (!fpv.valid) return { ok: false, summary: `writeFile rejected: ${fpv.reason}` };
     const resolvedPath = this.resolveWorkspacePath(fsPath);
     const decision = this.policyEngine().decide({ action: "write_file", targetPath: resolvedPath });
     if (!decision.allowed) return this.policyBlocked(decision.reason);
@@ -576,6 +598,9 @@ export class ToolRegistry {
   }
 
   private async httpRequestTool(missionId: string, method: string, url: string, headers?: Record<string, string>, body?: string, approved?: boolean): Promise<ToolResult> {
+    const urlValidation = validateUrl(url);
+    if (!urlValidation.valid) return { ok: false, summary: `HTTP request rejected: ${urlValidation.reason}` };
+
     const decision = this.policyEngine().decide({ action: "http_request" });
     if (!decision.allowed) return this.policyBlocked(decision.reason);
     if (decision.requiresApproval && !approved) {
@@ -590,14 +615,18 @@ export class ToolRegistry {
       };
     }
 
-    const result = await httpRequest({ method, url, headers, body });
-    await this.missionStore.saveEvent(missionId, {
-      level: result.ok ? "info" : "warn",
-      source: "tool:httpRequest",
-      message: result.summary,
-      data: { status: result.status, statusText: result.statusText }
+    const httpResult = await withRetry(async () => {
+      const r = await httpRequest({ method, url, headers, body });
+      return { ok: r.ok, summary: r.summary, data: r } as ToolResult;
     });
-    return { ok: result.ok, summary: result.summary, data: result };
+    const data = httpResult.data as { status?: number; statusText?: string } | undefined;
+    await this.missionStore.saveEvent(missionId, {
+      level: httpResult.ok ? "info" : "warn",
+      source: "tool:httpRequest",
+      message: httpResult.summary,
+      data: { status: data?.status, statusText: data?.statusText }
+    });
+    return httpResult;
   }
 
   private async runTestsTool(missionId: string, command?: string): Promise<ToolResult> {
@@ -650,6 +679,9 @@ export class ToolRegistry {
     timeoutMs: number | undefined,
     approved: boolean
   ): Promise<ToolResult> {
+    const cmdValidation = validateCommand(command);
+    if (!cmdValidation.valid) return { ok: false, summary: `Command rejected: ${cmdValidation.reason}` };
+
     const decision = this.policyEngine().decide({ action: "run_command" });
     if (!decision.allowed) return this.policyBlocked(decision.reason);
     if (decision.requiresApproval && !approved) {

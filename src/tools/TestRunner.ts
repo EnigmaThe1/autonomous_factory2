@@ -34,7 +34,7 @@ function detectTestFramework(): FrameworkDetection | null {
   return candidates[0];
 }
 
-function parseTestOutput(raw: string): Partial<TestResult> {
+export function parseTestOutput(raw: string): Partial<TestResult> {
   const lines = raw.split("\n");
 
   // TAP format (node:test)
@@ -131,7 +131,7 @@ function detectLinter(): string | null {
   return "npx eslint . --format json 2>&1 || npx eslint . 2>&1";
 }
 
-function parseLintOutput(raw: string): Partial<LintResult> {
+export function parseLintOutput(raw: string): Partial<LintResult> {
   // ESLint JSON format
   try {
     const parsed = JSON.parse(raw);
