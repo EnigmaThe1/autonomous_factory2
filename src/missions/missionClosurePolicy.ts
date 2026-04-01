@@ -4,11 +4,6 @@ import { uid } from "../util";
 import { shouldCollapseToComplete } from "./missionCompletionCollapse";
 import type { MissionStore } from "./MissionStore";
 
-export interface ClosurePolicyEnqueueAction {
-  items: WorkItem[];
-  event?: { level: "info" | "warn"; source: string; message: string };
-}
-
 /**
  * Computes the set of work items missing for planner role coverage.
  * Returns an empty array when all required roles are already represented.
@@ -49,19 +44,18 @@ export async function enforceClosurePolicy(
   const coverageMissing = vscode.workspace.getConfiguration().get<boolean>("myAi.missions.requirePlannerCoverage", true)
     && computePlannerCoverageItems(current).length > 0;
 
-  if (!hasPlannerDone) {
-    const hasPlannerTodo = current.queue.some((w) => w.role === "planner" && ["todo", "running"].includes(w.status));
-    if (!hasPlannerTodo) {
-      await store.enqueue(current.id, [{
-        id: uid("work"),
-        title: "Required planning before completion",
-        role: "planner",
-        status: "todo",
-        prompt: "Create or refresh the execution plan so the mission has explicit bounded work packages before closure."
-      }]);
+  const enqueueIfMissing = async (role: AgentRole, title: string, prompt: string): Promise<boolean> => {
+    const hasPending = current.queue.some((w) => w.role === role && ["todo", "running"].includes(w.status));
+    if (!hasPending) {
+      await store.enqueue(current.id, [{ id: uid("work"), title, role, status: "todo" as const, prompt }]);
       await store.noteProgress(current.id);
     }
     return true;
+  };
+
+  if (!hasPlannerDone) {
+    return enqueueIfMissing("planner", "Required planning before completion",
+      "Create or refresh the execution plan so the mission has explicit bounded work packages before closure.");
   }
 
   if (coverageMissing) {
@@ -72,67 +66,23 @@ export async function enforceClosurePolicy(
   }
 
   if (completedItems < current.policy.minCompletedWorkItems) {
-    const hasPlannerTodo = current.queue.some((w) => w.role === "planner" && ["todo", "running"].includes(w.status));
-    if (!hasPlannerTodo) {
-      await store.enqueue(current.id, [{
-        id: uid("work"),
-        title: "Closure-gap replan",
-        role: "planner",
-        status: "todo",
-        prompt: `The mission tried to close too early. Create the missing work needed to reach at least ${current.policy.minCompletedWorkItems} completed work items and a production-ready state.`
-      }]);
-      await store.noteProgress(current.id);
-    }
-    return true;
+    return enqueueIfMissing("planner", "Closure-gap replan",
+      `The mission tried to close too early. Create the missing work needed to reach at least ${current.policy.minCompletedWorkItems} completed work items and a production-ready state.`);
   }
 
   if (needsImplementer) {
-    const hasPendingImplementer = current.queue.some((w) => w.role === "implementer" && ["todo", "running"].includes(w.status));
-    if (!hasPendingImplementer) {
-      await store.enqueue(current.id, [{
-        id: uid("work"),
-        title: "Required implementation before completion",
-        role: "implementer",
-        status: "todo",
-        prompt: "Complete at least one bounded implementation step required for mission closure, then leave review/validation follow-ups if needed."
-      }]);
-      await store.noteProgress(current.id);
-    }
-    return true;
+    return enqueueIfMissing("implementer", "Required implementation before completion",
+      "Complete at least one bounded implementation step required for mission closure, then leave review/validation follow-ups if needed.");
   }
 
   if (needsReviewer) {
-    const hasPendingReviewer = current.queue.some((w) => w.role === "reviewer" && ["todo", "running"].includes(w.status));
-    if (!hasPendingReviewer) {
-      await store.enqueue(current.id, [
-        {
-          id: uid("work"),
-          title: "Required review before completion",
-          role: "reviewer",
-          status: "todo",
-          prompt: "Perform the mandatory review before mission completion and raise any remaining follow-up work."
-        }
-      ]);
-      await store.noteProgress(current.id);
-    }
-    return true;
+    return enqueueIfMissing("reviewer", "Required review before completion",
+      "Perform the mandatory review before mission completion and raise any remaining follow-up work.");
   }
 
   if (needsValidator) {
-    const hasPendingValidator = current.queue.some((w) => w.role === "validator" && ["todo", "running"].includes(w.status));
-    if (!hasPendingValidator) {
-      await store.enqueue(current.id, [
-        {
-          id: uid("work"),
-          title: "Required validation before completion",
-          role: "validator",
-          status: "todo",
-          prompt: "Validate whether the mission is truly complete. Emit COMPLETE: only if done, or WORK lines for more follow-ups."
-        }
-      ]);
-      await store.noteProgress(current.id);
-    }
-    return true;
+    return enqueueIfMissing("validator", "Required validation before completion",
+      "Validate whether the mission is truly complete. Emit COMPLETE: only if done, or WORK lines for more follow-ups.");
   }
 
   return false;

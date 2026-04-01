@@ -5,6 +5,8 @@ import { IModelProvider } from "./IModelProvider";
 import { fetchWithPolicy } from "./fetchWithPolicy";
 import { parseAnthropicSseLines } from "./streamParsers";
 import { resolveModelForProvider } from "./providerModelResolution";
+import { renderChatContext } from "./providerContextRender";
+import { readStreamChunks } from "./providerStreamReader";
 
 export class AnthropicProvider implements IModelProvider {
   readonly id = "anthropic";
@@ -46,38 +48,8 @@ export class AnthropicProvider implements IModelProvider {
 
     if (!res.ok || !res.body) throw new Error(`Anthropic request failed: ${res.status} (${baseUrl})`);
 
-    const reader = res.body.getReader();
-    const decoder = new TextDecoder();
-    let buffer = "";
-
-    while (true) {
-      if (req.signal?.aborted) {
-        await reader.cancel().catch(() => undefined);
-        throw new Error("Request aborted.");
-      }
-      const { done, value } = await reader.read();
-      if (done) break;
-      buffer += decoder.decode(value, { stream: true });
-      const parts = buffer.split("\n");
-      buffer = parts.pop() || "";
-      const parsed = parseAnthropicSseLines(parts);
-      for (const chunk of parsed.chunks) yield chunk;
-      if (parsed.done) return;
-    }
+    yield* readStreamChunks(res.body, req.signal, parseAnthropicSseLines);
   }
-}
-
-function renderUser(req: ChatRequest): string {
-  return [
-    req.context.workspaceName ? `Workspace: ${req.context.workspaceName}` : "",
-    req.context.fileName ? `File: ${req.context.fileName}` : "",
-    req.context.selection ? `Selection:\n${req.context.selection}` : "",
-    req.context.activeFileText ? `Active file:\n${req.context.activeFileText}` : "",
-    req.context.diagnostics?.length ? `Diagnostics:\n${req.context.diagnostics.map((d) => `${d.severity}@${d.line}: ${d.message}`).join("\n")}` : "",
-    `User request:\n${req.prompt}`
-  ]
-    .filter(Boolean)
-    .join("\n\n");
 }
 
 function buildAnthropicMessages(req: ChatRequest): Array<{ role: string; content: string }> {
@@ -87,6 +59,6 @@ function buildAnthropicMessages(req: ChatRequest): Array<{ role: string; content
       msgs.push({ role: turn.role, content: turn.content });
     }
   }
-  msgs.push({ role: "user", content: renderUser(req) });
+  msgs.push({ role: "user", content: renderChatContext(req) });
   return msgs;
 }

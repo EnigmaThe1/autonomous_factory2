@@ -4,6 +4,8 @@ import { IModelProvider } from "./IModelProvider";
 import { fetchWithPolicy } from "./fetchWithPolicy";
 import { parseOllamaNdjsonLines } from "./streamParsers";
 import { resolveModelForProvider } from "./providerModelResolution";
+import { renderChatContext } from "./providerContextRender";
+import { readStreamChunks } from "./providerStreamReader";
 
 export class OllamaProvider implements IModelProvider {
   readonly id = "ollama";
@@ -25,12 +27,12 @@ export class OllamaProvider implements IModelProvider {
           messages: [
             { role: "system", content: req.system || "" },
             ...req.history!.map((h) => ({ role: h.role, content: h.content })),
-            { role: "user", content: renderContext(req) }
+            { role: "user", content: renderChatContext(req) }
           ]
         }
       : {
           model,
-          prompt: [req.system || "", renderContext(req)].filter(Boolean).join("\n\n"),
+          prompt: [req.system || "", renderChatContext(req)].filter(Boolean).join("\n\n"),
           stream: true
         };
     const res = await fetchWithPolicy(
@@ -45,23 +47,7 @@ export class OllamaProvider implements IModelProvider {
 
     if (!res.ok || !res.body) throw new Error(`Ollama request failed: ${res.status} (${baseUrl})`);
 
-    const reader = res.body.getReader();
-    const decoder = new TextDecoder();
-    let buffer = "";
-
-    while (true) {
-      if (req.signal?.aborted) {
-        await reader.cancel().catch(() => undefined);
-        throw new Error("Request aborted.");
-      }
-      const { done, value } = await reader.read();
-      if (done) break;
-      buffer += decoder.decode(value, { stream: true });
-      const lines = buffer.split("\n");
-      buffer = lines.pop() || "";
-      const parsed = parseOllamaNdjsonLines(lines);
-      for (const chunk of parsed.chunks) yield chunk;
-    }
+    yield* readStreamChunks(res.body, req.signal, parseOllamaNdjsonLines);
   }
 
   async embed(texts: string[], model?: string): Promise<number[][]> {
@@ -87,15 +73,3 @@ export class OllamaProvider implements IModelProvider {
   }
 }
 
-function renderContext(req: ChatRequest): string {
-  return [
-    req.context.workspaceName ? `Workspace: ${req.context.workspaceName}` : "",
-    req.context.fileName ? `File: ${req.context.fileName}` : "",
-    req.context.selection ? `Selection:\n${req.context.selection}` : "",
-    req.context.activeFileText ? `Active file:\n${req.context.activeFileText}` : "",
-    req.context.diagnostics?.length ? `Diagnostics:\n${req.context.diagnostics.map((d) => `${d.severity}@${d.line}: ${d.message}`).join("\n")}` : "",
-    `User request:\n${req.prompt}`
-  ]
-    .filter(Boolean)
-    .join("\n\n");
-}

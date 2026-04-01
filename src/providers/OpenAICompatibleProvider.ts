@@ -5,6 +5,8 @@ import { IModelProvider } from "./IModelProvider";
 import { fetchWithPolicy } from "./fetchWithPolicy";
 import { parseOpenAiSseLines } from "./streamParsers";
 import { resolveModelForProvider } from "./providerModelResolution";
+import { renderChatContext } from "./providerContextRender";
+import { readStreamChunks } from "./providerStreamReader";
 
 export interface OpenAiCompatSpec {
   id: string;
@@ -70,24 +72,7 @@ export class OpenAICompatibleProvider implements IModelProvider {
 
     if (!res.ok || !res.body) throw new Error(`OpenAI-compatible request failed: ${res.status} (${baseUrl})`);
 
-    const reader = res.body.getReader();
-    const decoder = new TextDecoder();
-    let buffer = "";
-
-    while (true) {
-      if (req.signal?.aborted) {
-        await reader.cancel().catch(() => undefined);
-        throw new Error("Request aborted.");
-      }
-      const { done, value } = await reader.read();
-      if (done) break;
-      buffer += decoder.decode(value, { stream: true });
-      const parts = buffer.split("\n");
-      buffer = parts.pop() || "";
-      const parsed = parseOpenAiSseLines(parts);
-      for (const chunk of parsed.chunks) yield chunk;
-      if (parsed.done) return;
-    }
+    yield* readStreamChunks(res.body, req.signal, parseOpenAiSseLines);
   }
 
   async embed(texts: string[], model?: string): Promise<number[][]> {
@@ -111,19 +96,6 @@ export class OpenAICompatibleProvider implements IModelProvider {
   }
 }
 
-function renderContext(req: ChatRequest): string {
-  return [
-    req.context.workspaceName ? `Workspace: ${req.context.workspaceName}` : "",
-    req.context.fileName ? `File: ${req.context.fileName}` : "",
-    req.context.selection ? `Selection:\n${req.context.selection}` : "",
-    req.context.activeFileText ? `Active file:\n${req.context.activeFileText}` : "",
-    req.context.diagnostics?.length ? `Diagnostics:\n${req.context.diagnostics.map((d) => `${d.severity}@${d.line}: ${d.message}`).join("\n")}` : "",
-    `User request:\n${req.prompt}`
-  ]
-    .filter(Boolean)
-    .join("\n\n");
-}
-
 function buildMessages(req: ChatRequest): Array<{ role: string; content: string }> {
   const msgs: Array<{ role: string; content: string }> = [
     { role: "system", content: req.system || "You are a helpful coding assistant inside VS Code." }
@@ -133,6 +105,6 @@ function buildMessages(req: ChatRequest): Array<{ role: string; content: string 
       msgs.push({ role: turn.role, content: turn.content });
     }
   }
-  msgs.push({ role: "user", content: renderContext(req) });
+  msgs.push({ role: "user", content: renderChatContext(req) });
   return msgs;
 }

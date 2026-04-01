@@ -54,25 +54,20 @@ export function shouldAutoSkipObsolescentReviewerWork(mission: Mission, item: Wo
  * `validationState === "passed"`. That terminal row is obsolete for collapse/closure (mirrors redundant
  * validator demotion for todos in `shouldSkipRedundantValidatorWork`).
  */
-export function supersededValidatorTerminalSkipReason(mission: Mission, item: WorkItem): string | null {
-  if (item.role !== "validator") return null;
+function supersededTerminalSkipReason(mission: Mission, item: WorkItem, role: "validator" | "reviewer"): string | null {
+  if (item.role !== role) return null;
   if (item.status !== "blocked" && item.status !== "failed") return null;
   if (mission.validationState !== "passed") return null;
-  if (!mission.queue.some((w) => w.role === "validator" && w.status === "done")) return null;
-  return "Skipped: superseded validator attempt after validation passed (later validator completed).";
+  if (!mission.queue.some((w) => w.role === role && w.status === "done")) return null;
+  return `Skipped: superseded ${role} attempt after validation passed (later ${role === "validator" ? "validator" : "review"} completed).`;
 }
 
-/**
- * Earlier reviewer attempt left `blocked`/`failed` while a later reviewer completed `done` and
- * validation eventually passed. That terminal row is obsolete for closure/collapse, mirroring
- * reviewer todo demotion after validation passed.
- */
+export function supersededValidatorTerminalSkipReason(mission: Mission, item: WorkItem): string | null {
+  return supersededTerminalSkipReason(mission, item, "validator");
+}
+
 export function supersededReviewerTerminalSkipReason(mission: Mission, item: WorkItem): string | null {
-  if (item.role !== "reviewer") return null;
-  if (item.status !== "blocked" && item.status !== "failed") return null;
-  if (mission.validationState !== "passed") return null;
-  if (!mission.queue.some((w) => w.role === "reviewer" && w.status === "done")) return null;
-  return "Skipped: superseded reviewer attempt after validation passed (later review completed).";
+  return supersededTerminalSkipReason(mission, item, "reviewer");
 }
 
 export function obsolescentTodoSkipReason(mission: Mission, item: WorkItem): string | null {

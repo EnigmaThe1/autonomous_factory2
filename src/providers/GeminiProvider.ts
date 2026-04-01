@@ -5,6 +5,8 @@ import { IModelProvider } from "./IModelProvider";
 import { fetchWithPolicy } from "./fetchWithPolicy";
 import { parseGeminiSseLines } from "./streamParsers";
 import { resolveModelForProvider } from "./providerModelResolution";
+import { renderChatContext } from "./providerContextRender";
+import { readStreamChunks } from "./providerStreamReader";
 
 export class GeminiProvider implements IModelProvider {
   readonly id = "gemini";
@@ -24,17 +26,8 @@ export class GeminiProvider implements IModelProvider {
     const retries = Math.max(0, cfg.get<number>("myAi.providers.maxRetries", 1));
     const retryDelayMs = Math.max(100, cfg.get<number>("myAi.providers.retryDelayMs", 400));
 
-    const text = [
-      req.system ? `System:\n${req.system}\n\n` : "",
-      req.context.workspaceName ? `Workspace: ${req.context.workspaceName}\n` : "",
-      req.context.fileName ? `File: ${req.context.fileName}\n` : "",
-      req.context.selection ? `Selection:\n${req.context.selection}\n\n` : "",
-      req.context.activeFileText ? `Active file:\n${req.context.activeFileText}\n\n` : "",
-      req.context.diagnostics?.length ? `Diagnostics:\n${req.context.diagnostics.map((d) => `${d.severity}@${d.line}: ${d.message}`).join("\n")}\n\n` : "",
-      `User request:\n${req.prompt}`
-    ]
-      .filter(Boolean)
-      .join("");
+    const systemPrefix = req.system ? `System:\n${req.system}\n\n` : "";
+    const text = systemPrefix + renderChatContext(req, "\n");
 
     const url = `${root}/v1beta/models/${encodeURIComponent(model)}:streamGenerateContent?alt=sse`;
     const res = await fetchWithPolicy(
@@ -54,24 +47,7 @@ export class GeminiProvider implements IModelProvider {
 
     if (!res.ok || !res.body) throw new Error(`Gemini request failed: ${res.status} (${root})`);
 
-    const reader = res.body.getReader();
-    const decoder = new TextDecoder();
-    let buffer = "";
-
-    while (true) {
-      if (req.signal?.aborted) {
-        await reader.cancel().catch(() => undefined);
-        throw new Error("Request aborted.");
-      }
-      const { done, value } = await reader.read();
-      if (done) break;
-      buffer += decoder.decode(value, { stream: true });
-      const parts = buffer.split("\n");
-      buffer = parts.pop() || "";
-      const parsed = parseGeminiSseLines(parts);
-      for (const chunk of parsed.chunks) yield chunk;
-      if (parsed.done) return;
-    }
+    yield* readStreamChunks(res.body, req.signal, parseGeminiSseLines);
   }
 }
 
