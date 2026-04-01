@@ -140,6 +140,10 @@ export interface WorkItem {
     target?: string;
     startedAt: number;
   };
+  /** Number of times this work item has been retried after failure. */
+  retryCount?: number;
+  /** Error output from the previous failed attempt (injected on auto-retry). */
+  previousError?: string;
   /** Parent work item ID — set when this is a sub-item from DECOMPOSE. */
   parentWorkItemId?: string;
   /** Sub-items decomposed from this work item. Parent completes only when all sub-items complete. */
@@ -228,6 +232,8 @@ export interface Mission {
   runtime?: MissionRuntime;
   /** When true, mutating tools are skipped — the mission plans but does not execute changes. */
   dryRun?: boolean;
+  /** Set of file paths modified by tool calls during this mission (for post-mission review). */
+  filesModified?: string[];
   /** Archived missions are hidden from default dashboard lists but retained in persistence. */
   archivedAt?: number;
   /**

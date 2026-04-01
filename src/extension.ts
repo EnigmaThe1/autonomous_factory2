@@ -19,6 +19,7 @@ import { McpRegistry } from "./tools/McpRegistry";
 import { MissionTemplateStore } from "./missions/MissionTemplateStore";
 import { wireAgentStreamThrottle } from "./ui/agentStreamThrottle";
 import { WorkspaceIndex } from "./memory/WorkspaceIndex";
+import { MissionFileTracker } from "./missions/MissionFileTracker";
 
 export async function activate(context: vscode.ExtensionContext) {
   console.info(`[my-ai] activate ${context.extension.id}@${context.extension.packageJSON.version}`);
@@ -43,6 +44,8 @@ export async function activate(context: vscode.ExtensionContext) {
   const tools = new ToolRegistry(context, missionStore, disk, externalAdapters, mcp);
   const wsIndex = new WorkspaceIndex();
   tools.workspaceIndex = wsIndex;
+  const fileTracker = new MissionFileTracker(missionStore);
+  tools.fileTracker = fileTracker;
   void wsIndex.build().then((n) => { if (n > 0) console.info(`[my-ai] Workspace index: ${n} files`); });
   const orchestrator = new MissionOrchestrator(providers, collector, missionStore, tools, globalMemory);
   const templates = new MissionTemplateStore(paths);

@@ -110,6 +110,7 @@ test("interruption: operator abort after partial progress — stable done work, 
 
 test("interruption: timeout-like stream abort — work item failed, same run still drains reviewer/validator; terminal blocked while failed remains", async () => {
   (vscode as VscodeTestApi).__setTestConfig?.("myAi.missions.maxStepsPerRun", 32);
+  (vscode as VscodeTestApi).__setTestConfig?.("myAi.missions.maxAutoRetries", 0);
   const { orchestrator, store } = await createOrchestratorWithAbortSupport(
     {
       planner: [{ summary: "Plan.", nextWorkItems: buildStandardNextQueue() }],

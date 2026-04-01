@@ -475,6 +475,13 @@
           "enum": ["fixed", "adaptive"],
           "description": "How mission step/round limits scale. 'fixed' uses config values directly. 'adaptive' scales limits based on work item count."
         },
+        "myAi.missions.maxAutoRetries": {
+          "type": "number",
+          "default": 2,
+          "minimum": 0,
+          "maximum": 5,
+          "description": "Maximum automatic retries for failed work items. Set 0 to disable. Retries inject error context so the agent can try a different approach."
+        },
         "myAi.missions.adaptiveMaxRounds": {
           "type": "number",
           "default": 200,

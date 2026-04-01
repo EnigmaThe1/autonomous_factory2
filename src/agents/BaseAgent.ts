@@ -48,6 +48,12 @@ export abstract class BaseAgent {
       `ROLE: ${item.role}`,
       `TASK: ${item.title}`,
       `TASK PROMPT: ${item.prompt}`,
+      item.retryCount
+        ? `RETRY ATTEMPT: ${item.retryCount}. A previous attempt failed. Analyze the error below and try a DIFFERENT approach.`
+        : "",
+      item.previousError
+        ? `PREVIOUS ERROR:\n${item.previousError}`
+        : "",
       mission.policy.closureRequired
         ? "CLOSURE REQUIRED: do not assume first-tranche completion. Continue until validation passes or a real blocker exists."
         : "",

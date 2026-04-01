@@ -16,6 +16,7 @@ import { runTests, runLinter } from "./TestRunner";
 import { httpRequest } from "./HttpClient";
 import * as dockerTools from "./DockerTools";
 import type { WorkspaceIndex } from "../memory/WorkspaceIndex";
+import type { MissionFileTracker } from "../missions/MissionFileTracker";
 import { withRetry } from "./toolRetry";
 import { validateCommand, validateContainerName, validateDbEngine, validateSqlQuery, validateUrl, validateFilePath } from "./inputValidation";
 
@@ -75,6 +76,7 @@ export const BUILTIN_TOOL_NAMES = [
 export class ToolRegistry {
   private cachedPolicyEngine?: TrustPolicyEngine;
   workspaceIndex?: WorkspaceIndex;
+  fileTracker?: MissionFileTracker;
 
   constructor(
     private readonly context: vscode.ExtensionContext,
@@ -472,6 +474,7 @@ export class ToolRegistry {
       );
     }
     await vscode.workspace.fs.writeFile(uri, Buffer.from(content, "utf8"));
+    this.fileTracker?.trackFile(missionId, resolvedPath);
     await this.missionStore.saveEvent(missionId, { level: "info", source: "tool:writeFile", message: resolvedPath });
     return { ok: true, summary: `Wrote ${resolvedPath}` };
   }
@@ -498,6 +501,7 @@ export class ToolRegistry {
       return this.buildFileApprovalResult("apply_patch", `Apply patch to ${resolvedPath}`, resolvedPath, text, updated, patchDetails);
     }
     await vscode.workspace.fs.writeFile(uri, Buffer.from(updated, "utf8"));
+    this.fileTracker?.trackFile(missionId, resolvedPath);
     await this.missionStore.saveEvent(missionId, { level: "info", source: "tool:applyPatch", message: resolvedPath });
     return { ok: true, summary: `Patched ${resolvedPath}` };
   }

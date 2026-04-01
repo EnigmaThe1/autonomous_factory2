@@ -58,6 +58,7 @@ import {
   type ImplementerHardStopGateResult
 } from "./requiredImplementerHardStopGate";
 import { missionBlockReasonFromDownstreamGate } from "./missionBlockReasonCode";
+import { shouldAutoRetry, createRetryWorkItem } from "./workItemAutoRetry";
 
 /** Minimal tool surface used by the orchestrator (real `ToolRegistry` satisfies this). */
 export type MissionToolExecutor = {
@@ -652,6 +653,25 @@ export class MissionOrchestrator {
         const latest = this.store.get(id)!;
         await this.store.updateMission(id, { roundsCompleted: (latest.roundsCompleted || 0) + 1 });
         if (outcome === "awaiting_input" || outcome === "blocked") return this.runPassOutcomeAfterStoreRead(id);
+
+        const maxRetries = vscode.workspace.getConfiguration().get<number>("myAi.missions.maxAutoRetries", 2);
+        if (maxRetries > 0) {
+          const freshMission = this.store.get(id)!;
+          const failedItem = freshMission.queue.find((w) => w.id === next.id);
+          if (failedItem?.status === "failed") {
+            const retryDecision = shouldAutoRetry(failedItem, maxRetries);
+            if (retryDecision.shouldRetry) {
+              const retryItem = createRetryWorkItem(failedItem);
+              await this.store.enqueue(id, [retryItem]);
+              await this.store.saveEvent(id, {
+                level: "info",
+                source: "orchestrator",
+                message: `Auto-retry: enqueued "${retryItem.title}" (${retryDecision.reason}) after failure: ${(failedItem.output || "").slice(0, 200)}`
+              });
+            }
+          }
+        }
+
         if (await this.tryCollapseMissionToCompleted(id)) return this.runPassOutcomeAfterStoreRead(id);
       }
 
