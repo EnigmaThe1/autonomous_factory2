@@ -1,6 +1,25 @@
 import { AgentRole, Mission } from "../types";
 import type { TraceLevel, TraceRecord } from "../diagnostics/traceTypes";
 
+export interface MissionProgressStats {
+  total: number;
+  done: number;
+  running: number;
+  todo: number;
+  blocked: number;
+  failed: number;
+  skipped: number;
+  completionPercent: number;
+  roundsCompleted: number;
+  maxAutoRounds: number;
+  elapsedMs: number;
+  /** Average milliseconds per completed work item. */
+  avgStepMs: number;
+  /** Estimated time remaining based on average step time. */
+  estimatedRemainingMs: number;
+  dryRun: boolean;
+}
+
 export interface SidebarSettingsSummary {
   defaultProvider: string;
   defaultModel: string;
@@ -161,6 +180,8 @@ export interface SidebarSnapshot {
   missionDownstreamGatingCardHints?: Record<string, string>;
   /** Visible list: mission id → compact latest mappable operator-action headline (non-focused cards; host-derived). */
   missionListLatestOperatorActionHeadlines?: Record<string, string>;
+  /** Per-mission progress stats for dashboard rendering. */
+  missionProgressStats?: Record<string, MissionProgressStats>;
   globalMemoryRecent: Array<{ id: string; ts: number; kind: string; text: string }>;
   consoleLines: string[];
   agents: SidebarAgentStatus[];

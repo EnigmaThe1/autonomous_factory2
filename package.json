@@ -415,10 +415,29 @@
           "default": true,
           "description": "Require approval before MCP tool calls."
         },
+        "myAi.tools.requireApprovalForHttp": {
+          "type": "boolean",
+          "default": true,
+          "description": "Require approval before httpRequest tool calls."
+        },
         "myAi.tools.restrictToWorkspace": {
           "type": "boolean",
           "default": true,
           "description": "Restrict file tools to workspace-contained paths."
+        },
+        "myAi.tools.commandOutputMaxBytes": {
+          "type": "number",
+          "default": 8192,
+          "minimum": 1024,
+          "maximum": 65536,
+          "description": "Maximum bytes of stdout/stderr captured per runCommand invocation. Output beyond this limit is truncated."
+        },
+        "myAi.tools.commandTimeoutMs": {
+          "type": "number",
+          "default": 30000,
+          "minimum": 1000,
+          "maximum": 300000,
+          "description": "Default timeout in milliseconds for runCommand tool calls. Individual calls can override this."
         },
         "myAi.providers.requestTimeoutMs": {
           "type": "number",
@@ -449,6 +468,24 @@
           "type": "number",
           "default": 2,
           "description": "Maximum automatic recovery replans before a mission is marked blocked for operator review."
+        },
+        "myAi.missions.scalingMode": {
+          "type": "string",
+          "default": "fixed",
+          "enum": ["fixed", "adaptive"],
+          "description": "How mission step/round limits scale. 'fixed' uses config values directly. 'adaptive' scales limits based on work item count."
+        },
+        "myAi.missions.adaptiveMaxRounds": {
+          "type": "number",
+          "default": 200,
+          "minimum": 50,
+          "maximum": 1000,
+          "description": "Hard cap for adaptive scaling mode."
+        },
+        "myAi.missions.gitCheckpointBeforeImpl": {
+          "type": "boolean",
+          "default": false,
+          "description": "Automatically git-stash before implementer work items and restore on failure. Requires a git repository in the workspace."
         },
         "myAi.missions.maxToolFollowUpTurns": {
           "type": "number",
@@ -575,6 +612,30 @@
             "settings"
           ],
           "description": "Default tab shown when the My AI sidebar loads."
+        },
+        "myAi.agents.maxPromptChars": {
+          "type": "number",
+          "default": 60000,
+          "minimum": 10000,
+          "maximum": 200000,
+          "description": "Maximum characters for the prompt sent to the LLM. Sections are progressively trimmed when exceeding 80% of this budget."
+        },
+        "myAi.index.maxFiles": {
+          "type": "number",
+          "default": 500,
+          "minimum": 50,
+          "maximum": 5000,
+          "description": "Maximum number of files to include in the workspace semantic index."
+        },
+        "myAi.index.includeGlobs": {
+          "type": "string",
+          "default": "**/*.{ts,js,py,go,rs,java,tsx,jsx,vue,rb,cs,cpp,c,h,hpp}",
+          "description": "Glob patterns for files to include in the workspace index."
+        },
+        "myAi.index.excludeGlobs": {
+          "type": "string",
+          "default": "**/node_modules/**,**/dist/**,**/.git/**,**/vendor/**,**/__pycache__/**",
+          "description": "Comma-separated glob patterns to exclude from the workspace index."
         },
         "myAi.trace.level": {
           "type": "string",

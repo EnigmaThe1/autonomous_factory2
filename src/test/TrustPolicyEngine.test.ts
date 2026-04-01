@@ -8,6 +8,7 @@ test("blocks file access outside workspace when restricted", () => {
     requireApprovalForWrite: true,
     requireApprovalForInWorkspaceWrites: false,
     requireApprovalForTerminal: true,
+    requireApprovalForHttp: true,
     requireApprovalForMcp: true,
     requireApprovalForExternal: true,
     restrictToWorkspace: true
@@ -22,6 +23,7 @@ test("requires approval for write/patch and allows read", () => {
     requireApprovalForWrite: true,
     requireApprovalForInWorkspaceWrites: false,
     requireApprovalForTerminal: false,
+    requireApprovalForHttp: true,
     requireApprovalForMcp: true,
     requireApprovalForExternal: true,
     restrictToWorkspace: false
@@ -37,6 +39,7 @@ test("terminal execution obeys policy", () => {
     requireApprovalForWrite: true,
     requireApprovalForInWorkspaceWrites: false,
     requireApprovalForTerminal: true,
+    requireApprovalForHttp: true,
     requireApprovalForMcp: true,
     requireApprovalForExternal: true,
     restrictToWorkspace: false
@@ -48,6 +51,7 @@ test("terminal execution obeys policy", () => {
     requireApprovalForWrite: true,
     requireApprovalForInWorkspaceWrites: false,
     requireApprovalForTerminal: true,
+    requireApprovalForHttp: true,
     requireApprovalForMcp: true,
     requireApprovalForExternal: true,
     restrictToWorkspace: false
@@ -62,6 +66,7 @@ test("in-workspace writes require approval when requireApprovalForInWorkspaceWri
     requireApprovalForWrite: true,
     requireApprovalForInWorkspaceWrites: true,
     requireApprovalForTerminal: true,
+    requireApprovalForHttp: true,
     requireApprovalForMcp: true,
     requireApprovalForExternal: true,
     restrictToWorkspace: true
@@ -76,6 +81,7 @@ test("in-workspace writes skip approval only when requireApprovalForInWorkspaceW
     requireApprovalForWrite: true,
     requireApprovalForInWorkspaceWrites: false,
     requireApprovalForTerminal: true,
+    requireApprovalForHttp: true,
     requireApprovalForMcp: true,
     requireApprovalForExternal: true,
     restrictToWorkspace: true

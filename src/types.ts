@@ -140,6 +140,10 @@ export interface WorkItem {
     target?: string;
     startedAt: number;
   };
+  /** Parent work item ID — set when this is a sub-item from DECOMPOSE. */
+  parentWorkItemId?: string;
+  /** Sub-items decomposed from this work item. Parent completes only when all sub-items complete. */
+  subItems?: WorkItem[];
 }
 
 export interface MissionCheckpoint {
@@ -222,6 +226,8 @@ export interface Mission {
   validationState?: "pending" | "passed" | "failed";
   roundsCompleted?: number;
   runtime?: MissionRuntime;
+  /** When true, mutating tools are skipped — the mission plans but does not execute changes. */
+  dryRun?: boolean;
   /** Archived missions are hidden from default dashboard lists but retained in persistence. */
   archivedAt?: number;
   /**
@@ -241,6 +247,14 @@ export interface ChatContext {
   activeFileText?: string;
   diagnostics?: Array<{ message: string; severity: string; line: number }>;
   workspaceFolders?: string[];
+  /** High-level project overview: file tree, manifest summaries, git info. */
+  projectOverview?: string;
+  /** Snippet summaries from files relevant to the current work item. */
+  relevantFileSnippets?: Array<{ file: string; snippet: string }>;
+  /** Workspace-wide diagnostics summary (errors + warnings). */
+  allDiagnosticsSummary?: string;
+  /** Current git status (branch, modified files, short diff). */
+  gitStatus?: string;
 }
 
 export interface ChatHistoryEntry {

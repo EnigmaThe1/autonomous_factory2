@@ -9,6 +9,13 @@ import { McpRegistry } from "./McpRegistry";
 import { TrustPolicyEngine } from "../security/TrustPolicyEngine";
 import { redactSensitiveObject } from "../security/SecretRedaction";
 import { isApplyPatchNoopBecauseReplaceAlreadyPresent } from "./applyPatchNoOpPolicy";
+import { runCommand } from "./CommandRunner";
+import { ripgrepSearch, fileTree } from "./RipgrepSearch";
+import * as gitTools from "./GitToolProvider";
+import { runTests, runLinter } from "./TestRunner";
+import { httpRequest } from "./HttpClient";
+import * as dockerTools from "./DockerTools";
+import type { WorkspaceIndex } from "../memory/WorkspaceIndex";
 
 function buildDiffHunks(beforeText: string, afterText: string) {
   const before = beforeText.split(/\r?\n/);
@@ -58,12 +65,14 @@ export interface ToolResult {
 }
 
 export const BUILTIN_TOOL_NAMES = [
-  "readFile", "writeFile", "applyPatch", "searchFiles",
-  "listFiles", "getDiagnostics", "runTerminal", "listTools", "listMcpTools"
+  "readFile", "writeFile", "applyPatch", "searchFiles", "grepSearch",
+  "listFiles", "fileTree", "getDiagnostics", "runTerminal", "runCommand",
+  "runTests", "runLinter", "httpRequest", "findRelevantFiles", "listTools", "listMcpTools"
 ] as const;
 
 export class ToolRegistry {
   private cachedPolicyEngine?: TrustPolicyEngine;
+  workspaceIndex?: WorkspaceIndex;
 
   constructor(
     private readonly context: vscode.ExtensionContext,
@@ -82,6 +91,7 @@ export class ToolRegistry {
         requireApprovalForWrite: cfg.get<boolean>("myAi.tools.requireApprovalForWrite", true),
         requireApprovalForInWorkspaceWrites: cfg.get<boolean>("myAi.tools.requireApprovalForInWorkspaceWrites", true),
         requireApprovalForTerminal: cfg.get<boolean>("myAi.tools.requireApprovalForTerminal", true),
+        requireApprovalForHttp: cfg.get<boolean>("myAi.tools.requireApprovalForHttp", true),
         requireApprovalForMcp: cfg.get<boolean>("myAi.tools.requireApprovalForMcp", true),
         requireApprovalForExternal: cfg.get<boolean>("myAi.tools.requireApprovalForExternal", true),
         restrictToWorkspace: cfg.get<boolean>("myAi.tools.restrictToWorkspace", true)
@@ -114,7 +124,20 @@ export class ToolRegistry {
     getDiagnostics: (mid) => this.getDiagnostics(mid),
     listTools: (mid) => this.listTools(mid),
     listMcpTools: (mid) => this.listMcpTools(mid),
-    runTerminal: (mid, c) => this.runTerminal(mid, String(c.args.command || ""), Boolean(c.args.__approved))
+    grepSearch: (mid, c) => this.grepSearch(mid, String(c.args.pattern || ""), c.args.glob ? String(c.args.glob) : undefined, c.args.maxResults ? Number(c.args.maxResults) : undefined),
+    fileTree: (mid, c) => this.fileTreeTool(mid, c.args.maxDepth ? Number(c.args.maxDepth) : undefined),
+    runTests: (mid, c) => this.runTestsTool(mid, c.args.command ? String(c.args.command) : undefined),
+    runLinter: (mid, c) => this.runLinterTool(mid, c.args.command ? String(c.args.command) : undefined),
+    httpRequest: (mid, c) => this.httpRequestTool(mid, String(c.args.method || "GET"), String(c.args.url || ""), c.args.headers as Record<string, string> | undefined, c.args.body ? String(c.args.body) : undefined, Boolean(c.args.__approved)),
+    findRelevantFiles: (mid, c) => this.findRelevantFilesTool(mid, String(c.args.query || "")),
+    runTerminal: (mid, c) => this.runTerminal(mid, String(c.args.command || ""), Boolean(c.args.__approved)),
+    runCommand: (mid, c) => this.runCommandTool(
+      mid,
+      String(c.args.command || ""),
+      c.args.cwd ? String(c.args.cwd) : undefined,
+      c.args.timeoutMs ? Number(c.args.timeoutMs) : undefined,
+      Boolean(c.args.__approved)
+    )
   };
 
   async execute(missionId: string, call: ToolCall): Promise<ToolResult> {
@@ -122,6 +145,8 @@ export class ToolRegistry {
 
     if (call.tool.startsWith("mcp.")) return this.executeMcp(missionId, call, Boolean(call.args.__approved));
     if (call.tool.startsWith("ext.")) return this.executeExternal(missionId, call, Boolean(call.args.__approved));
+    if (call.tool.startsWith("git.")) return this.executeGit(missionId, call, Boolean(call.args.__approved));
+    if (call.tool.startsWith("docker.") || call.tool.startsWith("db.")) return this.executeInfra(missionId, call, Boolean(call.args.__approved));
 
     const handler = this.builtinDispatch[call.tool];
     if (handler) return handler(missionId, call);
@@ -240,6 +265,123 @@ export class ToolRegistry {
     return { ok: result.ok, summary: result.summary, data: result.data };
   }
 
+  private static readonly GIT_MUTATING = new Set(["git.commit", "git.checkout_file", "git.stash_push", "git.stash_pop"]);
+
+  private async executeGit(missionId: string, call: ToolCall, approved: boolean): Promise<ToolResult> {
+    const isMutating = ToolRegistry.GIT_MUTATING.has(call.tool);
+
+    if (isMutating) {
+      const decision = this.policyEngine().decide({ action: "run_command" });
+      if (!decision.allowed) return this.policyBlocked(decision.reason);
+      if (decision.requiresApproval && !approved) {
+        return {
+          ok: false,
+          summary: `Approval required before ${call.tool}`,
+          requiresApproval: {
+            kind: "terminal",
+            title: `Git: ${call.tool}`,
+            details: trimText(JSON.stringify(call.args, null, 2), 1200)
+          }
+        };
+      }
+    }
+
+    let result: gitTools.GitToolResult;
+    switch (call.tool) {
+      case "git.status":
+        result = await gitTools.gitStatus();
+        break;
+      case "git.diff":
+        result = await gitTools.gitDiff({ staged: Boolean(call.args.staged), path: call.args.path ? String(call.args.path) : undefined });
+        break;
+      case "git.log":
+        result = await gitTools.gitLog(call.args.count ? Number(call.args.count) : undefined);
+        break;
+      case "git.blame":
+        result = await gitTools.gitBlame(String(call.args.path || ""), call.args.startLine ? Number(call.args.startLine) : undefined, call.args.endLine ? Number(call.args.endLine) : undefined);
+        break;
+      case "git.stash_push":
+        result = await gitTools.gitStashPush(call.args.message ? String(call.args.message) : undefined);
+        break;
+      case "git.stash_pop":
+        result = await gitTools.gitStashPop();
+        break;
+      case "git.checkout_file":
+        result = await gitTools.gitCheckoutFile(String(call.args.path || ""));
+        break;
+      case "git.commit":
+        result = await gitTools.gitCommit(String(call.args.message || "auto-commit"), call.args.paths as string[] | undefined);
+        break;
+      case "git.show":
+        result = await gitTools.gitShow(String(call.args.ref || "HEAD"));
+        break;
+      default:
+        return { ok: false, summary: `Unknown git tool: ${call.tool}` };
+    }
+
+    await this.missionStore.saveEvent(missionId, {
+      level: result.ok ? "info" : "warn",
+      source: `tool:${call.tool}`,
+      message: result.summary,
+      data: result.data !== undefined ? result.data : undefined
+    });
+    return { ok: result.ok, summary: result.summary, data: result.data };
+  }
+
+  private static readonly INFRA_MUTATING = new Set(["docker.exec", "db.query"]);
+
+  private async executeInfra(missionId: string, call: ToolCall, approved: boolean): Promise<ToolResult> {
+    const isMutating = ToolRegistry.INFRA_MUTATING.has(call.tool);
+
+    if (isMutating) {
+      const decision = this.policyEngine().decide({ action: "run_command" });
+      if (!decision.allowed) return this.policyBlocked(decision.reason);
+      if (decision.requiresApproval && !approved) {
+        return {
+          ok: false,
+          summary: `Approval required before ${call.tool}`,
+          requiresApproval: {
+            kind: "terminal",
+            title: call.tool,
+            details: trimText(JSON.stringify(call.args, null, 2), 1200)
+          }
+        };
+      }
+    }
+
+    let result: dockerTools.DockerToolResult;
+    switch (call.tool) {
+      case "docker.ps":
+        result = await dockerTools.dockerPs();
+        break;
+      case "docker.logs":
+        result = await dockerTools.dockerLogs(String(call.args.container || ""), call.args.tail ? Number(call.args.tail) : undefined);
+        break;
+      case "docker.exec":
+        result = await dockerTools.dockerExec(String(call.args.container || ""), String(call.args.command || ""));
+        break;
+      case "docker.compose_status":
+        result = await dockerTools.dockerComposeStatus();
+        break;
+      case "db.query":
+        result = await dockerTools.dbQuery(String(call.args.engine || ""), String(call.args.connectionString || ""), String(call.args.query || ""));
+        break;
+      case "db.schema":
+        result = await dockerTools.dbSchema(String(call.args.engine || ""), String(call.args.connectionString || ""));
+        break;
+      default:
+        return { ok: false, summary: `Unknown infra tool: ${call.tool}` };
+    }
+
+    await this.missionStore.saveEvent(missionId, {
+      level: result.ok ? "info" : "warn",
+      source: `tool:${call.tool}`,
+      message: result.summary,
+      data: result.data !== undefined ? result.data : undefined
+    });
+    return { ok: result.ok, summary: result.summary, data: result.data };
+  }
+
   private async listTools(missionId: string): Promise<ToolResult> {
     const external = await this.externalAdapters.list();
     const builtins = [...BUILTIN_TOOL_NAMES];
@@ -339,6 +481,25 @@ export class ToolRegistry {
   }
 
   private async searchFiles(missionId: string, glob: string, query: string): Promise<ToolResult> {
+    const rgResult = await ripgrepSearch({
+      pattern: query,
+      glob,
+      maxResults: 50,
+      fixedString: true,
+    });
+
+    if (rgResult.ok) {
+      const grouped = new Map<string, string[]>();
+      for (const m of rgResult.matches) {
+        const lines = grouped.get(m.file) || [];
+        lines.push(m.matchText);
+        grouped.set(m.file, lines);
+      }
+      const matches = [...grouped.entries()].slice(0, 25).map(([file, lines]) => ({ file, lines: lines.slice(0, 8) }));
+      await this.missionStore.saveEvent(missionId, { level: "info", source: "tool:searchFiles", message: `glob=${glob} query=${query} (ripgrep)` });
+      return { ok: true, summary: `Found ${matches.length} matching files.`, data: matches };
+    }
+
     const files = await vscode.workspace.findFiles(glob, "**/node_modules/**", 200);
     const matches: Array<{ file: string; lines: string[] }> = [];
     for (const file of files) {
@@ -350,7 +511,7 @@ export class ToolRegistry {
       });
       if (matches.length >= 25) break;
     }
-    await this.missionStore.saveEvent(missionId, { level: "info", source: "tool:searchFiles", message: `glob=${glob} query=${query}` });
+    await this.missionStore.saveEvent(missionId, { level: "info", source: "tool:searchFiles", message: `glob=${glob} query=${query} (vscode fallback)` });
     return { ok: true, summary: `Found ${matches.length} matching files.`, data: matches };
   }
 
@@ -373,6 +534,94 @@ export class ToolRegistry {
     return { ok: true, summary: `Collected diagnostics for ${all.length} files.`, data: all };
   }
 
+  private async grepSearch(missionId: string, pattern: string, glob?: string, maxResults?: number): Promise<ToolResult> {
+    const result = await ripgrepSearch({ pattern, glob, maxResults, fixedString: false });
+    if (!result.ok) {
+      return { ok: false, summary: result.error || "grep search failed" };
+    }
+    const summary = result.truncated
+      ? `Found ${result.matches.length}+ matches (truncated) for pattern: ${pattern}`
+      : `Found ${result.matches.length} match(es) for pattern: ${pattern}`;
+    await this.missionStore.saveEvent(missionId, { level: "info", source: "tool:grepSearch", message: summary });
+    return {
+      ok: true,
+      summary,
+      data: result.matches.map((m) => ({
+        file: m.file,
+        line: m.line,
+        col: m.col,
+        match: m.matchText
+      }))
+    };
+  }
+
+  private async fileTreeTool(missionId: string, maxDepth?: number): Promise<ToolResult> {
+    const result = await fileTree({ maxDepth });
+    if (!result.ok) {
+      return { ok: false, summary: result.error || "file tree generation failed" };
+    }
+    await this.missionStore.saveEvent(missionId, { level: "info", source: "tool:fileTree", message: `Generated tree (${result.fileCount} files)` });
+    return { ok: true, summary: `File tree with ${result.fileCount} files.`, data: result.tree };
+  }
+
+  private async findRelevantFilesTool(missionId: string, query: string): Promise<ToolResult> {
+    if (!this.workspaceIndex) return { ok: false, summary: "Workspace index not initialized. Start a mission to trigger indexing." };
+    const results = this.workspaceIndex.search(query, 10);
+    const files = results.map((m) => ({
+      file: m.tags?.[0] || "",
+      summary: trimText(m.text, 300),
+    }));
+    await this.missionStore.saveEvent(missionId, { level: "info", source: "tool:findRelevantFiles", message: `Found ${files.length} relevant files for: ${query}` });
+    return { ok: true, summary: `Found ${files.length} relevant file(s).`, data: files };
+  }
+
+  private async httpRequestTool(missionId: string, method: string, url: string, headers?: Record<string, string>, body?: string, approved?: boolean): Promise<ToolResult> {
+    const decision = this.policyEngine().decide({ action: "http_request" });
+    if (!decision.allowed) return this.policyBlocked(decision.reason);
+    if (decision.requiresApproval && !approved) {
+      return {
+        ok: false,
+        summary: `Approval required before HTTP ${method} ${url}`,
+        requiresApproval: {
+          kind: "external_tool",
+          title: `HTTP ${method} ${url}`,
+          details: trimText(JSON.stringify({ method, url, headers, body }, null, 2), 1200)
+        }
+      };
+    }
+
+    const result = await httpRequest({ method, url, headers, body });
+    await this.missionStore.saveEvent(missionId, {
+      level: result.ok ? "info" : "warn",
+      source: "tool:httpRequest",
+      message: result.summary,
+      data: { status: result.status, statusText: result.statusText }
+    });
+    return { ok: result.ok, summary: result.summary, data: result };
+  }
+
+  private async runTestsTool(missionId: string, command?: string): Promise<ToolResult> {
+    const result = await runTests(command ? { command } : undefined);
+    await this.missionStore.saveEvent(missionId, {
+      level: result.ok ? "info" : "warn",
+      source: "tool:runTests",
+      message: result.summary,
+      data: { total: result.total, passed: result.passed, failed: result.failed, failures: result.failures?.slice(0, 10) }
+    });
+    return { ok: result.ok, summary: result.summary, data: result };
+  }
+
+  private async runLinterTool(missionId: string, command?: string): Promise<ToolResult> {
+    const result = await runLinter(command ? { command } : undefined);
+    await this.missionStore.saveEvent(missionId, {
+      level: result.ok ? "info" : "warn",
+      source: "tool:runLinter",
+      message: result.summary,
+      data: { errorCount: result.errorCount, warningCount: result.warningCount, issues: result.issues?.slice(0, 15) }
+    });
+    return { ok: result.ok, summary: result.summary, data: result };
+  }
+
   private async runTerminal(missionId: string, command: string, approved: boolean): Promise<ToolResult> {
     const decision = this.policyEngine().decide({ action: "run_terminal" });
     if (!decision.allowed) return this.policyBlocked(decision.reason);
@@ -392,5 +641,54 @@ export class ToolRegistry {
     terminal.sendText(command, true);
     await this.missionStore.saveEvent(missionId, { level: "info", source: "tool:runTerminal", message: command });
     return { ok: true, summary: `Sent command to terminal: ${command}` };
+  }
+
+  private async runCommandTool(
+    missionId: string,
+    command: string,
+    cwd: string | undefined,
+    timeoutMs: number | undefined,
+    approved: boolean
+  ): Promise<ToolResult> {
+    const decision = this.policyEngine().decide({ action: "run_command" });
+    if (!decision.allowed) return this.policyBlocked(decision.reason);
+    if (decision.requiresApproval && !approved) {
+      return {
+        ok: false,
+        summary: "Approval required before command execution.",
+        requiresApproval: {
+          kind: "terminal",
+          title: "Run command with output capture",
+          details: cwd ? `[cwd: ${cwd}] ${command}` : command
+        }
+      };
+    }
+
+    const result = await runCommand({ command, cwd, timeoutMs });
+
+    const summary = result.timedOut
+      ? `Command timed out after ${result.durationMs}ms: ${command}`
+      : result.exitCode === 0
+        ? `Command succeeded (${result.durationMs}ms): ${command}`
+        : `Command failed (exit ${result.exitCode}, ${result.durationMs}ms): ${command}`;
+
+    await this.missionStore.saveEvent(missionId, {
+      level: result.exitCode === 0 ? "info" : "warn",
+      source: "tool:runCommand",
+      message: summary,
+      data: { exitCode: result.exitCode, timedOut: result.timedOut, durationMs: result.durationMs }
+    });
+
+    return {
+      ok: result.exitCode === 0,
+      summary,
+      data: {
+        exitCode: result.exitCode,
+        stdout: result.stdout,
+        stderr: result.stderr,
+        timedOut: result.timedOut,
+        durationMs: result.durationMs
+      }
+    };
   }
 }

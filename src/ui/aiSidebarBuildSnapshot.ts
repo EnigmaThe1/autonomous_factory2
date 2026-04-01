@@ -11,6 +11,7 @@ import { focusedMissionLifecycleSummaryForSnapshot } from "../missions/missionLi
 import { focusedMissionRequiredWorkHintForSnapshot } from "../missions/missionRequiredWorkPresentation";
 import type { ExtensionTraceLogger } from "../diagnostics/ExtensionTraceLogger";
 import { routingPresetTemplatesForUi } from "../missions/missionRouting";
+import { computeAllMissionProgressStats } from "./missionProgressStats";
 import { buildGlobalMemoryContextHostSlice, missionAllAndVisibleForFingerprint } from "./aiSidebarSnapshotMisc";
 import type { GlobalMemoryStore } from "../memory/GlobalMemoryStore";
 import type { MissionStore } from "../missions/MissionStore";
@@ -162,6 +163,7 @@ export async function buildSidebarDashboardSnapshot(host: AiSidebarBuildSnapshot
         .filter(([, v]) => typeof v === "string" && v.length > 0) as Array<[string, string]>
     ),
     missionListLatestOperatorActionHeadlines: missionListLatestOperatorActionHeadlinesForMissions(missions),
+    missionProgressStats: computeAllMissionProgressStats(missions),
     ...memSlice,
     consoleLines,
     agents,

@@ -1,5 +1,7 @@
 import * as vscode from "vscode";
 import { ContextCollector } from "../context/ContextCollector";
+import { EnhancedContextCollector } from "../context/EnhancedContextCollector";
+import { gitStashPush, gitStashPop, gitStatus } from "../tools/GitToolProvider";
 import { ProviderRegistry } from "../providers/ProviderRegistry";
 import type { ToolResult } from "../tools/ToolRegistry";
 import { MissionStore } from "./MissionStore";
@@ -216,6 +218,24 @@ export class MissionOrchestrator {
         message: `Re-queued ${operatorAbortRequeues} work item(s) blocked by operator stream abort so they can run again after resume.`
       });
     }
+
+    if (this.collector instanceof EnhancedContextCollector) {
+      try {
+        const resumeCtx = await this.collector.collectForMission({ isFirstWorkItem: false, keywords: extractKeywords(mission.prompt, 3) });
+        const contextParts: string[] = [];
+        if (resumeCtx.gitStatus) contextParts.push(`Git: ${resumeCtx.gitStatus.slice(0, 300)}`);
+        if (resumeCtx.allDiagnosticsSummary) contextParts.push(`Diagnostics: ${resumeCtx.allDiagnosticsSummary.slice(0, 300)}`);
+        if (contextParts.length) {
+          await this.store.addMemory(id, {
+            kind: "checkpoint",
+            text: `[Resume context refresh] ${contextParts.join(" | ")}`,
+            tags: ["resume", "context"],
+            sourceMissionId: id,
+          });
+        }
+      } catch { /* context reload is best-effort */ }
+    }
+
     return await this.runMission(id);
   }
 
@@ -587,7 +607,8 @@ export class MissionOrchestrator {
           return this.runPassOutcomeAfterStoreRead(id);
         }
 
-        if ((mission.roundsCompleted || 0) >= mission.policy.maxAutoRounds) {
+        const effectiveMaxRounds = computeEffectiveMaxRounds(mission);
+        if ((mission.roundsCompleted || 0) >= effectiveMaxRounds) {
           this.pendingCompletionReason.delete(id);
           await this.store.updateMission(id, {
             status: "blocked",
@@ -699,9 +720,15 @@ export class MissionOrchestrator {
   }> {
     if (!result.toolCalls?.length) return {};
 
+    const MUTATING_TOOLS = new Set(["writeFile", "applyPatch", "runTerminal", "runCommand", "git.commit", "git.checkout_file", "git.stash_push", "git.stash_pop", "docker.exec", "db.query"]);
     const successfulToolSteps: Array<{ tool: string; applyPatchNoop?: boolean }> = [];
     const toolResultSummaries: string[] = [];
     for (const call of result.toolCalls) {
+      if (mission.dryRun && MUTATING_TOOLS.has(call.tool)) {
+        toolResultSummaries.push(`[DRY-RUN] Skipped mutating tool: ${call.tool} ${JSON.stringify(call.args).slice(0, 200)}`);
+        await this.store.saveEvent(mission.id, { level: "info", source: "orchestrator", message: `[DRY-RUN] Would execute: ${call.tool}` });
+        continue;
+      }
       await this.markMutatingToolExecutionStarted(mission.id, item, call);
       const toolResult = await this.tools.execute(mission.id, call);
 
@@ -959,7 +986,27 @@ export class MissionOrchestrator {
       message: `Starting ${item.title}`
     });
 
-    const context = await this.collector.collect();
+    const useGitCheckpoint = item.role === "implementer" &&
+      vscode.workspace.getConfiguration().get<boolean>("myAi.missions.gitCheckpointBeforeImpl", false);
+    let didStash = false;
+    if (useGitCheckpoint) {
+      try {
+        const status = await gitStatus();
+        const hasChanges = status.ok && status.data && (status.data as { changedFiles: string[] }).changedFiles?.length > 0;
+        if (hasChanges) {
+          const stash = await gitStashPush(`pre-workitem-${item.id}`);
+          didStash = stash.ok;
+        }
+      } catch { /* git not available — skip */ }
+    }
+
+    const completedCount = mission.queue.filter((w) => w.status === "done" || w.status === "skipped").length;
+    const context = this.collector instanceof EnhancedContextCollector
+      ? await this.collector.collectForMission({
+        isFirstWorkItem: completedCount === 0,
+        keywords: extractKeywords(item.prompt, 5),
+      })
+      : await this.collector.collect();
     this.missionWorkAbort.get(mission.id)?.abort();
     const ac = new AbortController();
     this.missionWorkAbort.set(mission.id, ac);
@@ -1047,6 +1094,17 @@ export class MissionOrchestrator {
       }
       this.missionAbortReason.delete(mission.id);
       this.onAgentStreamDone?.(mission.id, item.id);
+
+      if (didStash) {
+        const fresh = this.store.get(mission.id);
+        const itemFinal = fresh?.queue.find((w) => w.id === item.id);
+        if (itemFinal?.status === "failed" || itemFinal?.status === "blocked") {
+          try {
+            await gitStashPop();
+            await this.store.saveEvent(mission.id, { level: "info", source: "orchestrator", message: `Restored git stash after ${itemFinal.status} work item: ${item.title}` });
+          } catch { /* stash restore best-effort */ }
+        }
+      }
     }
 
     const alreadySatisfiedNoTool = shouldHonorAlreadySatisfiedNoToolRun(item.role, result.summary, result.toolCalls);
@@ -1150,7 +1208,8 @@ export class MissionOrchestrator {
       }
     }
     if (result.nextWorkItems?.length) {
-      await this.store.enqueue(mission.id, result.nextWorkItems);
+      const flattened = flattenSubItems(result.nextWorkItems);
+      await this.store.enqueue(mission.id, flattened);
     }
 
     await this.maybeEnforcePostAgentContracts(
@@ -1372,4 +1431,45 @@ export class MissionOrchestrator {
         w.requiredForCompletion !== false
     );
   }
+}
+
+/**
+ * Flattens work items that contain sub-items into a single queue.
+ * Sub-items are placed after their parent in the queue.
+ */
+function flattenSubItems(items: WorkItem[]): WorkItem[] {
+  const result: WorkItem[] = [];
+  for (const item of items) {
+    if (item.subItems?.length) {
+      result.push(...item.subItems);
+      const parent: WorkItem = { ...item, subItems: undefined, status: "done", output: `Decomposed into ${item.subItems.length} sub-items.` };
+      result.push(parent);
+    } else {
+      result.push(item);
+    }
+  }
+  return result;
+}
+
+function computeEffectiveMaxRounds(mission: Mission): number {
+  const cfg = vscode.workspace.getConfiguration();
+  const mode = cfg.get<string>("myAi.missions.scalingMode", "fixed");
+  if (mode !== "adaptive") return mission.policy.maxAutoRounds;
+
+  const cap = cfg.get<number>("myAi.missions.adaptiveMaxRounds", 200);
+  const base = mission.policy.maxAutoRounds;
+  const workItemCount = mission.queue.length;
+  return Math.min(base + workItemCount * 2, cap);
+}
+
+/** Extract salient keywords from a prompt for relevant-file discovery. */
+function extractKeywords(prompt: string, max: number): string[] {
+  const stopWords = new Set(["the", "and", "for", "that", "this", "with", "from", "are", "was", "will", "have", "has", "been", "all", "each", "not", "but", "can", "should"]);
+  const words = prompt
+    .toLowerCase()
+    .replace(/[^a-z0-9_\-]/g, " ")
+    .split(/\s+/)
+    .filter((w) => w.length >= 3 && !stopWords.has(w));
+  const unique = [...new Set(words)];
+  return unique.slice(0, max);
 }

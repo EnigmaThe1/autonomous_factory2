@@ -3,7 +3,7 @@ import { randomUUID } from "crypto";
 import { AiSidebarProvider } from "./ui/AiSidebarProvider";
 import { ExtensionTraceLogger } from "./diagnostics/ExtensionTraceLogger";
 import { ProviderRegistry } from "./providers/ProviderRegistry";
-import { ContextCollector } from "./context/ContextCollector";
+import { EnhancedContextCollector } from "./context/EnhancedContextCollector";
 import { MissionStore } from "./missions/MissionStore";
 import { MissionOrchestrator } from "./missions/MissionOrchestrator";
 import { ToolRegistry } from "./tools/ToolRegistry";
@@ -18,12 +18,13 @@ import { ExternalToolAdapterRegistry } from "./tools/ExternalToolAdapterRegistry
 import { McpRegistry } from "./tools/McpRegistry";
 import { MissionTemplateStore } from "./missions/MissionTemplateStore";
 import { wireAgentStreamThrottle } from "./ui/agentStreamThrottle";
+import { WorkspaceIndex } from "./memory/WorkspaceIndex";
 
 export async function activate(context: vscode.ExtensionContext) {
   console.info(`[my-ai] activate ${context.extension.id}@${context.extension.packageJSON.version}`);
   const secrets = new SecretStore(context.secrets);
   const providers = new ProviderRegistry(secrets);
-  const collector = new ContextCollector();
+  const collector = new EnhancedContextCollector();
   const paths = new WorkspacePaths();
   const disk = new DiskMissionPersistence(paths);
   await disk.ensureFolders();
@@ -40,6 +41,9 @@ export async function activate(context: vscode.ExtensionContext) {
   const mcp = new McpRegistry(paths, disk);
   await mcp.hydrate();
   const tools = new ToolRegistry(context, missionStore, disk, externalAdapters, mcp);
+  const wsIndex = new WorkspaceIndex();
+  tools.workspaceIndex = wsIndex;
+  void wsIndex.build().then((n) => { if (n > 0) console.info(`[my-ai] Workspace index: ${n} files`); });
   const orchestrator = new MissionOrchestrator(providers, collector, missionStore, tools, globalMemory);
   const templates = new MissionTemplateStore(paths);
   await templates.hydrate();

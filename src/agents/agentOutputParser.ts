@@ -1,10 +1,18 @@
 import { ToolCall, WorkItem } from "../types";
 import { parseRole, uid } from "../util";
 
+export interface DecomposedSubItem {
+  role: string;
+  title: string;
+  prompt: string;
+  dependsOn?: string[];
+}
+
 export interface ParsedAgentOutput {
   toolCalls: ToolCall[];
   workItems: WorkItem[];
   memoryItems: Array<{ kind: string; tags: string[]; text: string }>;
+  decompositions: DecomposedSubItem[];
   blocked: boolean;
   complete: boolean;
 }
@@ -18,6 +26,7 @@ export function parseAgentOutput(text: string): ParsedAgentOutput {
   const toolCalls: ToolCall[] = [];
   const workItems: WorkItem[] = [];
   const memoryItems: ParsedAgentOutput["memoryItems"] = [];
+  const decompositions: DecomposedSubItem[] = [];
   let blocked = false;
   let complete = false;
 
@@ -39,6 +48,17 @@ export function parseAgentOutput(text: string): ParsedAgentOutput {
       });
     }
 
+    // DECOMPOSE:ROLE:Title - Prompt [depends:id1,id2]
+    const decompMatch = line.match(/^DECOMPOSE:([A-Z_]+)\s*:\s*(.+?)\s*-\s*(.+?)(?:\s*\[depends:(.+?)\])?$/i);
+    if (decompMatch) {
+      decompositions.push({
+        role: decompMatch[1].toLowerCase(),
+        title: decompMatch[2],
+        prompt: decompMatch[3],
+        dependsOn: decompMatch[4] ? decompMatch[4].split(",").map((s) => s.trim()) : undefined,
+      });
+    }
+
     const memMatch = line.match(/^MEMORY:([a-z_]+):?([^-]*)-\s*(.+)$/i);
     if (memMatch) {
       memoryItems.push({
@@ -49,5 +69,5 @@ export function parseAgentOutput(text: string): ParsedAgentOutput {
     }
   }
 
-  return { toolCalls, workItems, memoryItems, blocked, complete };
+  return { toolCalls, workItems, memoryItems, decompositions, blocked, complete };
 }

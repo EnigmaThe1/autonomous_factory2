@@ -5,6 +5,8 @@ export type PolicyAction =
   | "write_file"
   | "apply_patch"
   | "run_terminal"
+  | "run_command"
+  | "http_request"
   | "call_mcp"
   | "call_external";
 
@@ -26,6 +28,7 @@ export interface PolicySettings {
   /** When true, write_file/apply_patch under the workspace root also require approval (default true in package.json). Set false for autonomous in-workspace writes with restrictToWorkspace. */
   requireApprovalForInWorkspaceWrites: boolean;
   requireApprovalForTerminal: boolean;
+  requireApprovalForHttp: boolean;
   requireApprovalForMcp: boolean;
   requireApprovalForExternal: boolean;
   restrictToWorkspace: boolean;
@@ -62,6 +65,11 @@ export class TrustPolicyEngine {
       case "run_terminal":
         if (!this.settings.allowTerminal) return { allowed: false, requiresApproval: false, reason: "Terminal execution disabled by policy." };
         return { allowed: true, requiresApproval: this.settings.requireApprovalForTerminal, reason: "Terminal policy evaluated." };
+      case "run_command":
+        if (!this.settings.allowTerminal) return { allowed: false, requiresApproval: false, reason: "Command execution disabled by policy (myAi.tools.allowTerminal)." };
+        return { allowed: true, requiresApproval: this.settings.requireApprovalForTerminal, reason: "Command policy evaluated." };
+      case "http_request":
+        return { allowed: true, requiresApproval: this.settings.requireApprovalForHttp, reason: "HTTP request policy evaluated." };
       case "call_mcp":
         return { allowed: true, requiresApproval: this.settings.requireApprovalForMcp, reason: "MCP policy evaluated." };
       case "call_external":
