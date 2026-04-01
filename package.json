@@ -1,0 +1,625 @@
+{
+  "name": "my-ai-extension-v18",
+  "displayName": "My AI Extension V18",
+  "description": "VS Code AI assistant with unified sidebar, in-pane diff review, richer tool/result cards, mission inspector, grouped timeline, live agent stream, approvals, bundles, tools, memory, console, and settings",
+  "version": "0.18.39",
+  "publisher": "enigma-the",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/EnigmaThe1/autonomous_factory.git"
+  },
+  "license": "SEE LICENSE IN LICENSE",
+  "engines": {
+    "vscode": ">=1.85.0"
+  },
+  "categories": [
+    "Other"
+  ],
+  "activationEvents": [
+    "onStartupFinished",
+    "onView:myAi.sidebar",
+    "onCommand:myAi.openChat",
+    "onCommand:myAi.startMission",
+    "onCommand:myAi.showTraceLog",
+    "onCommand:myAi.exportTraceLog",
+    "onCommand:myAi.clearTraceLog",
+    "onCommand:myAi.setTraceLevel"
+  ],
+  "main": "./dist/extension.js",
+  "contributes": {
+    "commands": [
+      {
+        "command": "myAi.openChat",
+        "title": "My AI: Open Chat"
+      },
+      {
+        "command": "myAi.startMission",
+        "title": "My AI: Start Autonomous Mission"
+      },
+      {
+        "command": "myAi.resumeMission",
+        "title": "My AI: Resume Mission"
+      },
+      {
+        "command": "myAi.listMissions",
+        "title": "My AI: List Missions"
+      },
+      {
+        "command": "myAi.approvePending",
+        "title": "My AI: Approve Pending Action"
+      },
+      {
+        "command": "myAi.rejectPending",
+        "title": "My AI: Reject Pending Action"
+      },
+      {
+        "command": "myAi.reviewPendingDiff",
+        "title": "My AI: Review Pending Diff"
+      },
+      {
+        "command": "myAi.showMissionMemory",
+        "title": "My AI: Show Mission Memory"
+      },
+      {
+        "command": "myAi.exportMissionBundle",
+        "title": "My AI: Export Mission Bundle"
+      },
+      {
+        "command": "myAi.listMcpTools",
+        "title": "My AI: List MCP Tools"
+      },
+      {
+        "command": "myAi.listMcpSessions",
+        "title": "My AI: List MCP Sessions"
+      },
+      {
+        "command": "myAi.restartMcpSession",
+        "title": "My AI: Restart MCP Session"
+      },
+      {
+        "command": "myAi.editMissionPolicy",
+        "title": "My AI: Edit Mission Policy"
+      },
+      {
+        "command": "myAi.searchGlobalMemory",
+        "title": "My AI: Search Global Memory"
+      },
+      {
+        "command": "myAi.reviewPendingHunks",
+        "title": "My AI: Review Pending Hunks"
+      },
+      {
+        "command": "myAi.listApprovalBundles",
+        "title": "My AI: List Approval Bundles"
+      },
+      {
+        "command": "myAi.approveApprovalBundle",
+        "title": "My AI: Approve Approval Bundle"
+      },
+      {
+        "command": "myAi.rejectApprovalBundle",
+        "title": "My AI: Reject Approval Bundle"
+      },
+      {
+        "command": "myAi.reviewNextPendingHunk",
+        "title": "My AI: Review Next Pending Hunk"
+      },
+      {
+        "command": "myAi.reviewApprovalBundleSummary",
+        "title": "My AI: Review Approval Bundle Summary"
+      },
+      {
+        "command": "myAi.viewMissionDependencyGraph",
+        "title": "My AI: View Mission Dependency Graph"
+      },
+      {
+        "command": "myAi.editAgentRouting",
+        "title": "My AI: Edit Agent Routing"
+      },
+      {
+        "command": "myAi.editMissionDag",
+        "title": "My AI: Edit Mission DAG"
+      },
+      {
+        "command": "myAi.archiveMission",
+        "title": "My AI: Archive Mission"
+      },
+      {
+        "command": "myAi.deleteMission",
+        "title": "My AI: Delete Mission"
+      },
+      {
+        "command": "myAi.bulkArchiveCompletedMissions",
+        "title": "My AI: Archive All Completed Missions"
+      },
+      {
+        "command": "myAi.bulkDeleteFailedTestMissions",
+        "title": "My AI: Delete Failed Test Missions"
+      },
+      {
+        "command": "myAi.bulkDeleteBlockedTestMissions",
+        "title": "My AI: Delete Blocked Test Missions"
+      },
+      {
+        "command": "myAi.showTraceLog",
+        "title": "My AI: Show Trace Log"
+      },
+      {
+        "command": "myAi.exportTraceLog",
+        "title": "My AI: Export Trace Log"
+      },
+      {
+        "command": "myAi.clearTraceLog",
+        "title": "My AI: Clear Trace Log"
+      },
+      {
+        "command": "myAi.setTraceLevel",
+        "title": "My AI: Set Trace Level"
+      },
+      {
+        "command": "myAi.saveAsTemplate",
+        "title": "My AI: Save Mission as Template"
+      },
+      {
+        "command": "myAi.startFromTemplate",
+        "title": "My AI: Start Mission from Template"
+      },
+      {
+        "command": "myAi.listTemplates",
+        "title": "My AI: Manage Mission Templates"
+      }
+    ],
+    "viewsContainers": {
+      "activitybar": [
+        {
+          "id": "myAi",
+          "title": "My AI",
+          "icon": "media/icon.svg"
+        }
+      ]
+    },
+    "views": {
+      "myAi": [
+        {
+          "type": "webview",
+          "id": "myAi.sidebar",
+          "name": "Chat & Missions"
+        }
+      ]
+    },
+    "configuration": {
+      "title": "My AI",
+      "properties": {
+        "myAi.defaultProvider": {
+          "type": "string",
+          "default": "ollama",
+          "enum": [
+            "ollama",
+            "openai",
+            "openai-compat",
+            "anthropic",
+            "gemini",
+            "vscode-lm"
+          ],
+          "description": "Default model provider."
+        },
+        "myAi.defaultModel": {
+          "type": "string",
+          "default": "llama3.1",
+          "description": "Legacy global default model name. Prefer myAi.models.<provider> for coherent per-provider defaults."
+        },
+        "myAi.models.openai": {
+          "type": "string",
+          "default": "gpt-4.1-mini",
+          "description": "Default model when the OpenAI provider is selected."
+        },
+        "myAi.models.ollama": {
+          "type": "string",
+          "default": "llama3.1",
+          "description": "Default model when the Ollama provider is selected."
+        },
+        "myAi.models.anthropic": {
+          "type": "string",
+          "default": "claude-3-5-sonnet-20240620",
+          "description": "Default Claude model id for the Anthropic provider."
+        },
+        "myAi.models.gemini": {
+          "type": "string",
+          "default": "gemini-1.5-flash",
+          "description": "Default Gemini model id."
+        },
+        "myAi.models.openaiCompat": {
+          "type": "string",
+          "default": "Qwen/Qwen2.5-7B-Instruct",
+          "description": "Default model id for local OpenAI-compatible (vLLM, etc.) endpoints."
+        },
+        "myAi.models.vscodeLm": {
+          "type": "string",
+          "default": "",
+          "description": "Optional hint to match a VS Code LM id/family when multiple models exist."
+        },
+        "myAi.openai.baseUrl": {
+          "type": "string",
+          "default": "https://api.openai.com/v1",
+          "description": "OpenAI-compatible base URL."
+        },
+        "myAi.openaiCompat.baseUrl": {
+          "type": "string",
+          "default": "http://127.0.0.1:8000/v1",
+          "description": "Base URL for local OpenAI-compatible servers (vLLM, llama.cpp server, etc.)."
+        },
+        "myAi.anthropic.baseUrl": {
+          "type": "string",
+          "default": "https://api.anthropic.com/v1",
+          "description": "Anthropic API root."
+        },
+        "myAi.gemini.baseUrl": {
+          "type": "string",
+          "default": "https://generativelanguage.googleapis.com",
+          "description": "Google Generative Language API root (non-secret)."
+        },
+        "myAi.ollama.baseUrl": {
+          "type": "string",
+          "default": "http://127.0.0.1:11434",
+          "description": "Ollama base URL."
+        },
+        "myAi.useNativeChatParticipant": {
+          "type": "boolean",
+          "default": false,
+          "description": "Register a native VS Code chat participant when available."
+        },
+        "myAi.sendSelection": {
+          "type": "boolean",
+          "default": true
+        },
+        "myAi.sendActiveFile": {
+          "type": "boolean",
+          "default": true
+        },
+        "myAi.sendDiagnostics": {
+          "type": "boolean",
+          "default": true
+        },
+        "myAi.missions.autoResumeOnStartup": {
+          "type": "boolean",
+          "default": true,
+          "description": "Resume running or queued missions on startup."
+        },
+        "myAi.missions.maxStepsPerRun": {
+          "type": "number",
+          "default": 16,
+          "description": "Safety cap for autonomous steps in one run."
+        },
+        "myAi.missions.heartbeatSeconds": {
+          "type": "number",
+          "default": 8,
+          "description": "Background runner heartbeat interval in seconds."
+        },
+        "myAi.missions.diskStoreFolder": {
+          "type": "string",
+          "default": ".my-ai-extension",
+          "description": "Workspace-relative folder for mission files and approval previews."
+        },
+        "myAi.tools.showDiffBeforeApproval": {
+          "type": "boolean",
+          "default": true,
+          "description": "Open a diff preview before approving writeFile/applyPatch actions."
+        },
+        "myAi.missions.portableJson": {
+          "type": "boolean",
+          "default": true,
+          "description": "Persist missions as portable JSON files under the workspace folder."
+        },
+        "myAi.missions.autoCheckpointEveryStep": {
+          "type": "boolean",
+          "default": true,
+          "description": "Persist a checkpoint after each step."
+        },
+        "myAi.tools.allowTerminal": {
+          "type": "boolean",
+          "default": false,
+          "description": "Allow terminal tool execution."
+        },
+        "myAi.tools.requireApprovalForWrite": {
+          "type": "boolean",
+          "default": true,
+          "description": "When true, mutating writeFile/applyPatch calls require operator approval before the tool runs (subject to requireApprovalForInWorkspaceWrites for paths inside the workspace)."
+        },
+        "myAi.tools.requireApprovalForInWorkspaceWrites": {
+          "type": "boolean",
+          "default": true,
+          "description": "When true (default), workspace-path writeFile/applyPatch also require approval. Set false to allow autonomous in-workspace writes while restrictToWorkspace keeps paths bounded."
+        },
+        "myAi.tools.requireApprovalForTerminal": {
+          "type": "boolean",
+          "default": true,
+          "description": "Require approval before runTerminal tool calls."
+        },
+        "myAi.memory.maxRecentEvents": {
+          "type": "number",
+          "default": 250,
+          "description": "Maximum recent memory events stored per mission."
+        },
+        "myAi.memory.semanticRecallLimit": {
+          "type": "number",
+          "default": 8,
+          "description": "Maximum semantic memory items recalled into an agent turn."
+        },
+        "myAi.agents.providerMap": {
+          "type": "string",
+          "default": "",
+          "description": "Optional per-role provider mapping, e.g. planner:openai,researcher:vscode-lm,implementer:ollama"
+        },
+        "myAi.missions.closureRequired": {
+          "type": "boolean",
+          "default": true,
+          "description": "Keep missions alive until validation passes or a real blocker is recorded."
+        },
+        "myAi.missions.requireReviewerBeforeComplete": {
+          "type": "boolean",
+          "default": true,
+          "description": "Require at least one reviewer step before a closure-required mission completes."
+        },
+        "myAi.missions.requireValidatorBeforeComplete": {
+          "type": "boolean",
+          "default": true,
+          "description": "Require validator sign-off before a closure-required mission completes."
+        },
+        "myAi.missions.maxAutoRounds": {
+          "type": "number",
+          "default": 24,
+          "description": "Maximum autonomous rounds before the mission is paused as blocked for operator review."
+        },
+        "myAi.memory.enableGlobalSemanticMemory": {
+          "type": "boolean",
+          "default": true,
+          "description": "Persist memory across missions and use it for semantic recall."
+        },
+        "myAi.memory.globalRecallLimit": {
+          "type": "number",
+          "default": 6,
+          "description": "Maximum global semantic memory items recalled into an agent turn."
+        },
+        "myAi.tools.externalAdaptersFile": {
+          "type": "string",
+          "default": ".my-ai-extension/tools/adapters.json",
+          "description": "Workspace-relative JSON file defining external tool adapters."
+        },
+        "myAi.tools.allowExternalAdapters": {
+          "type": "boolean",
+          "default": true,
+          "description": "Allow external HTTP-backed tool adapters."
+        },
+        "myAi.tools.requireApprovalForExternal": {
+          "type": "boolean",
+          "default": true,
+          "description": "Require approval before calling a mutating external tool adapter."
+        },
+        "myAi.missions.requireImplementerBeforeComplete": {
+          "type": "boolean",
+          "default": true,
+          "description": "Require at least one implementer step before closure-required missions can complete."
+        },
+        "myAi.missions.minCompletedWorkItems": {
+          "type": "number",
+          "default": 4,
+          "description": "Minimum completed work items before a closure-required mission may complete."
+        },
+        "myAi.missions.stallReplanThreshold": {
+          "type": "number",
+          "default": 3,
+          "description": "If too few todo items remain before closure, enqueue an automatic re-plan after this many rounds without progress."
+        },
+        "myAi.tools.requireApprovalForMcp": {
+          "type": "boolean",
+          "default": true,
+          "description": "Require approval before MCP tool calls."
+        },
+        "myAi.tools.restrictToWorkspace": {
+          "type": "boolean",
+          "default": true,
+          "description": "Restrict file tools to workspace-contained paths."
+        },
+        "myAi.providers.requestTimeoutMs": {
+          "type": "number",
+          "default": 30000,
+          "description": "Provider request timeout in milliseconds."
+        },
+        "myAi.providers.maxRetries": {
+          "type": "number",
+          "default": 1,
+          "description": "Maximum retry attempts for transient provider failures."
+        },
+        "myAi.providers.retryDelayMs": {
+          "type": "number",
+          "default": 400,
+          "description": "Base delay in milliseconds between provider retries."
+        },
+        "myAi.mcp.configPath": {
+          "type": "string",
+          "default": "examples/mcp.sample.json",
+          "description": "Workspace-relative or absolute path to MCP server config JSON."
+        },
+        "myAi.missions.stallHeartbeatThreshold": {
+          "type": "number",
+          "default": 3,
+          "description": "Number of heartbeats with no progress before the runner injects a recovery replan."
+        },
+        "myAi.missions.maxStallAutoReplans": {
+          "type": "number",
+          "default": 2,
+          "description": "Maximum automatic recovery replans before a mission is marked blocked for operator review."
+        },
+        "myAi.missions.maxToolFollowUpTurns": {
+          "type": "number",
+          "default": 3,
+          "minimum": 0,
+          "maximum": 10,
+          "description": "Maximum number of follow-up turns where tool results are fed back to the agent for iterative refinement. Set to 0 to disable tool follow-up loops."
+        },
+        "myAi.mcp.persistSessions": {
+          "type": "boolean",
+          "default": true,
+          "description": "Keep MCP stdio servers alive across calls instead of spawning per request."
+        },
+        "myAi.mcp.sessionWarmupOnStartup": {
+          "type": "boolean",
+          "default": false,
+          "description": "Warm configured MCP sessions on startup."
+        },
+        "myAi.mcp.toolCacheTtlSeconds": {
+          "type": "number",
+          "default": 60,
+          "description": "How long to cache MCP tool descriptors per live session."
+        },
+        "myAi.missions.policyPreset": {
+          "type": "string",
+          "default": "balanced",
+          "enum": [
+            "light",
+            "balanced",
+            "strict"
+          ],
+          "description": "Default closure policy preset for new missions."
+        },
+        "myAi.missions.requireValidationEvidence": {
+          "type": "boolean",
+          "default": true,
+          "description": "Require explicit validation evidence before a closure-required mission can complete."
+        },
+        "myAi.memory.minSemanticScore": {
+          "type": "number",
+          "default": 0.11,
+          "description": "Minimum semantic similarity score for memory recall results."
+        },
+        "myAi.embeddings.useRealEmbeddings": {
+          "type": "boolean",
+          "default": false,
+          "description": "Use real embedding models for semantic memory search. Falls back to local FNV-1a hashing when disabled or unavailable."
+        },
+        "myAi.embeddings.provider": {
+          "type": "string",
+          "default": "openai",
+          "enum": ["openai", "openai-compat", "ollama"],
+          "description": "Provider to use for real embedding requests."
+        },
+        "myAi.embeddings.model": {
+          "type": "string",
+          "default": "text-embedding-3-small",
+          "description": "Model name for embedding requests (OpenAI-compatible providers)."
+        },
+        "myAi.embeddings.ollamaModel": {
+          "type": "string",
+          "default": "nomic-embed-text",
+          "description": "Model name for Ollama embedding requests."
+        },
+        "myAi.missions.requirePlannerCoverage": {
+          "type": "boolean",
+          "default": true,
+          "description": "Require planner-generated role coverage (implementer/reviewer/validator) before closure."
+        },
+        "myAi.reviewers.autoCreateFixTasks": {
+          "type": "boolean",
+          "default": true,
+          "description": "When reviewer output reports issues without an implementer follow-up, automatically inject remediation/re-review/re-validation tasks."
+        },
+        "myAi.agents.routingPreset": {
+          "type": "string",
+          "default": "default",
+          "enum": [
+            "default",
+            "research_heavy",
+            "local_first",
+            "review_strict"
+          ],
+          "description": "Default agent routing preset for new missions."
+        },
+        "myAi.agents.modelMap": {
+          "type": "string",
+          "default": "",
+          "description": "Optional per-role model mapping, e.g. planner:gpt-4.1,researcher:gpt-4.1,implementer:llama3.1"
+        },
+        "myAi.approvals.bundleAutoSummary": {
+          "type": "boolean",
+          "default": true,
+          "description": "Enable summary documents for approval bundles."
+        },
+        "myAi.ui.dashboardPollIntervalMs": {
+          "type": "number",
+          "default": 10000,
+          "minimum": 2000,
+          "maximum": 120000,
+          "description": "Interval for automatic sidebar snapshot refresh while the webview is visible. Lower values increase extension-host CPU, disk, and MCP traffic."
+        },
+        "myAi.ui.autoRevealOnActivation": {
+          "type": "boolean",
+          "default": false,
+          "description": "Automatically reveal the My AI sidebar when the extension activates."
+        },
+        "myAi.ui.defaultTab": {
+          "type": "string",
+          "default": "chat",
+          "enum": [
+            "chat",
+            "providers",
+            "missions",
+            "routing",
+            "approvals",
+            "bundles",
+            "timeline",
+            "agents",
+            "tools",
+            "memory",
+            "console",
+            "trace",
+            "settings"
+          ],
+          "description": "Default tab shown when the My AI sidebar loads."
+        },
+        "myAi.trace.level": {
+          "type": "string",
+          "default": "info",
+          "enum": [
+            "error",
+            "info",
+            "debug",
+            "trace"
+          ],
+          "description": "Maximum verbosity for the unified My AI Trace output channel. error = errors only; info = operator-friendly; debug/trace = more host/webview detail."
+        },
+        "myAi.trace.persistToFile": {
+          "type": "boolean",
+          "default": false,
+          "description": "Append JSON trace lines to globalStorage/trace/my-ai-trace-append.jsonl (in addition to the output channel)."
+        }
+      }
+    }
+  },
+  "scripts": {
+    "build": "npm run compile",
+    "vscode:prepublish": "npm run bundle:prod",
+    "compile": "node ./node_modules/typescript/lib/tsc.js -p .",
+    "bundle": "node esbuild.mjs",
+    "bundle:prod": "node esbuild.mjs --production",
+    "bundle:watch": "node esbuild.mjs --watch",
+    "watch": "node ./node_modules/typescript/lib/tsc.js -watch -p .",
+    "lint": "npm run compile && npx eslint src/ --ext .ts",
+    "typecheck": "node ./node_modules/typescript/lib/tsc.js -p . --noEmit",
+    "typecheck:webview": "node ./node_modules/typescript/lib/tsc.js -p tsconfig.webview.json --noEmit",
+    "test": "npm run compile && node --require ./scripts/vscode-test-shim.cjs --test dist/test/**/*.test.js && node --test scripts/webview-modular-smoke.mjs",
+    "test:approval-e2e-counterfactual": "bash scripts/verify-approval-write-e2e-counterfactual.sh",
+    "test:webview-smoke": "node --test scripts/webview-modular-smoke.mjs",
+    "package": "mkdir -p .vsix && npx @vscode/vsce package --out .vsix",
+    "ci": "npm run compile && npm run test",
+    "trace:summarize": "node scripts/summarize-my-ai-trace.mjs"
+  },
+  "devDependencies": {
+    "@types/node": "^20.12.12",
+    "@types/vscode": "1.85.0",
+    "@typescript-eslint/eslint-plugin": "^8.58.0",
+    "@typescript-eslint/parser": "^8.58.0",
+    "esbuild": "^0.27.4",
+    "eslint": "^10.1.0",
+    "typescript": "^5.6.3"
+  }
+}

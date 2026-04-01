@@ -1,0 +1,20 @@
+{
+  "adapters": [
+    {
+      "name": "repo_search",
+      "type": "http",
+      "method": "POST",
+      "url": "http://127.0.0.1:8080/tool/repo_search",
+      "description": "Example external repository search tool",
+      "mutating": false
+    },
+    {
+      "name": "codegen_apply",
+      "type": "http",
+      "method": "POST",
+      "url": "http://127.0.0.1:8080/tool/codegen_apply",
+      "description": "Example mutating external codegen tool",
+      "mutating": true
+    }
+  ]
+}

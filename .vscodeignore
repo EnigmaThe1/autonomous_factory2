@@ -1,0 +1,33 @@
+# VSCE packages the workspace minus these patterns (see also package.json — do not use both "files" and .vscodeignore).
+
+.vscode/**
+.vscode-test/**
+.cursor/**
+.git/**
+.github/**
+.dev/**
+.tmp/**
+.my-ai-extension/**
+.output/**
+.vsix/**
+
+# TypeScript source; runtime uses dist/**/*.js
+src/**
+tsconfig.json
+
+node_modules/**
+
+*.vsix
+
+# Compiled unit tests — not part of extension activation/runtime
+dist/test/**
+
+# Not required inside the VSIX for runtime
+package-lock.json
+
+# Local scratch / planning markdown (not extension assets)
+crawler_plan.md
+hello_note*.md
+dependency_target.md
+hello_semantics_ok.md
+multi_step_a.md
