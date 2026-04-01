@@ -7,6 +7,13 @@ import {
   normalizeMissionQuickFilter
 } from "./missionQuickFilters.js";
 
+/** Compact fingerprint for `missionProgressStats` so list/inspector re-render when dashboard numbers change. */
+export function progressStatsFingerprint(missionId, map) {
+  const s = map && missionId ? map[missionId] : null;
+  if (!s || typeof s.total !== "number") return "";
+  return `${s.completionPercent}|${s.done}|${s.skipped}|${s.total}|${s.running}|${s.todo}|${s.blocked}|${s.failed}|${s.roundsCompleted}|${s.maxAutoRounds}|${Math.round((s.estimatedRemainingMs || 0) / 1000)}|${s.dryRun ? 1 : 0}`;
+}
+
 function focusedMissionOperatorActionHeadlinesSigFragment(headlines) {
   if (!headlines || typeof headlines !== "object") return "";
   return Object.keys(headlines)
@@ -137,7 +144,8 @@ export function missionsListPanelSig(snapshot, missionQuickFilter = "all", order
     qp: queueProgressSignatureTuple(m.queue),
     cn: currentNextSignatureTuple(m.queue),
     dgh: snapshot.missionDownstreamGatingCardHints?.[m.id] ?? "",
-    loah: snapshot.missionListLatestOperatorActionHeadlines?.[m.id] ?? ""
+    loah: snapshot.missionListLatestOperatorActionHeadlines?.[m.id] ?? "",
+    pst: progressStatsFingerprint(m.id, snapshot.missionProgressStats)
   }));
   return JSON.stringify({
     inc: !!ml.includeArchived,
@@ -175,6 +183,7 @@ export function missionInspectorSig(snapshot, missionQuickFilter = "all", displa
       foc,
       qf,
       fhl: false,
+      pst: progressStatsFingerprint(foc || "", snapshot.missionProgressStats),
       rwh: snapshot.focusedMissionRequiredWorkHint ?? "",
       dqh: snapshot.focusedMissionHardStopDataQualityHint ?? "",
       dgh: snapshot.focusedMissionDownstreamGatingHint ?? "",
@@ -198,10 +207,12 @@ export function missionInspectorSig(snapshot, missionQuickFilter = "all", displa
   const cps = (m.checkpoints || []).slice(-4).map((cp) => [cp.step, cp.ts, cp.summary]);
   const evs = (m.events || []).slice(-8).map((ev) => [ev.id, ev.ts, ev.level, ev.source, ev.message]);
   const rt = m.runtime || {};
+  const pst = progressStatsFingerprint(m.id, snapshot.missionProgressStats);
   return JSON.stringify({
     foc: m.id,
     qf,
     fhl,
+    pst,
     rwh: snapshot.focusedMissionRequiredWorkHint ?? "",
     dqh: snapshot.focusedMissionHardStopDataQualityHint ?? "",
     dgh: snapshot.focusedMissionDownstreamGatingHint ?? "",

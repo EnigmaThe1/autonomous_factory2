@@ -759,6 +759,40 @@ test("missionInspectorSig and missionsListPanelSig: focused lifecycle summary (f
   assert.equal(list.fls, "Running now; implementer is active.");
 });
 
+test("formatMissionProgressStatsLineHtml and progressStatsFingerprint", async () => {
+  const { formatMissionProgressStatsLineHtml } = await import(mediaChatUrl("missionProgressDashboard.js"));
+  const { progressStatsFingerprint } = await import(mediaChatUrl("webviewSignatures.js"));
+  const esc = (s) => s;
+  const stats = {
+    total: 4,
+    done: 1,
+    running: 1,
+    todo: 1,
+    blocked: 0,
+    failed: 0,
+    skipped: 1,
+    completionPercent: 50,
+    roundsCompleted: 2,
+    maxAutoRounds: 10,
+    elapsedMs: 1000,
+    avgStepMs: 5000,
+    estimatedRemainingMs: 25000,
+    dryRun: false
+  };
+  const html = formatMissionProgressStatsLineHtml(stats, esc);
+  assert.match(html, /50%/);
+  assert.match(html, /2\/4 closed/);
+  assert.match(html, /1 running/);
+  assert.match(html, /pass 2\/10/);
+  assert.match(html, /25s est/);
+  assert.equal(formatMissionProgressStatsLineHtml(undefined, esc), "");
+  assert.equal(formatMissionProgressStatsLineHtml({ total: 0 }, esc), "");
+  const dry = { ...stats, dryRun: true, estimatedRemainingMs: 0, avgStepMs: 0 };
+  assert.match(formatMissionProgressStatsLineHtml(dry, esc), /dry run/);
+  const fp = progressStatsFingerprint("m1", { m1: stats });
+  assert.match(fp, /^50\|/);
+});
+
 test("missionReportInspectorCacheSig and missionInspectorSig: frs + rmc", async () => {
   const { composeMissionsForMissionList } = await import(mediaChatUrl("missionQuickFilters.js"));
   const { missionInspectorSig, missionReportInspectorCacheSig } = await import(mediaChatUrl("webviewSignatures.js"));
@@ -1326,6 +1360,7 @@ test("ESM: webview helper modules load (excluding main.js bootstrap)", async () 
     "missionBulkVisibleCandidates.js",
     "missionQueueProgressSummary.js",
     "missionQueueCurrentNext.js",
+    "missionProgressDashboard.js",
     "missionEventLabels.js",
     "missionMemoryLabels.js",
     "webviewSignatures.js",

@@ -24,6 +24,7 @@ import {
   normalizeMissionQuickFilter
 } from "./missionQuickFilters.js";
 import { computeVisibleBulkMissionCandidates } from "./missionBulkVisibleCandidates.js";
+import { formatMissionProgressStatsLineHtml } from "./missionProgressDashboard.js";
 
 /**
  * @param {object} deps
@@ -120,6 +121,7 @@ export function createMissionRenderer(deps) {
           : "";
       const cardProgress = (m) => formatMissionCardQueueProgressHtml(computeQueueProgressStats(m.queue), escapeHtml);
       const cardCurrentNext = (m) => formatMissionCardCurrentNextHtml(describeMissionCurrentNext(m.queue), escapeHtml);
+      const cardMps = (m) => formatMissionProgressStatsLineHtml(snapshot.missionProgressStats?.[m.id], escapeHtml);
       const cardResumeButton = (m) => {
         const ui = getMissionResumeUiState(m);
         const disabled = ui.enabled ? "" : " disabled";
@@ -171,6 +173,7 @@ export function createMissionRenderer(deps) {
       <div class="meta">queue ${m.queue.length} • approvals ${m.approvals.filter((a) => a.status === "pending").length} • checkpoints ${m.checkpoints.length}</div>
       ${cardProgress(m)}
       ${cardCurrentNext(m)}
+      ${cardMps(m)}
       ${m.id === focused ? cardRwHint : ""}
       ${m.id === focused ? cardDqHint : ""}
       ${m.id === focused ? cardDgHint : ""}
@@ -269,6 +272,7 @@ export function createMissionRenderer(deps) {
         const rt = m.runtime || { stalledHeartbeats: 0, autoReplans: 0, loopGuardTrips: 0 };
         const queueProgressInspector = formatInspectorQueueProgressHtml(computeQueueProgressStats(m.queue), escapeHtml);
         const currentNextInspector = formatInspectorCurrentNextHtml(describeMissionCurrentNext(m.queue), escapeHtml);
+        const inspectorMps = formatMissionProgressStatsLineHtml(snapshot.missionProgressStats?.[m.id], escapeHtml);
         const frs = snapshot.focusedMissionReportSummary;
         const reportSummaryHtml =
           frs && typeof frs === "object"
@@ -327,6 +331,7 @@ export function createMissionRenderer(deps) {
       </div>
       ${queueProgressInspector}
       ${currentNextInspector}
+      ${inspectorMps}
       ${reportSummaryHtml}
       ${reportActions}
       ${reportPreviewHtml}

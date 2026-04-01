@@ -62,7 +62,12 @@ document.body.addEventListener('click', e => {
     if (state.snapshot) renderMissions(state.snapshot, newInteractionId(), { force: true });
     return;
   }
-  if (action === 'focusMission') return postWithInteractionId('focusMission', { missionId });
+  if (action === 'focusMission') {
+    if (missionId && state.missionReportCache && state.missionReportCache.missionId !== missionId) {
+      state.missionReportCache = null;
+    }
+    return postWithInteractionId('focusMission', { missionId });
+  }
   if (action === 'resumeMission') return post('resumeMission', { missionId });
   if (action === 'abortMissionLlm') return post('abortMissionLlm', { missionId });
   if (action === 'archiveMission') return postWithInteractionId('archiveMission', { missionId });
