@@ -193,7 +193,14 @@ export class MissionStore {
   async saveEvent(missionId: string, event: Omit<MissionEvent, "id" | "ts">): Promise<void> {
     const mission = this.requireMission(missionId);
     mission.events.push({ id: uid("evt"), ts: Date.now(), ...event });
-    mission.events = mission.events.slice(-400);
+
+    const maxEvents = 400;
+    if (mission.events.length > maxEvents) {
+      const { compactEvents } = await import("./eventCompaction");
+      const compacted = compactEvents(mission.events, Math.floor(maxEvents * 0.6));
+      mission.events = compacted.events.slice(-maxEvents);
+    }
+
     mission.updatedAt = Date.now();
     await this.upsert(mission);
   }

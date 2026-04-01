@@ -130,6 +130,13 @@ export abstract class BaseAgent {
       "WORK:ROLE:TITLE - PROMPT",
       "MEMORY:kind:tag1,tag2 - text",
       "Prefer runCommand over runTerminal when you need to see command output (build results, test output, git status, etc.).",
+      "SELF-CORRECTION PROTOCOL:",
+      "1. After writing or patching code, ALWAYS run getDiagnostics or runLinter to check for errors you introduced.",
+      "2. If diagnostics show errors, fix them immediately before marking the task done.",
+      "3. After fixing code, run runTests to verify you haven't broken existing functionality.",
+      "4. If a tool call fails, read the error carefully and try a different approach — do not repeat the exact same call.",
+      "5. When working on large changes, use git.diff to review your changes before concluding.",
+      "6. If you encounter an import/module error, use grepSearch to find the correct export path.",
       "Use COMPLETE: only when the mission is genuinely complete. Use BLOCKER: only for a real blocker."
     ]
       .filter(Boolean)
