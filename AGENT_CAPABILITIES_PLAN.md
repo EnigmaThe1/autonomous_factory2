@@ -24,20 +24,23 @@ This plan adds documentation lookup, workspace skills, optional web research, an
 
 ### 2a — MCP (full automation: click, console, navigate)
 
-Add a Playwright (or similar) MCP server to your workspace **`.mcp.json`** (path from extension settings). Example shape (adjust server package/name to what you install):
+The extension reads **`myAi.mcp.configPath`** (default **`examples/mcp.sample.json`**): a JSON file with a **`servers`** array. Each entry has **`name`**, **`command`**, optional **`args`**, **`cwd`**, etc. (see repo **`examples/mcp.sample.json`**). Command Palette: **My AI: Open MCP Config File** opens that path when it exists.
+
+Example (Playwright MCP; adjust package/version to what you install):
 
 ```json
 {
-  "mcpServers": {
-    "playwright": {
+  "servers": [
+    {
+      "name": "playwright",
       "command": "npx",
       "args": ["-y", "@playwright/mcp@latest"]
     }
-  }
+  ]
 }
 ```
 
-Restart MCP sessions, run **`listMcpTools`**, then agents use **`mcp.playwright.<tool>`** (exact names depend on the server). Mutations still follow **MCP approval** policy.
+Restart MCP sessions, run **`listMcpTools`** (or **`listTools`** for **`mcpServers`** names only), then agents use **`mcp.<server_name>.<tool>`**. Mutations still follow **MCP approval** policy.
 
 ### 2b — Shipped: `browserCapture` (CLI screenshot hook)
 
@@ -105,6 +108,13 @@ Example command:
 | Item | Behavior |
 |------|-----------|
 | **`data.mcpServers`** | String array of MCP server **`name`** values from the configured MCP JSON (**`myAi.mcp.configPath`**), read from disk only — **does not** start MCP processes. Use with **`listMcpTools`** to resolve tools per server (`mcp.<server>.<tool>`). |
+
+## Phase 12 — MCP config command + doc alignment (shipped)
+
+| Item | Behavior |
+|------|-----------|
+| **Open MCP config** | **My AI: Open MCP Config File** (`myAi.openMcpConfig`) opens the resolved MCP JSON when the file exists; otherwise a warning points at **`myAi.mcp.configPath`** and **`examples/mcp.sample.json`**. If the path is **absolute**, a workspace folder is not required; relative paths need an open workspace. |
+| **Docs** | Phase 2a example JSON matches the **`servers`** array format the host parses (not Cursor-style **`mcpServers`** maps). |
 
 ---
 

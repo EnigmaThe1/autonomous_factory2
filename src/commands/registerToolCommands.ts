@@ -1,3 +1,4 @@
+import * as path from "path";
 import * as vscode from "vscode";
 import { ToolRegistry } from "../tools/ToolRegistry";
 import { McpRegistry } from "../tools/McpRegistry";
@@ -41,6 +42,27 @@ export function registerToolCommands(
       if (!picked) return;
       await mcp.restartSession(picked.label);
       void vscode.window.showInformationMessage(`Restarted MCP session: ${picked.label}`);
+    })
+  );
+
+  disposables.push(
+    vscode.commands.registerCommand("myAi.openMcpConfig", async () => {
+      const resolved = mcp.getResolvedConfigPath();
+      if (!path.isAbsolute(resolved) && !vscode.workspace.workspaceFolders?.length) {
+        void vscode.window.showWarningMessage("Open a workspace folder first (MCP config path is workspace-relative).");
+        return;
+      }
+      const uri = vscode.Uri.file(resolved);
+      try {
+        await vscode.workspace.fs.stat(uri);
+      } catch {
+        void vscode.window.showWarningMessage(
+          `MCP config not found: ${resolved}. Set myAi.mcp.configPath or start from examples/mcp.sample.json (see AGENT_CAPABILITIES_PLAN.md).`
+        );
+        return;
+      }
+      const doc = await vscode.workspace.openTextDocument(uri);
+      await vscode.window.showTextDocument(doc, { preview: false });
     })
   );
 

@@ -93,6 +93,10 @@
         "title": "My AI: List MCP Sessions"
       },
       {
+        "command": "myAi.openMcpConfig",
+        "title": "My AI: Open MCP Config File"
+      },
+      {
         "command": "myAi.restartMcpSession",
         "title": "My AI: Restart MCP Session"
       },
