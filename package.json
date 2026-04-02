@@ -485,6 +485,11 @@
           "maximum": 200000,
           "description": "Maximum characters for the listTools `hints` array (one-line usage per tool). Set to 0 to omit hints and keep only builtin names + external adapters."
         },
+        "myAi.tools.listToolsRedactExternalUrls": {
+          "type": "boolean",
+          "default": false,
+          "description": "When true, listTools omits url and headers from the `external` array (and sets externalUrlsRedacted). Hints still work; use adapters.json on disk for full URLs."
+        },
         "myAi.tools.listMcpToolsSummaryMaxChars": {
           "type": "number",
           "default": 0,

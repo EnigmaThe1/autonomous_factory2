@@ -94,6 +94,12 @@ Example command:
 |------|-----------|
 | **Compact `listMcpTools`** | When **`listMcpToolsSummaryMaxChars` > 0**, each tool may include **`inputPropertyNames`**: top-level keys from **`inputSchema.properties`** (best-effort; no `$ref` / `allOf` expansion). Omitted when the schema has no usable **`properties`** object. |
 
+## Phase 10 — `listTools` external URL redaction (shipped)
+
+| Item | Behavior |
+|------|-----------|
+| **`myAi.tools.listToolsRedactExternalUrls`** | Default **false**. When **true**, **`listTools`** **`data.external`** is a public summary only (**`name`**, **`type`**, **`method`**, **`description`**, **`mutating`**) — no **`url`** or **`headers`**. Response includes **`externalUrlsRedacted`: true**. **`hints`** for **`ext.*`** are unchanged (they never included URLs). |
+
 ---
 
 ## Safety checklist (every new tool)

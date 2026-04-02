@@ -34,6 +34,7 @@ import { BRAVE_WEB_SEARCH_SECRET_KEY } from "../providers/providerCredentialKeys
 import { BUILTIN_TOOL_NAMES } from "./builtinToolNames";
 import { buildListToolsHintEntries } from "./listToolsCatalog";
 import { compactMcpToolDescriptors } from "./mcpToolsListCompact";
+import { toExternalAdapterPublicSummaries } from "./externalAdapterListSanitize";
 
 function buildDiffHunks(beforeText: string, afterText: string) {
   const before = beforeText.split(/\r?\n/);
@@ -430,20 +431,26 @@ export class ToolRegistry {
   private async listTools(missionId: string): Promise<ToolResult> {
     const cfg = vscode.workspace.getConfiguration();
     const hintsBudget = cfg.get<number>("myAi.tools.listToolsHintsMaxChars", 16_000);
-    const external = await this.externalAdapters.list();
+    const externalRaw = await this.externalAdapters.list();
+    const redactExternal = cfg.get<boolean>("myAi.tools.listToolsRedactExternalUrls", false);
+    const external = redactExternal ? toExternalAdapterPublicSummaries(externalRaw) : externalRaw;
     const builtins = [...BUILTIN_TOOL_NAMES];
     await this.missionStore.saveEvent(missionId, { level: "info", source: "tool:listTools", message: "Listed built-in and external tools" });
     const data: Record<string, unknown> = { builtins, external };
+    if (redactExternal) {
+      data.externalUrlsRedacted = true;
+    }
     if (hintsBudget > 0) {
-      const hints = buildListToolsHintEntries(hintsBudget, external);
+      const hints = buildListToolsHintEntries(hintsBudget, externalRaw);
       data.hints = hints.entries;
       if (hints.truncated) {
         data.hintsTruncated = true;
       }
     }
+    const redactNote = redactExternal ? "; external URLs redacted" : "";
     return {
       ok: true,
-      summary: `Listed ${builtins.length + external.length} tools${hintsBudget > 0 ? " with hints" : ""}.`,
+      summary: `Listed ${builtins.length + external.length} tools${hintsBudget > 0 ? " with hints" : ""}${redactNote}.`,
       data
     };
   }

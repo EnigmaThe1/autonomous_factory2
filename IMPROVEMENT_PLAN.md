@@ -174,7 +174,7 @@ Phase 10 is the capstone.
 - [x] **Chat tab focused mission strip** — title, status badge, progress line; `chatPanelSig` includes `pst`, `ft`, `fs` so chat re-renders when focused mission or stats change
 - [x] **Dashboard header missions summary** — `#summaryMissions` shows total plus running / queued / awaiting counts (`formatDashboardMissionSummaryText`)
 - [x] **Copy mission report** — inspector **Copy report** uses Clipboard API with status line feedback
-- [x] **705 tests** (627 host + 78 webview smoke), 0 failures, 0 lint errors
+- [x] **706 tests** (628 host + 78 webview smoke), 0 failures, 0 lint errors
 
 ---
 
@@ -191,3 +191,4 @@ See **`AGENT_CAPABILITIES_PLAN.md`** for the full roadmap (browser via MCP, futu
 - [x] **Phase 7 (agent capabilities)** — `myAi.tools.listMcpToolsSummaryMaxChars`; `compactMcpToolDescriptors` (strip schema, bounded JSON, sentinel row)
 - [x] **Phase 8 (agent capabilities)** — `listTools` `hints` includes `ext.*` rows from adapters.json (no URL in hint text)
 - [x] **Phase 9 (agent capabilities)** — compact `listMcpTools`: `McpToolDescriptor.inputPropertyNames` from JSON Schema `properties` (`extractJsonSchemaPropertyKeys`)
+- [x] **Phase 10 (agent capabilities)** — `myAi.tools.listToolsRedactExternalUrls` + `toExternalAdapterPublicSummaries`; `externalUrlsRedacted` on payload

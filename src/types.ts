@@ -327,3 +327,9 @@ export interface ExternalToolAdapterDefinition {
   mutating?: boolean;
   headers?: Record<string, string>;
 }
+
+/** `listTools` `external` payload when URLs are redacted (no secrets in model context). */
+export type ExternalToolAdapterPublicSummary = Pick<
+  ExternalToolAdapterDefinition,
+  "name" | "type" | "method" | "description" | "mutating"
+>;
