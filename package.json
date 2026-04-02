@@ -23,7 +23,10 @@
     "onCommand:myAi.showTraceLog",
     "onCommand:myAi.exportTraceLog",
     "onCommand:myAi.clearTraceLog",
-    "onCommand:myAi.setTraceLevel"
+    "onCommand:myAi.setTraceLevel",
+    "onCommand:myAi.openMcpConfig",
+    "onCommand:myAi.applyLazyDiscoveryPreset",
+    "onCommand:myAi.revertLazyDiscoveryPreset"
   ],
   "main": "./dist/extension.js",
   "contributes": {
@@ -83,6 +86,10 @@
       {
         "command": "myAi.applyLazyDiscoveryPreset",
         "title": "My AI: Apply Lazy Discovery Preset (Workspace)"
+      },
+      {
+        "command": "myAi.revertLazyDiscoveryPreset",
+        "title": "My AI: Revert Lazy Discovery Preset (Workspace)"
       },
       {
         "command": "myAi.setBraveSearchApiKey",

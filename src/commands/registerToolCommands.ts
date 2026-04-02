@@ -84,6 +84,23 @@ export function registerToolCommands(
   );
 
   disposables.push(
+    vscode.commands.registerCommand("myAi.revertLazyDiscoveryPreset", async () => {
+      if (!vscode.workspace.workspaceFolders?.length) {
+        void vscode.window.showWarningMessage("Open a workspace folder first; revert applies to workspace settings.");
+        return;
+      }
+      const target = vscode.ConfigurationTarget.Workspace;
+      const cfg = vscode.workspace.getConfiguration();
+      await cfg.update("myAi.agents.lazyToolPrompt", false, target);
+      await cfg.update("myAi.tools.listMcpToolsSummaryMaxChars", 0, target);
+      await cfg.update("myAi.tools.listToolsRedactExternalUrls", false, target);
+      void vscode.window.showInformationMessage(
+        "Reverted workspace lazy discovery keys to defaults: lazyToolPrompt=false, listMcpToolsSummaryMaxChars=0, listToolsRedactExternalUrls=false."
+      );
+    })
+  );
+
+  disposables.push(
     vscode.commands.registerCommand("myAi.openWorkspaceSkillsFolder", async () => {
       const folder = vscode.workspace.workspaceFolders?.[0];
       if (!folder) {

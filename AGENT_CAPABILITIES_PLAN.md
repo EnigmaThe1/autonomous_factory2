@@ -121,6 +121,8 @@ Example command:
 | Item | Behavior |
 |------|-----------|
 | **Apply preset** | **My AI: Apply Lazy Discovery Preset (Workspace)** (`myAi.applyLazyDiscoveryPreset`) sets **workspace** settings: **`myAi.agents.lazyToolPrompt`** = **true**, **`myAi.tools.listMcpToolsSummaryMaxChars`** = **48000**, **`myAi.tools.listToolsRedactExternalUrls`** = **true**. Requires an open workspace folder. Operators can still tune individual keys afterward. |
+| **Revert preset** | **My AI: Revert Lazy Discovery Preset (Workspace)** (`myAi.revertLazyDiscoveryPreset`) sets those three keys back to extension defaults (**false** / **0** / **false**). Same workspace-folder requirement. |
+| **Activation** | **`onCommand`** activation for **`myAi.openMcpConfig`**, **`myAi.applyLazyDiscoveryPreset`**, and **`myAi.revertLazyDiscoveryPreset`** so these run without opening the sidebar first. |
 
 ---
 
