@@ -49,8 +49,8 @@ export function registerToolCommands(
   );
 
   disposables.push(
-    vscode.commands.registerCommand("myAi.openMissionSettings", async () => {
-      await vscode.commands.executeCommand("workbench.action.openSettings", MISSION_SETTINGS_SEARCH_QUERY);
+    vscode.commands.registerCommand("myAi.openMissionSettings", () => {
+      void vscode.commands.executeCommand("workbench.action.openSettings", MISSION_SETTINGS_SEARCH_QUERY);
     })
   );
 

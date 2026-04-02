@@ -65,6 +65,16 @@ test("router wires representative families to expected dispatch imports", () => 
   }
 });
 
+test("dispatchUi_openSettings: defers workbench openSettings (no await in message path, static)", () => {
+  const src = readFileSync(join(repoRoot, "src/ui/aiSidebarDispatchMcpShell.ts"), "utf8");
+  assert.match(src, /setImmediate|setTimeout\(run, 0\)/);
+  assert.match(src, /void vscode\.commands\.executeCommand\("workbench\.action\.openSettings"/);
+  assert.ok(
+    !src.includes('await vscode.commands.executeCommand("workbench.action.openSettings"'),
+    "awaiting openSettings from webview dispatch can freeze the host"
+  );
+});
+
 test("cancel / no-op: archive and delete modals return false when user dismisses (source static)", () => {
   const src = readFileSync(join(repoRoot, "src/ui/aiSidebarDispatchMissions.ts"), "utf8");
   assert.match(src, /pick !== "Archive"\)[\s\S]*?return false/);

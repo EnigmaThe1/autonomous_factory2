@@ -2,7 +2,7 @@ import * as vscode from "vscode";
 import { createStarterMcpFromSample } from "../tools/mcpStarterConfig";
 import type { AiSidebarUiDispatchHost } from "./aiSidebarUiDispatchHost";
 import type { UiToExtMessage } from "./protocol";
-import { MISSION_SETTINGS_SEARCH_QUERY, sanitizeExtensionSettingsSearchQuery } from "./extensionSettingsSearchQuery";
+import { sanitizeExtensionSettingsSearchQuery } from "./extensionSettingsSearchQuery";
 
 export async function dispatchUi_listMcpTools(host: AiSidebarUiDispatchHost): Promise<boolean> {
   host.invalidateMcpToolsSessionsCache();
@@ -65,10 +65,22 @@ export async function dispatchUi_openSettings(
   const q = sanitizeExtensionSettingsSearchQuery(
     msg && typeof msg.query === "string" ? msg.query : undefined
   );
-  if (q === MISSION_SETTINGS_SEARCH_QUERY) {
-    await vscode.commands.executeCommand("myAi.openMissionSettings");
+  /**
+   * Do not `await executeCommand(openSettings)` from the webview message handler: in some hosts
+   * (e.g. Cursor) the workbench settings command may not resolve while nested under webview IPC,
+   * which blocks the extension host and freezes the UI. Defer and fire-and-forget instead.
+   */
+  const run = () => {
+    try {
+      void vscode.commands.executeCommand("workbench.action.openSettings", q);
+    } catch {
+      /* missing command in minimal hosts */
+    }
+  };
+  if (typeof globalThis.setImmediate === "function") {
+    globalThis.setImmediate(run);
   } else {
-    await vscode.commands.executeCommand("workbench.action.openSettings", q);
+    setTimeout(run, 0);
   }
   return true;
 }
