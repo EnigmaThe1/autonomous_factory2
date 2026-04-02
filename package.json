@@ -2,7 +2,7 @@
   "name": "my-ai-extension-v18",
   "displayName": "My AI Extension V18",
   "description": "VS Code AI assistant with unified sidebar, in-pane diff review, richer tool/result cards, mission inspector, grouped timeline, live agent stream, approvals, bundles, tools, memory, console, and settings",
-  "version": "0.18.39",
+  "version": "0.18.40",
   "publisher": "enigma-the",
   "repository": {
     "type": "git",
@@ -27,7 +27,11 @@
     "onCommand:myAi.openMcpConfig",
     "onCommand:myAi.applyLazyDiscoveryPreset",
     "onCommand:myAi.revertLazyDiscoveryPreset",
-    "onCommand:myAi.openAgentCapabilitiesDoc"
+    "onCommand:myAi.openAgentCapabilitiesDoc",
+    "onCommand:myAi.openMissionAutonomyBlueprint",
+    "onCommand:myAi.approveMissionBlueprint",
+    "onCommand:myAi.rejectMissionBlueprint",
+    "onCommand:myAi.requestMissionBlueprintRevision"
   ],
   "main": "./dist/extension.js",
   "contributes": {
@@ -95,6 +99,22 @@
       {
         "command": "myAi.openAgentCapabilitiesDoc",
         "title": "My AI: Open Agent Capabilities Roadmap"
+      },
+      {
+        "command": "myAi.openMissionAutonomyBlueprint",
+        "title": "My AI: Open Mission Autonomy Blueprint"
+      },
+      {
+        "command": "myAi.approveMissionBlueprint",
+        "title": "My AI: Approve Mission Blueprint"
+      },
+      {
+        "command": "myAi.rejectMissionBlueprint",
+        "title": "My AI: Reject Mission Blueprint"
+      },
+      {
+        "command": "myAi.requestMissionBlueprintRevision",
+        "title": "My AI: Request Mission Blueprint Revision"
       },
       {
         "command": "myAi.setBraveSearchApiKey",
@@ -684,6 +704,35 @@
           "default": true,
           "description": "Require planner-generated role coverage (implementer/reviewer/validator) before closure."
         },
+        "myAi.missions.blueprintMode": {
+          "type": "boolean",
+          "default": false,
+          "description": "When true, new missions start with a full JSON blueprint planner pass; approve before synthesized work runs."
+        },
+        "myAi.missions.requireBlueprintApproval": {
+          "type": "boolean",
+          "default": true,
+          "description": "Pause after blueprint generation until operator approves (when blueprintMode is on)."
+        },
+        "myAi.missions.maxBlueprintSteps": {
+          "type": "number",
+          "default": 40,
+          "minimum": 1,
+          "maximum": 80,
+          "description": "Maximum steps accepted in a parsed mission blueprint."
+        },
+        "myAi.missions.maxBlueprintRevisions": {
+          "type": "number",
+          "default": 3,
+          "minimum": 0,
+          "maximum": 20,
+          "description": "Max operator-requested blueprint revision rounds per mission."
+        },
+        "myAi.missions.architectPassAfterValidator": {
+          "type": "boolean",
+          "default": false,
+          "description": "When true and blueprint is approved, enqueue an architect gap review after each validator COMPLETE."
+        },
         "myAi.reviewers.autoCreateFixTasks": {
           "type": "boolean",
           "default": true,
@@ -753,6 +802,11 @@
           "type": "boolean",
           "default": false,
           "description": "Use a shorter TOOL cheat sheet in the user prompt; agents should call listTools and listMcpTools to discover git, docker, http, webSearch, and other builtins. Saves context tokens."
+        },
+        "myAi.agents.enforceDefaultCodingStandards": {
+          "type": "boolean",
+          "default": true,
+          "description": "Inject shared modularity / structure guidance into planner (non-blueprint), implementer, reviewer, and architect prompts."
         },
         "myAi.index.maxFiles": {
           "type": "number",

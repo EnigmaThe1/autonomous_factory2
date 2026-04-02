@@ -103,6 +103,7 @@ const els = {
   revertLazyDiscoveryPreset: document.getElementById("revertLazyDiscoveryPreset"),
   openSettings: document.getElementById("openSettings"),
   openAgentCapabilitiesDoc: document.getElementById("openAgentCapabilitiesDoc"),
+  openMissionAutonomyBlueprint: document.getElementById("openMissionAutonomyBlueprint"),
   focusChatInput: document.getElementById("focusChatInput"),
   approveFocusedBundle: document.getElementById("approveFocusedBundle"),
   rejectFocusedBundle: document.getElementById("rejectFocusedBundle"),

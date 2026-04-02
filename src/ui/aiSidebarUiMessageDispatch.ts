@@ -28,7 +28,10 @@ import {
   dispatchUi_generateMissionReport,
   dispatchUi_saveMissionRouting,
   dispatchUi_setMissionListIncludeArchived,
-  dispatchUi_unarchiveMission
+  dispatchUi_unarchiveMission,
+  dispatchUi_approveMissionBlueprint,
+  dispatchUi_rejectMissionBlueprint,
+  dispatchUi_requestMissionBlueprintRevision
 } from "./aiSidebarDispatchMissions";
 import {
   dispatchUi_approve,
@@ -41,6 +44,7 @@ import {
 import {
   dispatchUi_applyLazyDiscoveryPreset,
   dispatchUi_openAgentCapabilitiesDoc,
+  dispatchUi_openMissionAutonomyBlueprint,
   dispatchUi_revertLazyDiscoveryPreset
 } from "./aiSidebarDispatchHelp";
 import {
@@ -150,6 +154,14 @@ export async function dispatchUiToExtMessage(
       return await dispatchUi_openMcpConfig(host);
     case "openAgentCapabilitiesDoc":
       return await dispatchUi_openAgentCapabilitiesDoc(host);
+    case "openMissionAutonomyBlueprint":
+      return await dispatchUi_openMissionAutonomyBlueprint(host);
+    case "approveMissionBlueprint":
+      return await dispatchUi_approveMissionBlueprint(host, msg);
+    case "rejectMissionBlueprint":
+      return await dispatchUi_rejectMissionBlueprint(host, msg);
+    case "requestMissionBlueprintRevision":
+      return await dispatchUi_requestMissionBlueprintRevision(host, msg);
     case "applyLazyDiscoveryPreset":
       return await dispatchUi_applyLazyDiscoveryPreset(host);
     case "revertLazyDiscoveryPreset":

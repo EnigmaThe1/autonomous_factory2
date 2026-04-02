@@ -100,6 +100,16 @@ document.body.addEventListener('click', e => {
   }
   if (action === 'editMissionDag') return post('editMissionDag', { missionId });
   if (action === 'generateMissionReport' && missionId) return post('generateMissionReport', { missionId });
+  if (action === "approveMissionBlueprint" && missionId) return post("approveMissionBlueprint", { missionId });
+  if (action === "rejectMissionBlueprint" && missionId) {
+    if (!globalThis.confirm("Reject blueprint and cancel this mission?")) return;
+    return post("rejectMissionBlueprint", { missionId });
+  }
+  if (action === "requestMissionBlueprintRevision" && missionId) {
+    const note = globalThis.prompt("What should change in the blueprint?");
+    if (!note || !String(note).trim()) return;
+    return post("requestMissionBlueprintRevision", { missionId, note: String(note).trim() });
+  }
   if (action === 'copyMissionReport' && missionId) {
     const c = state.missionReportCache;
     const statusEl = globalThis.document?.getElementById?.("missionActionStatus");
@@ -174,6 +184,7 @@ els.applyLazyDiscoveryPreset?.addEventListener('click', () => post('applyLazyDis
 els.revertLazyDiscoveryPreset?.addEventListener('click', () => post('revertLazyDiscoveryPreset'));
 els.openSettings?.addEventListener('click', () => post('openSettings'));
 els.openAgentCapabilitiesDoc?.addEventListener('click', () => post('openAgentCapabilitiesDoc'));
+els.openMissionAutonomyBlueprint?.addEventListener('click', () => post('openMissionAutonomyBlueprint'));
 els.focusChatInput?.addEventListener('click', () => els.chatPrompt?.focus());
 els.approveFocusedBundle?.addEventListener('click', () => state.selectedBundle?.id && postWithInteractionId('approveBundle', { bundleId: state.selectedBundle.id }));
 els.rejectFocusedBundle?.addEventListener('click', () => state.selectedBundle?.id && postWithInteractionId('rejectBundle', { bundleId: state.selectedBundle.id }));

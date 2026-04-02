@@ -228,6 +228,54 @@ export function registerMissionCommands(
   );
 
   disposables.push(
+    vscode.commands.registerCommand("myAi.approveMissionBlueprint", async () => {
+      const missions = store.listVisible(false).filter((m) => m.blueprint?.status === "awaiting_approval");
+      const picked = await vscode.window.showQuickPick(
+        missions.map((m) => ({ label: m.title, missionId: m.id, detail: m.status })),
+        { placeHolder: "Select mission whose blueprint to approve" }
+      );
+      if (!picked) return;
+      const out = await orchestrator.approveMissionBlueprint(picked.missionId);
+      void vscode.window.showInformationMessage(out.message);
+      sidebar.reveal();
+      sidebar.focusMission(picked.missionId);
+      void sidebar.refreshDashboard(undefined, { source: "blueprint_approve" });
+    })
+  );
+
+  disposables.push(
+    vscode.commands.registerCommand("myAi.rejectMissionBlueprint", async () => {
+      const missions = store.listVisible(false).filter((m) => m.blueprint?.status === "awaiting_approval");
+      const picked = await vscode.window.showQuickPick(
+        missions.map((m) => ({ label: m.title, missionId: m.id, detail: m.status })),
+        { placeHolder: "Select mission whose blueprint to reject" }
+      );
+      if (!picked) return;
+      const ok = await vscode.window.showWarningMessage("Reject blueprint and cancel this mission?", { modal: true }, "Reject");
+      if (ok !== "Reject") return;
+      const out = await orchestrator.rejectMissionBlueprint(picked.missionId);
+      void vscode.window.showInformationMessage(out.message);
+      void sidebar.refreshDashboard(undefined, { source: "blueprint_reject" });
+    })
+  );
+
+  disposables.push(
+    vscode.commands.registerCommand("myAi.requestMissionBlueprintRevision", async () => {
+      const missions = store.listVisible(false).filter((m) => m.blueprint?.status === "awaiting_approval");
+      const picked = await vscode.window.showQuickPick(
+        missions.map((m) => ({ label: m.title, missionId: m.id, detail: m.status })),
+        { placeHolder: "Select mission to revise blueprint" }
+      );
+      if (!picked) return;
+      const note = await vscode.window.showInputBox({ prompt: "What should change in the blueprint?" });
+      if (!note?.trim()) return;
+      const out = await orchestrator.requestMissionBlueprintRevision(picked.missionId, note.trim());
+      void vscode.window.showInformationMessage(out.message);
+      void sidebar.refreshDashboard(undefined, { source: "blueprint_revise" });
+    })
+  );
+
+  disposables.push(
     vscode.commands.registerCommand("myAi.archiveMission", async () => {
       const picked = await chooseMission(store, "Select a mission to archive");
       if (!picked) return;

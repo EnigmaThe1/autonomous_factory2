@@ -440,3 +440,36 @@ export async function dispatchUi_generateMissionReport(
   host.postMessage({ type: "missionReportReady", missionId: msg.missionId, markdown: report.markdown });
   return true;
 }
+
+export async function dispatchUi_approveMissionBlueprint(
+  host: AiSidebarUiDispatchHost,
+  msg: Extract<UiToExtMessage, { type: "approveMissionBlueprint" }>
+): Promise<boolean> {
+  const out = await host.orchestrator.approveMissionBlueprint(msg.missionId);
+  void vscode.window.showInformationMessage(out.message);
+  host.postMissionDashboardSnapshotImmediate();
+  host.scheduleBackgroundDashboardReconciliation();
+  return true;
+}
+
+export async function dispatchUi_rejectMissionBlueprint(
+  host: AiSidebarUiDispatchHost,
+  msg: Extract<UiToExtMessage, { type: "rejectMissionBlueprint" }>
+): Promise<boolean> {
+  const out = await host.orchestrator.rejectMissionBlueprint(msg.missionId);
+  void vscode.window.showInformationMessage(out.message);
+  host.postMissionDashboardSnapshotImmediate();
+  host.scheduleBackgroundDashboardReconciliation();
+  return true;
+}
+
+export async function dispatchUi_requestMissionBlueprintRevision(
+  host: AiSidebarUiDispatchHost,
+  msg: Extract<UiToExtMessage, { type: "requestMissionBlueprintRevision" }>
+): Promise<boolean> {
+  const out = await host.orchestrator.requestMissionBlueprintRevision(msg.missionId, msg.note);
+  void vscode.window.showInformationMessage(out.message);
+  host.postMissionDashboardSnapshotImmediate();
+  host.scheduleBackgroundDashboardReconciliation();
+  return true;
+}

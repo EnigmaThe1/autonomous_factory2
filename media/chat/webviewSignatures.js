@@ -197,7 +197,8 @@ export function missionInspectorSig(snapshot, missionQuickFilter = "all", displa
       fls: snapshot.focusedMissionLifecycleSummary ?? "",
       oah: focusedMissionOperatorActionHeadlinesSigFragment(snapshot.focusedMissionOperatorActionHeadlines),
       frs: frsKey,
-      rmc: reportCacheSig
+      rmc: reportCacheSig,
+      bpx: ""
     });
   }
   const q = (m.queue || []).map((w) => ({
@@ -214,6 +215,10 @@ export function missionInspectorSig(snapshot, missionQuickFilter = "all", displa
   const evs = (m.events || []).slice(-8).map((ev) => [ev.id, ev.ts, ev.level, ev.source, ev.message]);
   const rt = m.runtime || {};
   const pst = progressStatsFingerprint(m.id, snapshot.missionProgressStats);
+  const fbp = snapshot.focusedMissionBlueprintProgress;
+  const bpx = m.blueprint
+    ? `${m.blueprint.status}|${fbp ? `${fbp.done}/${fbp.total}` : ""}|${(m.blueprint.steps || []).map((s) => `${s.id}:${s.status}`).join(",")}`
+    : "";
   return JSON.stringify({
     foc: m.id,
     qf,
@@ -248,6 +253,7 @@ export function missionInspectorSig(snapshot, missionQuickFilter = "all", displa
       sh: rt.stalledHeartbeats,
       ar: rt.autoReplans,
       lg: rt.loopGuardTrips
-    }
+    },
+    bpx
   });
 }

@@ -14,7 +14,7 @@ export function buildApprovalBundlesFromMissions(missions: Mission[]): SidebarAp
 }
 
 export function buildAgentLiveFromMission(mission: Mission | undefined): SidebarAgentLiveItem[] {
-  const roles: AgentRole[] = ["planner", "researcher", "implementer", "reviewer", "validator"];
+  const roles: AgentRole[] = ["planner", "researcher", "implementer", "reviewer", "validator", "architect"];
   if (!mission) {
     return roles.map((role) => ({ role, status: "idle", recentEvents: [] }));
   }

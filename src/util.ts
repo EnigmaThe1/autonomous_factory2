@@ -23,7 +23,8 @@ export function parseRole(input: string): import("./types").AgentRole {
     researcher: "researcher",
     implementer: "implementer",
     reviewer: "reviewer",
-    validator: "validator"
+    validator: "validator",
+    architect: "architect"
   };
   return map[input.toLowerCase()] || "implementer";
 }

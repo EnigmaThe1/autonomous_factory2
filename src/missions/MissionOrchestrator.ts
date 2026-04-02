@@ -42,6 +42,10 @@ import {
 } from "./alreadySatisfiedWorkItem";
 import { shouldEnqueueReviewerAutoRemediation } from "./reviewerRemediationPolicy";
 import { computePlannerCoverageItems, enforceClosurePolicy } from "./missionClosurePolicy";
+import { parseBlueprintModelOutput } from "./blueprintParser";
+import { synthesizeWorkItemsFromBlueprint } from "./blueprintSynthesis";
+import { blueprintBlocksMissionCompletion, computeBlueprintProgress } from "./blueprintProgress";
+import { applyBlueprintStepStatusFromWorkItem } from "./blueprintStepSync";
 import type {
   ResolveApprovalOutcome,
   ResumeMissionOutcome,
@@ -150,15 +154,29 @@ export class MissionOrchestrator {
    */
   async startMission(title: string, prompt: string, providerId: string, model?: string): Promise<StartMissionResult> {
     const mission = await this.store.create(title, prompt, providerId, model);
-    await this.store.enqueue(mission.id, [
-      {
-        id: uid("work"),
-        title: "Initial planning",
-        role: "planner",
-        status: "todo",
-        prompt: "Break down the mission into bounded work items and propose an execution order."
-      }
-    ]);
+    const blueprintMode = vscode.workspace.getConfiguration().get<boolean>("myAi.missions.blueprintMode", false);
+    if (blueprintMode) {
+      await this.store.enqueue(mission.id, [
+        {
+          id: uid("work"),
+          title: "Mission blueprint (full plan)",
+          role: "planner",
+          status: "todo",
+          workItemPurpose: "blueprint_generate",
+          prompt: "Generate the full mission blueprint as structured JSON (see system instructions)."
+        }
+      ]);
+    } else {
+      await this.store.enqueue(mission.id, [
+        {
+          id: uid("work"),
+          title: "Initial planning",
+          role: "planner",
+          status: "todo",
+          prompt: "Break down the mission into bounded work items and propose an execution order."
+        }
+      ]);
+    }
     await this.store.noteProgress(mission.id);
     void this.runMission(mission.id);
     const m = this.store.get(mission.id)!;
@@ -444,6 +462,7 @@ export class MissionOrchestrator {
     await this.autoDemoteSupersededTerminalItems(id);
     const m = this.store.get(id);
     if (!m || !shouldCollapseToComplete(m)) return false;
+    if (blueprintBlocksMissionCompletion(m)) return false;
     const completionReason = this.resolveCompletionReasonForCompleted(id, m.queue);
     await this.store.updateMission(id, {
       status: "completed",
@@ -610,6 +629,10 @@ export class MissionOrchestrator {
           return this.runPassOutcomeAfterStoreRead(id);
         }
 
+        if (mission.status === "awaiting_input") {
+          return this.runPassOutcomeAfterStoreRead(id);
+        }
+
         const effectiveMaxRounds = computeEffectiveMaxRounds(mission);
         if ((mission.roundsCompleted || 0) >= effectiveMaxRounds) {
           this.pendingCompletionReason.delete(id);
@@ -637,7 +660,8 @@ export class MissionOrchestrator {
 
         const gate = classifyImplementerHardStopDownstreamGate(mission);
         await this.noteMalformedImplementerHardStopEvent(id, mission, gate);
-        const allowRoleWhileGated = (role: WorkItem["role"]): boolean => role === "implementer" || role === "planner";
+        const allowRoleWhileGated = (role: WorkItem["role"]): boolean =>
+          role === "implementer" || role === "planner" || role === "architect";
         const next = mission.queue.find(
           (w) =>
             w.status === "todo" &&
@@ -958,6 +982,10 @@ export class MissionOrchestrator {
     const mission = this.store.get(missionId);
     if (!mission) return;
 
+    if (item.workItemPurpose === "blueprint_generate" || item.workItemPurpose === "blueprint_revise") {
+      return;
+    }
+
     if (item.role === "planner" && vscode.workspace.getConfiguration().get<boolean>("myAi.missions.requirePlannerCoverage", true)) {
       const coverage = this.ensurePlannerCoverageItems(mission);
       if (coverage.length) {
@@ -986,6 +1014,7 @@ export class MissionOrchestrator {
   }
 
   private async runWorkItem(mission: Mission, item: WorkItem): Promise<"continue" | "awaiting_input" | "blocked"> {
+    let blueprintAwaitingApproval = false;
     const fresh = this.store.get(mission.id)!;
     if (shouldSkipRedundantValidatorWork(fresh, item)) {
       await this.store.updateWorkItem(mission.id, item.id, {
@@ -1229,6 +1258,55 @@ export class MissionOrchestrator {
         await this.globalMemory.add(saved);
       }
     }
+
+    const isBlueprintPlanner =
+      item.role === "planner" &&
+      (item.workItemPurpose === "blueprint_generate" || item.workItemPurpose === "blueprint_revise");
+
+    if (isBlueprintPlanner) {
+      const maxSteps = vscode.workspace.getConfiguration().get<number>("myAi.missions.maxBlueprintSteps", 40);
+      const parsed = parseBlueprintModelOutput(result.summary, { maxSteps });
+      if (!parsed.blueprint || parsed.errors.length) {
+        await this.store.saveEvent(mission.id, {
+          level: "error",
+          source: "blueprint",
+          message: `Blueprint parse failed: ${parsed.errors.join("; ")}`
+        });
+        await this.updateWorkItemWithHardStopInvariant(mission.id, item, {
+          status: "failed",
+          output: parsed.errors.join("\n")
+        });
+        await this.store.updateMission(mission.id, {
+          status: "blocked",
+          blocker: "Mission blueprint could not be parsed. Adjust the mission goal or switch model.",
+          blockReasonCode: "generic_blocked"
+        });
+        await this.store.noteProgress(mission.id);
+        return "blocked";
+      }
+
+      const bp = parsed.blueprint;
+      const requireApproval = vscode.workspace.getConfiguration().get<boolean>("myAi.missions.requireBlueprintApproval", true);
+      result = { ...result, nextWorkItems: [] };
+
+      if (requireApproval) {
+        bp.status = "awaiting_approval";
+        await this.store.updateMission(mission.id, { blueprint: bp });
+        blueprintAwaitingApproval = true;
+      } else {
+        bp.status = "approved";
+        bp.approvedAt = Date.now();
+        await this.store.updateMission(mission.id, { blueprint: bp });
+        await this.enqueueSynthesizedBlueprintWork(mission.id);
+        await this.addBlueprintMemoryMirror(mission.id);
+        await this.store.saveEvent(mission.id, {
+          level: "info",
+          source: "blueprint",
+          message: "Blueprint auto-approved; synthesized work queue from blueprint."
+        });
+      }
+    }
+
     if (result.nextWorkItems?.length) {
       const flattened = flattenSubItems(result.nextWorkItems);
       await this.store.enqueue(mission.id, flattened);
@@ -1261,12 +1339,46 @@ export class MissionOrchestrator {
     await this.store.noteProgress(mission.id);
     await this.store.updateMission(mission.id, patch);
 
+    if (blueprintAwaitingApproval) {
+      await this.store.updateMission(mission.id, {
+        status: "awaiting_input",
+        blocker: "Review and approve the mission blueprint (command: My AI: Approve Mission Blueprint).",
+        blockReasonCode: "awaiting_blueprint_approval"
+      });
+    }
+
+    const wiAfter = this.store.get(mission.id)!.queue.find((w) => w.id === item.id);
+    if (wiAfter?.blueprintStepId) {
+      const bpSynced = applyBlueprintStepStatusFromWorkItem(this.store.get(mission.id)!, wiAfter, wiAfter.status);
+      if (bpSynced) await this.store.updateMission(mission.id, { blueprint: bpSynced });
+    }
+
     if (vscode.workspace.getConfiguration().get<boolean>("myAi.missions.autoCheckpointEveryStep", true)) {
       await this.store.addCheckpoint(mission.id, {
         step: updated.currentStep + 1,
         summary: checkpointSummaryForTerminalWorkItem(item, terminalWorkStatus),
         queueSnapshot: updated.queue.map((w) => ({ id: w.id, title: w.title, role: w.role, status: w.status }))
       });
+    }
+
+    if (item.role === "validator" && result.decision === "complete") {
+      const archOn = vscode.workspace.getConfiguration().get<boolean>("myAi.missions.architectPassAfterValidator", false);
+      const mVal = this.store.get(mission.id)!;
+      if (archOn && mVal.blueprint?.status === "approved") {
+        const hasTodoArch = mVal.queue.some((w) => w.role === "architect" && w.status === "todo");
+        if (!hasTodoArch) {
+          await this.store.enqueue(mission.id, [
+            {
+              id: uid("work"),
+              title: "Architect gap review",
+              role: "architect",
+              status: "todo",
+              prompt: "Review the mission against the approved blueprint and mission memory. Emit WORK: lines only if material gaps remain."
+            }
+          ]);
+          await this.store.saveEvent(mission.id, { level: "info", source: "blueprint", message: "Enqueued architect pass after validator complete." });
+        }
+      }
     }
 
     if (item.role === "implementer") {
@@ -1366,8 +1478,38 @@ export class MissionOrchestrator {
     }
 
     refreshed = this.store.get(id)!;
+    if (
+      refreshed.blueprint?.status === "awaiting_approval" &&
+      !refreshed.queue.some((w) => w.status === "todo" || w.status === "running")
+    ) {
+      await this.store.updateMission(id, {
+        status: "awaiting_input",
+        blocker: "Approve or revise the mission blueprint.",
+        blockReasonCode: "awaiting_blueprint_approval"
+      });
+      return "terminal";
+    }
+
     const hasBlocked = refreshed.queue.some((w) => w.status === "blocked" || w.status === "failed");
     let terminalStatus = resolveCompletionStatus(hasBlocked, refreshed.policy.closureRequired, refreshed.validationState);
+    if (terminalStatus === "completed" && blueprintBlocksMissionCompletion(refreshed)) {
+      await this.store.enqueue(id, [
+        {
+          id: uid("work"),
+          title: "Blueprint completion gap",
+          role: "planner",
+          status: "todo",
+          prompt: `Approved blueprint is not fully satisfied. Pending steps: ${(computeBlueprintProgress(refreshed)?.pendingStepIds || []).join(", ")}. Emit WORK: lines to close gaps.`
+        }
+      ]);
+      await this.store.saveEvent(id, {
+        level: "warn",
+        source: "blueprint-contract",
+        message: "Blocked premature completion: blueprint steps remain."
+      });
+      await this.store.noteProgress(id);
+      return "continue";
+    }
     if (terminalStatus === "completed" && hasRequiredUnresolvedWork(refreshed)) {
       terminalStatus = "blocked";
       this.pendingCompletionReason.delete(id);
@@ -1427,6 +1569,106 @@ export class MissionOrchestrator {
 
   private async ensureClosurePolicy(mission: Mission): Promise<boolean> {
     return enforceClosurePolicy(mission, this.store);
+  }
+
+  private async enqueueSynthesizedBlueprintWork(missionId: string): Promise<void> {
+    const m = this.store.get(missionId);
+    if (!m?.blueprint || m.blueprint.status !== "approved") return;
+    const items = synthesizeWorkItemsFromBlueprint(m.blueprint);
+    if (items.length) await this.store.enqueue(missionId, items);
+  }
+
+  private async addBlueprintMemoryMirror(missionId: string): Promise<void> {
+    const m = this.store.get(missionId);
+    if (!m?.blueprint) return;
+    const text = [
+      `Requirements: ${m.blueprint.requirementsSummary}`,
+      `Architecture: ${m.blueprint.architectureSummary}`,
+      `Steps: ${m.blueprint.steps.map((s) => `${s.id}: ${s.title}`).join("; ")}`
+    ].join("\n");
+    const saved = await this.store.addMemory(missionId, {
+      kind: "summary",
+      text: text.slice(0, 50_000),
+      tags: ["blueprint", "approved"],
+      sourceMissionId: missionId
+    });
+    await this.globalMemory.add(saved);
+  }
+
+  /** Operator approves a parsed blueprint and starts synthesized execution. */
+  async approveMissionBlueprint(missionId: string): Promise<{ ok: boolean; message: string }> {
+    const m = this.store.get(missionId);
+    if (!m) return { ok: false, message: "Mission not found." };
+    if (!m.blueprint || m.blueprint.status !== "awaiting_approval") {
+      return { ok: false, message: "No blueprint awaiting approval." };
+    }
+    const bp = { ...m.blueprint, status: "approved" as const, approvedAt: Date.now() };
+    await this.store.updateMission(missionId, {
+      blueprint: bp,
+      status: "queued",
+      blocker: undefined,
+      blockReasonCode: undefined
+    });
+    await this.enqueueSynthesizedBlueprintWork(missionId);
+    await this.addBlueprintMemoryMirror(missionId);
+    await this.store.saveEvent(missionId, {
+      level: "info",
+      source: "blueprint",
+      message: "Operator approved mission blueprint; work queue synthesized."
+    });
+    void this.runMission(missionId);
+    return { ok: true, message: "Blueprint approved; mission resumed." };
+  }
+
+  async rejectMissionBlueprint(missionId: string): Promise<{ ok: boolean; message: string }> {
+    const m = this.store.get(missionId);
+    if (!m) return { ok: false, message: "Mission not found." };
+    if (!m.blueprint || m.blueprint.status !== "awaiting_approval") {
+      return { ok: false, message: "No blueprint awaiting approval." };
+    }
+    await this.store.updateMission(missionId, {
+      status: "cancelled",
+      blocker: "Mission blueprint rejected by operator.",
+      blueprint: undefined
+    });
+    await this.store.saveEvent(missionId, { level: "warn", source: "blueprint", message: "Blueprint rejected; mission cancelled." });
+    return { ok: true, message: "Mission cancelled." };
+  }
+
+  async requestMissionBlueprintRevision(missionId: string, note: string): Promise<{ ok: boolean; message: string }> {
+    const m = this.store.get(missionId);
+    if (!m) return { ok: false, message: "Mission not found." };
+    const maxRev = vscode.workspace.getConfiguration().get<number>("myAi.missions.maxBlueprintRevisions", 3);
+    if ((m.blueprintRevisionCount || 0) >= maxRev) {
+      return { ok: false, message: `Revision limit reached (${maxRev}).` };
+    }
+    const prior = m.blueprint
+      ? JSON.stringify({
+          requirementsSummary: m.blueprint.requirementsSummary,
+          architectureSummary: m.blueprint.architectureSummary,
+          steps: m.blueprint.steps
+        })
+      : "";
+    await this.store.updateMission(missionId, {
+      blueprintRevisionCount: (m.blueprintRevisionCount || 0) + 1,
+      status: "queued",
+      blocker: undefined,
+      blockReasonCode: undefined,
+      blueprint: undefined
+    });
+    await this.store.enqueue(missionId, [
+      {
+        id: uid("work"),
+        title: "Mission blueprint (revision)",
+        role: "planner",
+        status: "todo",
+        workItemPurpose: "blueprint_revise",
+        prompt: `Revise the full mission blueprint as structured JSON. Prior plan (reference): ${prior.slice(0, 12_000)}\n\nOperator request: ${note}`
+      }
+    ]);
+    await this.store.saveEvent(missionId, { level: "info", source: "blueprint", message: "Blueprint revision requested." });
+    void this.runMission(missionId);
+    return { ok: true, message: "Revision pass scheduled." };
   }
 
   private dependenciesMet(mission: Mission, item: WorkItem): boolean {

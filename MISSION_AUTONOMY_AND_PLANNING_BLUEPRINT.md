@@ -1,5 +1,7 @@
 # Mission autonomy & upfront planning — implementation blueprint
 
+**Status (2026-04)**: Core host + webview behavior is **implemented** in extension **v0.18.40+** (`blueprintMode`, parser, synthesis, approval commands, inspector UI, architect role, researcher web hint, coding fragments). Items marked **optional** or **not yet** below remain future work.
+
 This document is the **full engineering plan** for the behaviors discussed in product conversations:
 
 - **Upfront blueprint**: after the user states the mission goal, the system produces a **complete, structured plan** (requirements, architecture intent, ordered work packages) — not only “first step then react.”

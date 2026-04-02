@@ -1,7 +1,14 @@
 import * as vscode from "vscode";
 import { AgentRole, MissionAgentRouting } from "../types";
 
-export const ROUTING_ROLE_ORDER: AgentRole[] = ["planner", "researcher", "implementer", "reviewer", "validator"];
+export const ROUTING_ROLE_ORDER: AgentRole[] = [
+  "planner",
+  "researcher",
+  "implementer",
+  "reviewer",
+  "validator",
+  "architect"
+];
 
 /** Built-in mission-level preset maps (no workspace merge). */
 const PRESET_FRAGMENTS: Record<string, Pick<MissionAgentRouting, "providerPerRole" | "modelPerRole">> = {

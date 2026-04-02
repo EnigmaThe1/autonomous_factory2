@@ -11,6 +11,7 @@ import { focusedMissionLifecycleSummaryForSnapshot } from "../missions/missionLi
 import { focusedMissionRequiredWorkHintForSnapshot } from "../missions/missionRequiredWorkPresentation";
 import type { ExtensionTraceLogger } from "../diagnostics/ExtensionTraceLogger";
 import { routingPresetTemplatesForUi } from "../missions/missionRouting";
+import { computeBlueprintProgress } from "../missions/blueprintProgress";
 import { computeAllMissionProgressStats, computeMissionProgressStats } from "./missionProgressStats";
 import { buildGlobalMemoryContextHostSlice, missionAllAndVisibleForFingerprint } from "./aiSidebarSnapshotMisc";
 import type { GlobalMemoryStore } from "../memory/GlobalMemoryStore";
@@ -177,6 +178,7 @@ export async function buildSidebarDashboardSnapshot(host: AiSidebarBuildSnapshot
         })()
       : undefined,
     missionProgressStats: computeAllMissionProgressStats(missions),
+    focusedMissionBlueprintProgress: focusedMission ? computeBlueprintProgress(focusedMission) : undefined,
     ...memSlice,
     consoleLines,
     agents,

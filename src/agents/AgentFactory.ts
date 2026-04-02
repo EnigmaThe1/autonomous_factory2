@@ -11,6 +11,7 @@ import { PlannerAgent } from "./PlannerAgent";
 import { ResearchAgent } from "./ResearchAgent";
 import { ReviewerAgent } from "./ReviewerAgent";
 import { ValidatorAgent } from "./ValidatorAgent";
+import { ArchitectAgent } from "./ArchitectAgent";
 
 export class AgentFactory {
   private readonly memoryIndex = new EmbeddingMemoryIndex();
@@ -43,6 +44,7 @@ export class AgentFactory {
       case 'implementer': return new ImplementerAgent(this.providers, this.globalMemory, this.collector, this.memoryIndex);
       case 'reviewer': return new ReviewerAgent(this.providers, this.globalMemory, this.collector, this.memoryIndex);
       case 'validator': return new ValidatorAgent(this.providers, this.globalMemory, this.collector, this.memoryIndex);
+      case 'architect': return new ArchitectAgent(this.providers, this.globalMemory, this.collector, this.memoryIndex);
       default: return new ImplementerAgent(this.providers, this.globalMemory, this.collector, this.memoryIndex);
     }
   }

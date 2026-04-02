@@ -1,3 +1,5 @@
+import type { MissionBlueprint } from "./missions/missionBlueprintTypes";
+
 export type MissionStatus =
   | "queued"
   | "running"
@@ -21,7 +23,8 @@ export type MissionBlockReasonCode =
   | "approval_rejected"
   | "approval_pending"
   | "stall_recovery_limit"
-  | "generic_blocked";
+  | "generic_blocked"
+  | "awaiting_blueprint_approval";
 
 /**
  * Orchestrator-owned classification when `Mission.status === "failed"` (true terminal failure).
@@ -34,7 +37,8 @@ export type AgentRole =
   | "researcher"
   | "implementer"
   | "reviewer"
-  | "validator";
+  | "validator"
+  | "architect";
 
 export interface MissionPolicy {
   closureRequired: boolean;
@@ -148,6 +152,10 @@ export interface WorkItem {
   parentWorkItemId?: string;
   /** Sub-items decomposed from this work item. Parent completes only when all sub-items complete. */
   subItems?: WorkItem[];
+  /** Blueprint mode: planner item that emits structured JSON plan; revision passes. */
+  workItemPurpose?: "blueprint_generate" | "blueprint_revise";
+  /** After synthesis, ties this row to `MissionBlueprint.steps[].id`. */
+  blueprintStepId?: string;
 }
 
 export interface MissionCheckpoint {
@@ -244,6 +252,10 @@ export interface Mission {
     | "stale_patch_but_goal_already_met"
     | "already_satisfied_no_tool_run"
     | "apply_patch_noop_success";
+  /** Upfront plan (blueprint mode). Omitted for legacy missions. */
+  blueprint?: MissionBlueprint;
+  /** User-requested blueprint revision rounds (for cap). */
+  blueprintRevisionCount?: number;
 }
 
 export interface ChatContext {

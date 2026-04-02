@@ -367,6 +367,7 @@ export function buildAiSidebarWebviewHtml(extensionUri: vscode.Uri, webview: vsc
           <div class="row split">
             <button id="openSettings2" class="ghost">Open VS Code Settings</button>
             <button id="openAgentCapabilitiesDoc" class="ghost">Agent capabilities roadmap</button>
+            <button id="openMissionAutonomyBlueprint" class="ghost">Mission autonomy blueprint</button>
           </div>
           <div class="meta" style="margin-top:6px;">For full settings, use the standard VS Code settings page. Roadmap opens AGENT_CAPABILITIES_PLAN.md from the extension.</div>
           <div id="settingsPanel"></div>

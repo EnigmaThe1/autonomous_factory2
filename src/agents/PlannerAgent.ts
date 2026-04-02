@@ -1,17 +1,54 @@
+import * as vscode from "vscode";
 import { BaseAgent } from "./BaseAgent";
 import { AgentRunOptions, AgentTurnResult, ChatContext, Mission, WorkItem } from "../types";
 import { parseAgentOutput } from "./agentOutputParser";
 import { parseRole, uid } from "../util";
+import { ARCHITECTURE_DISCIPLINE_FRAGMENT, CODING_STANDARDS_FRAGMENT } from "./instructionFragments";
+
+const BLUEPRINT_JSON_INSTRUCTIONS = [
+  "You are the mission architect. Output ONE JSON object only (optionally wrapped in ```json code fence). No WORK: lines.",
+  "Infer implicit requirements from the mission goal (capabilities, constraints, quality).",
+  "JSON schema:",
+  '{ "requirementsSummary": string, "architectureSummary": string, "steps": [',
+  '  { "id": string, "title": string, "summary": string, "roleHint": "researcher"|"implementer"|"reviewer"|"validator"|"planner"|"architect",',
+  '    "dependsOn"?: string[], "acceptanceCriteria": string[], "optional"?: boolean }',
+  "] }",
+  "Use stable ids (e.g. step_1). Include dependencies so steps form a DAG. At least one step.",
+  "roleHint should match the primary work type for that step (most build work → implementer, discovery → researcher).",
+  CODING_STANDARDS_FRAGMENT,
+  ARCHITECTURE_DISCIPLINE_FRAGMENT
+].join("\n");
 
 export class PlannerAgent extends BaseAgent {
   async run(mission: Mission, item: WorkItem, context: ChatContext, options?: AgentRunOptions): Promise<AgentTurnResult> {
+    const enforce = vscode.workspace.getConfiguration().get<boolean>("myAi.agents.enforceDefaultCodingStandards", true);
+    const frag = enforce ? `\n\n${CODING_STANDARDS_FRAGMENT}\n${ARCHITECTURE_DISCIPLINE_FRAGMENT}` : "";
+
+    if (item.workItemPurpose === "blueprint_generate" || item.workItemPurpose === "blueprint_revise") {
+      const text = await this.askModel(
+        mission,
+        item,
+        context,
+        BLUEPRINT_JSON_INSTRUCTIONS,
+        options?.signal,
+        options?.onChunk
+      );
+      return {
+        summary: text || "{}",
+        nextWorkItems: [],
+        markStatus: "done",
+        newMemory: [{ kind: "summary", text: text || "Blueprint draft", tags: ["plan", "blueprint"] }]
+      };
+    }
+
     const instructions = [
       "You are the planner. Break the mission into bounded work items.",
       "Prefer researcher -> implementer -> reviewer -> validator.",
       "Emit WORK:ROLE:TITLE - PROMPT lines.",
       "For larger missions, create multiple implementer/reviewer pairs rather than one huge task.",
       "For very complex tasks, use DECOMPOSE:ROLE:Title - Prompt [depends:id1,id2] to create sub-item DAGs.",
-      "Each decomposed sub-item gets its own planner/implementer/reviewer/validator cycle."
+      "Each decomposed sub-item gets its own planner/implementer/reviewer/validator cycle.",
+      frag
     ].join(" ");
 
     const text = await this.askModel(mission, item, context, instructions, options?.signal, options?.onChunk);
@@ -37,7 +74,7 @@ export class PlannerAgent extends BaseAgent {
             status: "todo",
             prompt: d.prompt,
             parentWorkItemId: parentId,
-            dependsOn: d.dependsOn?.map((dep) => idMap.get(dep) || dep),
+            dependsOn: d.dependsOn?.map((dep) => idMap.get(dep) || dep)
           });
         }
 
@@ -47,15 +84,39 @@ export class PlannerAgent extends BaseAgent {
           role: "planner",
           status: "todo",
           prompt: `Parent container for ${subItems.length} decomposed sub-items.`,
-          subItems,
+          subItems
         });
       }
     } else {
       nextWorkItems = [
-        { id: uid("work"), title: "Workspace research", role: "researcher", status: "todo", prompt: "Inspect the workspace and summarize architecture, key files, and likely gaps." },
-        { id: uid("work"), title: "Initial implementation", role: "implementer", status: "todo", prompt: "Implement one bounded high-value improvement based on current findings." },
-        { id: uid("work"), title: "Initial review", role: "reviewer", status: "todo", prompt: "Review the implementation and identify defects or missing validation." },
-        { id: uid("work"), title: "Validation pass", role: "validator", status: "todo", prompt: "Validate mission state and create follow-up work if needed." }
+        {
+          id: uid("work"),
+          title: "Workspace research",
+          role: "researcher",
+          status: "todo",
+          prompt: "Inspect the workspace and summarize architecture, key files, and likely gaps."
+        },
+        {
+          id: uid("work"),
+          title: "Initial implementation",
+          role: "implementer",
+          status: "todo",
+          prompt: "Implement one bounded high-value improvement based on current findings."
+        },
+        {
+          id: uid("work"),
+          title: "Initial review",
+          role: "reviewer",
+          status: "todo",
+          prompt: "Review the implementation and identify defects or missing validation."
+        },
+        {
+          id: uid("work"),
+          title: "Validation pass",
+          role: "validator",
+          status: "todo",
+          prompt: "Validate mission state and create follow-up work if needed."
+        }
       ];
     }
 

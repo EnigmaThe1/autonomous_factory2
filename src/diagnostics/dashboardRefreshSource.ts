@@ -22,4 +22,8 @@ export type DashboardRefreshSource =
    */
   | "interaction_untagged"
   /** Webview `ready` → first `init` snapshot (not queued via `refreshDashboard`). */
-  | "init_ready";
+  | "init_ready"
+  /** Mission blueprint approved / rejected / revision requested from command palette. */
+  | "blueprint_approve"
+  | "blueprint_reject"
+  | "blueprint_revise";

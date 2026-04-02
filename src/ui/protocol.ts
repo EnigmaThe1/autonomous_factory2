@@ -1,5 +1,6 @@
 import { AgentRole, Mission } from "../types";
 import type { TraceLevel, TraceRecord } from "../diagnostics/traceTypes";
+import type { BlueprintProgress } from "../missions/blueprintProgress";
 
 export interface MissionProgressStats {
   total: number;
@@ -189,6 +190,8 @@ export interface SidebarSnapshot {
   };
   /** Per-mission progress stats for dashboard rendering. */
   missionProgressStats?: Record<string, MissionProgressStats>;
+  /** Focused mission: approved blueprint step progress (required steps only). */
+  focusedMissionBlueprintProgress?: BlueprintProgress;
   globalMemoryRecent: Array<{ id: string; ts: number; kind: string; text: string }>;
   consoleLines: string[];
   agents: SidebarAgentStatus[];
@@ -261,6 +264,10 @@ export type UiToExtMessage =
   | { type: "listMcpSessions" }
   | { type: "openMcpConfig" }
   | { type: "openAgentCapabilitiesDoc" }
+  | { type: "openMissionAutonomyBlueprint" }
+  | { type: "approveMissionBlueprint"; missionId: string }
+  | { type: "rejectMissionBlueprint"; missionId: string }
+  | { type: "requestMissionBlueprintRevision"; missionId: string; note: string }
   | { type: "applyLazyDiscoveryPreset" }
   | { type: "revertLazyDiscoveryPreset" }
   | { type: "searchGlobalMemory"; query: string }

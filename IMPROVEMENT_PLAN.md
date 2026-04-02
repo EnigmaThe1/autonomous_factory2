@@ -174,7 +174,7 @@ Phase 10 is the capstone.
 - [x] **Chat tab focused mission strip** — title, status badge, progress line; `chatPanelSig` includes `pst`, `ft`, `fs` so chat re-renders when focused mission or stats change
 - [x] **Dashboard header missions summary** — `#summaryMissions` shows total plus running / queued / awaiting counts (`formatDashboardMissionSummaryText`)
 - [x] **Copy mission report** — inspector **Copy report** uses Clipboard API with status line feedback
-- [x] **706 tests** (628 host + 78 webview smoke), 0 failures, 0 lint errors
+- [x] **710 tests** (632 host + 78 webview smoke), 0 failures, 0 lint errors
 
 ---
 
@@ -202,25 +202,21 @@ See **`AGENT_CAPABILITIES_PLAN.md`** for the full roadmap (browser via MCP, futu
 
 ---
 
-## Mission autonomy & upfront planning (blueprint — not yet implemented)
+## Mission autonomy & upfront planning (shipped in v0.18.40+)
 
-**Source of truth**: **`MISSION_AUTONOMY_AND_PLANNING_BLUEPRINT.md`** (v1.1+) — includes **readiness & cross-cutting** notes (pre-plan Q&A, `BackgroundMissionRunner` / status, closure alignment, events, memory).
+**Spec**: **`MISSION_AUTONOMY_AND_PLANNING_BLUEPRINT.md`**.
 
-**Phases (burn-down)**:
+**Implemented (host + webview)**:
 
-1. Blueprint types + persistence (mission + disk round-trip).
-2. Parseable blueprint output + `BlueprintParser` + planner contract.
-3. Agreement gate + lifecycle + commands / protocol (and runner/status integration per blueprint § Readiness).
-4. `synthesizeWorkItemsFromBlueprint` + `blueprintStepId` + progress + closure alignment.
-5. Webview blueprint UI + approval / revision / reject.
-6. Autonomous execution policy (stop reasons, settings).
-7. Architect / gap pass after milestones.
-8. Researcher + `webSearch` / `fetchWebPage` when web research enabled.
-9. Shared coding-standard instruction fragments.
-10. (Optional) Plan fidelity / drift vs `MissionFileTracker`.
+- [x] **Types + persistence** — `Mission.blueprint`, `WorkItem.blueprintStepId` / `workItemPurpose`, `AgentRole.architect`, `blockReasonCode.awaiting_blueprint_approval`; JSON round-trip via existing mission envelope.
+- [x] **`parseBlueprintModelOutput`**, **`synthesizeWorkItemsFromBlueprint`**, **`computeBlueprintProgress`**, **`applyBlueprintStepStatusFromWorkItem`**.
+- [x] **`myAi.missions.blueprintMode`** — start mission with blueprint planner item; parse → `awaiting_approval` + `awaiting_input` when **`myAi.missions.requireBlueprintApproval`**; auto-approve path synthesizes queue.
+- [x] **Commands** — `myAi.approveMissionBlueprint`, `rejectMissionBlueprint`, `requestMissionBlueprintRevision`, `openMissionAutonomyBlueprint`.
+- [x] **Orchestrator** — loop exits on `awaiting_input`; blueprint blocks premature completion; optional **`myAi.missions.architectPassAfterValidator`**; global memory mirror on approve.
+- [x] **Webview** — Missions inspector: blueprint status, progress, approve/reject/revision; Settings: open blueprint doc.
+- [x] **Researcher** — uses web tools hint when **`myAi.webResearch.enabled`**.
+- [x] **`myAi.agents.enforceDefaultCodingStandards`** + shared fragments (planner/implementer/reviewer/architect).
 
-**First shippable slice**: Phases **1–4** + minimal **5** + **9**, behind **`myAi.missions.blueprintMode`** (start **false** until stable).
+**Not yet implemented (see blueprint doc)**: structured **pre-blueprint Q&A** round; **`pauseAfterEachValidator`**; **plan fidelity / drift** heuristics (Phase 10).
 
-**Depends on (already shipped per above)**: `MissionOrchestrator`, `MissionStore` + disk persistence, `WorkItem.dependsOn` / sub-items, `missionClosurePolicy`, `MissionFileTracker`, `missionProgressStats` / webview dashboard, `EnhancedContextCollector`, web research tools, mission report + events.
-
-**Ready to implement**: Yes — start **Phase 1** in `src/types.ts` + persistence layer; keep **legacy missions** (`blueprint` undefined) on current behavior until blueprint mode is on.
+**Tests**: 632 host + 78 webview smoke (710 total) after this work.

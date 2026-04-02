@@ -32,6 +32,22 @@ export function registerToolCommands(
   );
 
   disposables.push(
+    vscode.commands.registerCommand("myAi.openMissionAutonomyBlueprint", async () => {
+      const uri = vscode.Uri.joinPath(extensionUri, "MISSION_AUTONOMY_AND_PLANNING_BLUEPRINT.md");
+      try {
+        await vscode.workspace.fs.stat(uri);
+      } catch {
+        void vscode.window.showWarningMessage(
+          "MISSION_AUTONOMY_AND_PLANNING_BLUEPRINT.md was not found inside the extension install."
+        );
+        return;
+      }
+      const doc = await vscode.workspace.openTextDocument(uri);
+      await vscode.window.showTextDocument(doc, { preview: false });
+    })
+  );
+
+  disposables.push(
     vscode.commands.registerCommand("myAi.listMcpTools", async () => {
       const result = await tools.execute("__system__", { tool: "listMcpTools", args: {} });
       const content = JSON.stringify(result.data || [], null, 2);

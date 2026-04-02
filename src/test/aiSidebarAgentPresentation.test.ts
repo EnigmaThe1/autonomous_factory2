@@ -57,7 +57,7 @@ test("resolveFocusedMission: returns undefined for empty list", () => {
 
 test("buildAgentLiveFromMission: returns idle agents when no mission", () => {
   const result = buildAgentLiveFromMission(undefined);
-  assert.equal(result.length, 5);
+  assert.equal(result.length, 6);
   for (const agent of result) {
     assert.equal(agent.status, "idle");
   }

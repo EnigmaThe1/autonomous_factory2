@@ -312,6 +312,29 @@ export function createMissionRenderer(deps) {
         const inspectorLifecycle = snapshot.focusedMissionLifecycleSummary
           ? `<div class="mission-lifecycle-summary" role="status">${escapeHtml(snapshot.focusedMissionLifecycleSummary)}</div>`
           : "";
+        const bpProg = snapshot.focusedMissionBlueprintProgress;
+        const inspectorBlueprint = m.blueprint
+          ? `<div class="inspector-section"><div class="section-title small">Mission blueprint</div>
+      <div class="meta">Status: ${escapeHtml(m.blueprint.status)}${
+              bpProg && m.blueprint.status === "approved"
+                ? ` • Steps ${bpProg.done}/${bpProg.total} (${bpProg.percent}%)`
+                : ""
+            }</div>${
+              m.blueprint.status === "awaiting_approval"
+                ? `<div class="row" style="gap:6px;flex-wrap:wrap;margin-top:8px;">
+              <button type="button" class="ghost" data-action="approveMissionBlueprint" data-mission-id="${escapeHtml(m.id)}">Approve blueprint</button>
+              <button type="button" class="ghost" data-action="rejectMissionBlueprint" data-mission-id="${escapeHtml(m.id)}">Reject</button>
+              <button type="button" class="ghost" data-action="requestMissionBlueprintRevision" data-mission-id="${escapeHtml(m.id)}">Request revision…</button>
+            </div>`
+                : ""
+            }
+      <details style="margin-top:8px;"><summary>Requirements / architecture</summary>
+        <pre class="small-pre" style="max-height:200px;overflow:auto;white-space:pre-wrap;">${escapeHtml(
+              (m.blueprint.requirementsSummary + "\n\n" + m.blueprint.architectureSummary).slice(0, 8000)
+            )}</pre>
+      </details>
+    </div>`
+          : "";
         inspectorEl.innerHTML = `
     <div class="detail-block mission-inspector-block">
       ${filterHintHtml}
@@ -336,6 +359,7 @@ export function createMissionRenderer(deps) {
       ${queueProgressInspector}
       ${currentNextInspector}
       ${inspectorMps}
+      ${inspectorBlueprint}
       ${reportSummaryHtml}
       ${reportActions}
       ${reportPreviewHtml}

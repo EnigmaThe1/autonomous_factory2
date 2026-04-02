@@ -130,11 +130,11 @@ Example command:
 |------|-----------|
 | **Command** | **My AI: Open Agent Capabilities Roadmap** (`myAi.openAgentCapabilitiesDoc`) opens **`AGENT_CAPABILITIES_PLAN.md`** from the installed extension folder (bundled with the VSIX when the file is not excluded). **`onCommand`** activation included. Sidebar **Settings** tab: **Agent capabilities roadmap**. |
 
-## Phase 15 — Mission autonomy & upfront planning (blueprint doc; host work not started)
+## Phase 15 — Mission autonomy & upfront planning (host + webview shipped)
 
 | Item | Behavior |
 |------|-----------|
-| **Engineering blueprint** | **`MISSION_AUTONOMY_AND_PLANNING_BLUEPRINT.md`** — upfront full plan, approval gate, queue synthesis, architect pass, researcher/web alignment, optional plan fidelity. Linked from **`IMPROVEMENT_PLAN.md`**. Implementation is **host + webview** (types, orchestrator, persistence, sidebar), not MCP-only. |
+| **Blueprint mode** | **`myAi.missions.blueprintMode`** — new missions start with a JSON blueprint pass; **`myAi.missions.requireBlueprintApproval`**, **`maxBlueprintSteps`**, **`maxBlueprintRevisions`**, optional **`architectPassAfterValidator`**. Commands: **Approve / Reject / Request revision** blueprint; **Open Mission Autonomy Blueprint** doc. See **`MISSION_AUTONOMY_AND_PLANNING_BLUEPRINT.md`** and **`IMPROVEMENT_PLAN.md`**. |
 
 ---
 

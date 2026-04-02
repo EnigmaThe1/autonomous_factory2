@@ -15,3 +15,8 @@ export async function dispatchUi_revertLazyDiscoveryPreset(_host: AiSidebarUiDis
   await vscode.commands.executeCommand("myAi.revertLazyDiscoveryPreset");
   return false;
 }
+
+export async function dispatchUi_openMissionAutonomyBlueprint(_host: AiSidebarUiDispatchHost): Promise<boolean> {
+  await vscode.commands.executeCommand("myAi.openMissionAutonomyBlueprint");
+  return false;
+}
