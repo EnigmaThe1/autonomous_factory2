@@ -14,7 +14,7 @@ export function registerTraceCommands(traceLogger: ExtensionTraceLogger): vscode
   disposables.push(
     vscode.commands.registerCommand("myAi.exportTraceLog", async () => {
       const fp = await traceLogger.exportBufferToFile();
-      void vscode.window.showInformationMessage(`My AI: trace exported to ${fp}`);
+      void vscode.window.showInformationMessage(`Autonomous Factory: trace exported to ${fp}`);
       const doc = await vscode.workspace.openTextDocument(fp);
       await vscode.window.showTextDocument(doc, { preview: true });
     })
@@ -23,7 +23,7 @@ export function registerTraceCommands(traceLogger: ExtensionTraceLogger): vscode
   disposables.push(
     vscode.commands.registerCommand("myAi.clearTraceLog", () => {
       traceLogger.clear();
-      void vscode.window.showInformationMessage("My AI: trace buffer and output channel cleared.");
+      void vscode.window.showInformationMessage("Autonomous Factory: trace buffer and output channel cleared.");
     })
   );
 
@@ -42,7 +42,7 @@ export function registerTraceCommands(traceLogger: ExtensionTraceLogger): vscode
       if (!picked) return;
       const level = picked.label as TraceLevel;
       await traceLogger.setConfiguredLevel(level);
-      void vscode.window.showInformationMessage(`My AI: trace level set to ${level}.`);
+      void vscode.window.showInformationMessage(`Autonomous Factory: trace level set to ${level}.`);
     })
   );
 

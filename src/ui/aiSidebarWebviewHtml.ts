@@ -9,7 +9,7 @@ function webviewColorScheme(): "dark" | "light" {
   return "dark";
 }
 
-/** Webview bootstrap HTML for the My AI sidebar (CSP, shell markup, script/style URIs). */
+/** Webview bootstrap HTML for the Autonomous Factory sidebar (CSP, shell markup, script/style URIs). */
 export function buildAiSidebarWebviewHtml(extensionUri: vscode.Uri, webview: vscode.Webview): string {
   const scriptUri = webview.asWebviewUri(vscode.Uri.joinPath(extensionUri, "media", "chat", "main.js"));
   const styleUri = webview.asWebviewUri(vscode.Uri.joinPath(extensionUri, "media", "chat", "styles.css"));
@@ -22,13 +22,13 @@ export function buildAiSidebarWebviewHtml(extensionUri: vscode.Uri, webview: vsc
   <meta http-equiv="Content-Security-Policy" content="default-src 'none'; style-src ${webview.cspSource} 'unsafe-inline'; script-src 'nonce-${nonce}';">
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <link href="${styleUri}" rel="stylesheet" />
-  <title>My AI V18</title>
+  <title>Autonomous Factory</title>
 </head>
 <body>
   <div class="shell">
     <header class="topbar">
       <div>
-        <div class="brand">My AI V18</div>
+        <div class="brand">Autonomous Factory</div>
         <div class="sub">Unified sidebar • providers • chat • missions • per-agent routing • approvals • tools • memory • settings</div>
       </div>
       <button id="refreshDashboard" class="ghost">Refresh</button>
@@ -301,7 +301,7 @@ export function buildAiSidebarWebviewHtml(extensionUri: vscode.Uri, webview: vsc
             <div class="section-title">Diagnostic trace</div>
             <span class="meta">Host + webview (JSONL)</span>
           </div>
-          <p class="meta" style="margin:0 0 8px;">Same ring buffer as the <strong>My AI Trace</strong> output channel. Use Refresh after activity; optional auto-refresh below.</p>
+          <p class="meta" style="margin:0 0 8px;">Same ring buffer as the <strong>Autonomous Factory Trace</strong> output channel. Use Refresh after activity; optional auto-refresh below.</p>
           <div class="row wrap compact trace-toolbar" style="margin-bottom:8px;">
             <button type="button" id="btnTraceRefresh" class="primary-inline">Refresh</button>
             <button type="button" id="btnTraceExport" class="ghost">Export to file</button>

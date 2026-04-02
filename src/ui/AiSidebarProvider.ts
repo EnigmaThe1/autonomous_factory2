@@ -536,7 +536,7 @@ export class AiSidebarProvider implements vscode.WebviewViewProvider {
         }
       } catch (err) {
         const msgText = err instanceof Error ? err.message : String(err);
-        void vscode.window.showErrorMessage(`My AI: ${msgText}`);
+        void vscode.window.showErrorMessage(`Autonomous Factory: ${msgText}`);
         this.postMessage({ type: "error", message: msgText });
       }
     });

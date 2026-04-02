@@ -25,7 +25,7 @@ export function registerNativeParticipant(
         prompt: request.prompt,
         model,
         context: ideContext,
-        system: "You are the My AI native participant inside VS Code.",
+        system: "You are the Autonomous Factory native participant inside VS Code.",
         signal: ac.signal
       })) {
         stream.markdown(chunk);

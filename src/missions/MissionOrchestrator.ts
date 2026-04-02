@@ -1396,7 +1396,7 @@ export class MissionOrchestrator {
     if (blueprintAwaitingApproval) {
       await this.store.updateMission(mission.id, {
         status: "awaiting_input",
-        blocker: "Review and approve the mission blueprint (command: My AI: Approve Mission Blueprint).",
+        blocker: "Review and approve the mission blueprint (command: Autonomous Factory: Approve Mission Blueprint).",
         blockReasonCode: "awaiting_blueprint_approval"
       });
     }
@@ -1404,7 +1404,7 @@ export class MissionOrchestrator {
     if (preBlueprintAwaitingAnswers) {
       await this.store.updateMission(mission.id, {
         status: "awaiting_input",
-        blocker: "Answer pre-blueprint questions in the Missions inspector, then submit (or command: My AI: Submit Pre-Blueprint Answers).",
+        blocker: "Answer pre-blueprint questions in the Missions inspector, then submit (or command: Autonomous Factory: Submit Pre-Blueprint Answers).",
         blockReasonCode: "awaiting_pre_blueprint_answers"
       });
     }
@@ -1472,7 +1472,7 @@ export class MissionOrchestrator {
     ) {
       await this.store.updateMission(mission.id, {
         status: "awaiting_input",
-        blocker: "Validator step finished; use My AI: Resume Mission after review.",
+        blocker: "Validator step finished; use Autonomous Factory: Resume Mission after review.",
         blockReasonCode: "post_validator_checkpoint"
       });
       await this.store.saveEvent(mission.id, {

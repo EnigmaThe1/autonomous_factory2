@@ -389,7 +389,7 @@ document.getElementById('btnTraceExport')?.addEventListener('click', () => {
   vscode.postMessage({ type: 'exportTraceLogFromUi' });
 });
 document.getElementById('btnTraceClear')?.addEventListener('click', () => {
-  if (!confirm('Clear the trace ring buffer and the My AI Trace output channel?')) return;
+  if (!confirm('Clear the trace ring buffer and the Autonomous Factory Trace output channel?')) return;
   vscode.postMessage({ type: 'clearTraceLogFromUi' });
 });
 document.getElementById('btnTraceOpenOutput')?.addEventListener('click', () => {

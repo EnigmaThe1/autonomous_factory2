@@ -1,8 +1,8 @@
 {
-  "name": "my-ai-extension-v18",
-  "displayName": "My AI Extension V18",
-  "description": "VS Code AI assistant with unified sidebar, in-pane diff review, richer tool/result cards, mission inspector, grouped timeline, live agent stream, approvals, bundles, tools, memory, console, and settings",
-  "version": "0.18.58",
+  "name": "autonomous-factory",
+  "displayName": "Autonomous Factory",
+  "description": "Autonomous Factory — VS Code AI assistant with unified sidebar, in-pane diff review, mission orchestration, approvals, MCP tools, memory, trace, and settings.",
+  "version": "2.0.1",
   "publisher": "enigma-the",
   "repository": {
     "type": "git",
@@ -42,222 +42,222 @@
     "commands": [
       {
         "command": "myAi.openChat",
-        "title": "My AI: Open Chat"
+        "title": "Autonomous Factory: Open Chat"
       },
       {
         "command": "myAi.startMission",
-        "title": "My AI: Start Autonomous Mission"
+        "title": "Autonomous Factory: Start Autonomous Mission"
       },
       {
         "command": "myAi.resumeMission",
-        "title": "My AI: Resume Mission"
+        "title": "Autonomous Factory: Resume Mission"
       },
       {
         "command": "myAi.listMissions",
-        "title": "My AI: List Missions"
+        "title": "Autonomous Factory: List Missions"
       },
       {
         "command": "myAi.approvePending",
-        "title": "My AI: Approve Pending Action"
+        "title": "Autonomous Factory: Approve Pending Action"
       },
       {
         "command": "myAi.rejectPending",
-        "title": "My AI: Reject Pending Action"
+        "title": "Autonomous Factory: Reject Pending Action"
       },
       {
         "command": "myAi.reviewPendingDiff",
-        "title": "My AI: Review Pending Diff"
+        "title": "Autonomous Factory: Review Pending Diff"
       },
       {
         "command": "myAi.showMissionMemory",
-        "title": "My AI: Show Mission Memory"
+        "title": "Autonomous Factory: Show Mission Memory"
       },
       {
         "command": "myAi.exportMissionBundle",
-        "title": "My AI: Export Mission Bundle"
+        "title": "Autonomous Factory: Export Mission Bundle"
       },
       {
         "command": "myAi.viewMissionReport",
-        "title": "My AI: View Mission Report"
+        "title": "Autonomous Factory: View Mission Report"
       },
       {
         "command": "myAi.exportMissionReport",
-        "title": "My AI: Export Mission Report"
+        "title": "Autonomous Factory: Export Mission Report"
       },
       {
         "command": "myAi.listMcpTools",
-        "title": "My AI: List MCP Tools"
+        "title": "Autonomous Factory: List MCP Tools"
       },
       {
         "command": "myAi.openWorkspaceSkillsFolder",
-        "title": "My AI: Open Workspace Skills Folder"
+        "title": "Autonomous Factory: Open Workspace Skills Folder"
       },
       {
         "command": "myAi.applyLazyDiscoveryPreset",
-        "title": "My AI: Apply Lazy Discovery Preset (Workspace)"
+        "title": "Autonomous Factory: Apply Lazy Discovery Preset (Workspace)"
       },
       {
         "command": "myAi.revertLazyDiscoveryPreset",
-        "title": "My AI: Revert Lazy Discovery Preset (Workspace)"
+        "title": "Autonomous Factory: Revert Lazy Discovery Preset (Workspace)"
       },
       {
         "command": "myAi.openAgentCapabilitiesDoc",
-        "title": "My AI: Open Agent Capabilities Roadmap",
+        "title": "Autonomous Factory: Open Agent Capabilities Roadmap",
         "icon": "$(map)"
       },
       {
         "command": "myAi.openMissionAutonomyBlueprint",
-        "title": "My AI: Open Mission Autonomy Blueprint",
+        "title": "Autonomous Factory: Open Mission Autonomy Blueprint",
         "icon": "$(book)"
       },
       {
         "command": "myAi.openMissionSettings",
-        "title": "My AI: Open Mission Settings",
+        "title": "Autonomous Factory: Open Mission Settings",
         "icon": "$(settings-gear)"
       },
       {
         "command": "myAi.approveMissionBlueprint",
-        "title": "My AI: Approve Mission Blueprint"
+        "title": "Autonomous Factory: Approve Mission Blueprint"
       },
       {
         "command": "myAi.rejectMissionBlueprint",
-        "title": "My AI: Reject Mission Blueprint"
+        "title": "Autonomous Factory: Reject Mission Blueprint"
       },
       {
         "command": "myAi.requestMissionBlueprintRevision",
-        "title": "My AI: Request Mission Blueprint Revision"
+        "title": "Autonomous Factory: Request Mission Blueprint Revision"
       },
       {
         "command": "myAi.submitPreBlueprintClarification",
-        "title": "My AI: Submit Pre-Blueprint Answers"
+        "title": "Autonomous Factory: Submit Pre-Blueprint Answers"
       },
       {
         "command": "myAi.exportMissionBlueprint",
-        "title": "My AI: Export Mission Blueprint as Markdown"
+        "title": "Autonomous Factory: Export Mission Blueprint as Markdown"
       },
       {
         "command": "myAi.copyMissionBlueprint",
-        "title": "My AI: Copy Mission Blueprint to Clipboard"
+        "title": "Autonomous Factory: Copy Mission Blueprint to Clipboard"
       },
       {
         "command": "myAi.setBraveSearchApiKey",
-        "title": "My AI: Set Brave Search API Key"
+        "title": "Autonomous Factory: Set Brave Search API Key"
       },
       {
         "command": "myAi.clearBraveSearchApiKey",
-        "title": "My AI: Clear Brave Search API Key"
+        "title": "Autonomous Factory: Clear Brave Search API Key"
       },
       {
         "command": "myAi.listMcpSessions",
-        "title": "My AI: List MCP Sessions"
+        "title": "Autonomous Factory: List MCP Sessions"
       },
       {
         "command": "myAi.openMcpConfig",
-        "title": "My AI: Open MCP Config File",
+        "title": "Autonomous Factory: Open MCP Config File",
         "icon": "$(json)"
       },
       {
         "command": "myAi.restartMcpSession",
-        "title": "My AI: Restart MCP Session"
+        "title": "Autonomous Factory: Restart MCP Session"
       },
       {
         "command": "myAi.editMissionPolicy",
-        "title": "My AI: Edit Mission Policy"
+        "title": "Autonomous Factory: Edit Mission Policy"
       },
       {
         "command": "myAi.searchGlobalMemory",
-        "title": "My AI: Search Global Memory"
+        "title": "Autonomous Factory: Search Global Memory"
       },
       {
         "command": "myAi.reviewPendingHunks",
-        "title": "My AI: Review Pending Hunks"
+        "title": "Autonomous Factory: Review Pending Hunks"
       },
       {
         "command": "myAi.listApprovalBundles",
-        "title": "My AI: List Approval Bundles"
+        "title": "Autonomous Factory: List Approval Bundles"
       },
       {
         "command": "myAi.approveApprovalBundle",
-        "title": "My AI: Approve Approval Bundle"
+        "title": "Autonomous Factory: Approve Approval Bundle"
       },
       {
         "command": "myAi.rejectApprovalBundle",
-        "title": "My AI: Reject Approval Bundle"
+        "title": "Autonomous Factory: Reject Approval Bundle"
       },
       {
         "command": "myAi.reviewNextPendingHunk",
-        "title": "My AI: Review Next Pending Hunk"
+        "title": "Autonomous Factory: Review Next Pending Hunk"
       },
       {
         "command": "myAi.reviewApprovalBundleSummary",
-        "title": "My AI: Review Approval Bundle Summary"
+        "title": "Autonomous Factory: Review Approval Bundle Summary"
       },
       {
         "command": "myAi.viewMissionDependencyGraph",
-        "title": "My AI: View Mission Dependency Graph"
+        "title": "Autonomous Factory: View Mission Dependency Graph"
       },
       {
         "command": "myAi.editAgentRouting",
-        "title": "My AI: Edit Agent Routing"
+        "title": "Autonomous Factory: Edit Agent Routing"
       },
       {
         "command": "myAi.editMissionDag",
-        "title": "My AI: Edit Mission DAG"
+        "title": "Autonomous Factory: Edit Mission DAG"
       },
       {
         "command": "myAi.archiveMission",
-        "title": "My AI: Archive Mission"
+        "title": "Autonomous Factory: Archive Mission"
       },
       {
         "command": "myAi.deleteMission",
-        "title": "My AI: Delete Mission"
+        "title": "Autonomous Factory: Delete Mission"
       },
       {
         "command": "myAi.bulkArchiveCompletedMissions",
-        "title": "My AI: Archive All Completed Missions"
+        "title": "Autonomous Factory: Archive All Completed Missions"
       },
       {
         "command": "myAi.bulkDeleteFailedTestMissions",
-        "title": "My AI: Delete Failed Test Missions"
+        "title": "Autonomous Factory: Delete Failed Test Missions"
       },
       {
         "command": "myAi.bulkDeleteBlockedTestMissions",
-        "title": "My AI: Delete Blocked Test Missions"
+        "title": "Autonomous Factory: Delete Blocked Test Missions"
       },
       {
         "command": "myAi.showTraceLog",
-        "title": "My AI: Show Trace Log"
+        "title": "Autonomous Factory: Show Trace Log"
       },
       {
         "command": "myAi.exportTraceLog",
-        "title": "My AI: Export Trace Log"
+        "title": "Autonomous Factory: Export Trace Log"
       },
       {
         "command": "myAi.clearTraceLog",
-        "title": "My AI: Clear Trace Log"
+        "title": "Autonomous Factory: Clear Trace Log"
       },
       {
         "command": "myAi.setTraceLevel",
-        "title": "My AI: Set Trace Level"
+        "title": "Autonomous Factory: Set Trace Level"
       },
       {
         "command": "myAi.saveAsTemplate",
-        "title": "My AI: Save Mission as Template"
+        "title": "Autonomous Factory: Save Mission as Template"
       },
       {
         "command": "myAi.startFromTemplate",
-        "title": "My AI: Start Mission from Template"
+        "title": "Autonomous Factory: Start Mission from Template"
       },
       {
         "command": "myAi.listTemplates",
-        "title": "My AI: Manage Mission Templates"
+        "title": "Autonomous Factory: Manage Mission Templates"
       }
     ],
     "viewsContainers": {
       "activitybar": [
         {
           "id": "myAi",
-          "title": "My AI",
+          "title": "Autonomous Factory",
           "icon": "media/icon.svg"
         }
       ]
@@ -296,7 +296,7 @@
       ]
     },
     "configuration": {
-      "title": "My AI",
+      "title": "Autonomous Factory",
       "properties": {
         "myAi.defaultProvider": {
           "type": "string",
@@ -473,7 +473,7 @@
           "type": "string",
           "enum": ["duckduckgo", "brave"],
           "default": "duckduckgo",
-          "description": "webSearch backend: duckduckgo (instant answer API; fair use) or brave (Brave Search API). For brave, run command My AI: Set Brave Search API Key (stores myAi.webSearch.braveApiKey in Secret Storage)."
+          "description": "webSearch backend: duckduckgo (instant answer API; fair use) or brave (Brave Search API). For brave, use Command Palette → Autonomous Factory: Set Brave Search API Key (stores myAi.webSearch.braveApiKey in Secret Storage)."
         },
         "myAi.webSearch.minIntervalMs": {
           "type": "number",
@@ -801,7 +801,7 @@
         "myAi.missions.pauseAfterEachValidator": {
           "type": "boolean",
           "default": false,
-          "description": "When true, after each validator work item completes successfully, pause the mission (awaiting_input) until the operator runs My AI: Resume Mission."
+          "description": "When true, after each validator work item completes successfully, pause the mission (awaiting_input) until the operator runs Autonomous Factory: Resume Mission."
         },
         "myAi.reviewers.autoCreateFixTasks": {
           "type": "boolean",
@@ -851,7 +851,7 @@
         "myAi.ui.autoRevealOnActivation": {
           "type": "boolean",
           "default": false,
-          "description": "Automatically reveal the My AI sidebar when the extension activates."
+          "description": "Automatically reveal the Autonomous Factory sidebar when the extension activates."
         },
         "myAi.ui.defaultTab": {
           "type": "string",
@@ -871,7 +871,7 @@
             "trace",
             "settings"
           ],
-          "description": "Default tab shown when the My AI sidebar loads."
+          "description": "Default tab shown when the Autonomous Factory sidebar loads."
         },
         "myAi.agents.maxPromptChars": {
           "type": "number",
@@ -928,7 +928,7 @@
             "debug",
             "trace"
           ],
-          "description": "Maximum verbosity for the unified My AI Trace output channel. error = errors only; info = operator-friendly; debug/trace = more host/webview detail."
+          "description": "Maximum verbosity for the unified Autonomous Factory Trace output channel. error = errors only; info = operator-friendly; debug/trace = more host/webview detail."
         },
         "myAi.trace.persistToFile": {
           "type": "boolean",

@@ -79,7 +79,7 @@ export async function dispatchUi_archiveMission(
     }
   });
   if (host.getFocusedMissionId() === msg.missionId && !host.getIncludeArchivedMissions()) host.setFocusedMissionId(undefined);
-  void vscode.window.showInformationMessage("My AI: Mission archived.");
+  void vscode.window.showInformationMessage("Autonomous Factory: Mission archived.");
   host.postMissionDashboardSnapshotImmediate(msg.interactionId);
   host.scheduleBackgroundDashboardReconciliation();
   return true;
@@ -100,7 +100,7 @@ export async function dispatchUi_unarchiveMission(
       archivedAfter: !!host.missionStore.list().find((m) => m.id === msg.missionId)?.archivedAt
     }
   });
-  void vscode.window.showInformationMessage("My AI: Mission restored from archive.");
+  void vscode.window.showInformationMessage("Autonomous Factory: Mission restored from archive.");
   host.postMissionDashboardSnapshotImmediate(msg.interactionId);
   host.scheduleBackgroundDashboardReconciliation();
   return true;
@@ -132,7 +132,7 @@ export async function dispatchUi_deleteMission(
     }
   });
   if (host.getFocusedMissionId() === msg.missionId) host.setFocusedMissionId(undefined);
-  void vscode.window.showInformationMessage("My AI: Mission deleted.");
+  void vscode.window.showInformationMessage("Autonomous Factory: Mission deleted.");
   host.postMissionDashboardSnapshotImmediate(msg.interactionId);
   host.scheduleBackgroundDashboardReconciliation();
   return true;
@@ -157,7 +157,7 @@ export async function dispatchUi_bulkArchiveCompletedMissions(
     data: { archivedCount: n }
   });
   void vscode.window.showInformationMessage(
-    n ? `My AI: Archived ${n} completed mission(s).` : "My AI: No completed missions to archive."
+    n ? `Autonomous Factory: Archived ${n} completed mission(s).` : "Autonomous Factory: No completed missions to archive."
   );
   host.postMissionDashboardSnapshotImmediate(msg.interactionId);
   host.scheduleBackgroundDashboardReconciliation();
@@ -184,8 +184,8 @@ export async function dispatchUi_bulkDeleteFailedTestMissions(
   });
   void vscode.window.showInformationMessage(
     deleted || skipped
-      ? `My AI: Deleted ${deleted} failed test mission(s)${skipped ? `; ${skipped} skipped (still active or error)` : ""}.`
-      : "My AI: No matching failed test missions to delete."
+      ? `Autonomous Factory: Deleted ${deleted} failed test mission(s)${skipped ? `; ${skipped} skipped (still active or error)` : ""}.`
+      : "Autonomous Factory: No matching failed test missions to delete."
   );
   host.postMissionDashboardSnapshotImmediate(msg.interactionId);
   host.scheduleBackgroundDashboardReconciliation();
@@ -212,8 +212,8 @@ export async function dispatchUi_bulkDeleteBlockedTestMissions(
   });
   void vscode.window.showInformationMessage(
     deleted || skipped
-      ? `My AI: Deleted ${deleted} blocked test mission(s)${skipped ? `; ${skipped} skipped (still active or error)` : ""}.`
-      : "My AI: No matching blocked test missions to delete."
+      ? `Autonomous Factory: Deleted ${deleted} blocked test mission(s)${skipped ? `; ${skipped} skipped (still active or error)` : ""}.`
+      : "Autonomous Factory: No matching blocked test missions to delete."
   );
   host.postMissionDashboardSnapshotImmediate(msg.interactionId);
   host.scheduleBackgroundDashboardReconciliation();
@@ -267,8 +267,8 @@ export async function dispatchUi_bulkArchiveVisibleCompletedMissions(
   });
   void vscode.window.showInformationMessage(
     archived
-      ? `My AI: Archived ${archived} visible completed mission(s).`
-      : "My AI: No matching completed missions to archive (list may have changed)."
+      ? `Autonomous Factory: Archived ${archived} visible completed mission(s).`
+      : "Autonomous Factory: No matching completed missions to archive (list may have changed)."
   );
   host.postMissionDashboardSnapshotImmediate(msg.interactionId);
   host.scheduleBackgroundDashboardReconciliation();
@@ -316,8 +316,8 @@ export async function dispatchUi_bulkDeleteVisibleFailedOrCancelledMissions(
   });
   void vscode.window.showInformationMessage(
     deleted || skipped
-      ? `My AI: Deleted ${deleted} visible failed/cancelled mission(s)${skipped ? `; ${skipped} skipped` : ""}.`
-      : "My AI: No matching failed/cancelled missions to delete (list may have changed)."
+      ? `Autonomous Factory: Deleted ${deleted} visible failed/cancelled mission(s)${skipped ? `; ${skipped} skipped` : ""}.`
+      : "Autonomous Factory: No matching failed/cancelled missions to delete (list may have changed)."
   );
   host.postMissionDashboardSnapshotImmediate(msg.interactionId);
   host.scheduleBackgroundDashboardReconciliation();
@@ -365,8 +365,8 @@ export async function dispatchUi_bulkDeleteVisibleBlockedMissions(
   });
   void vscode.window.showInformationMessage(
     deleted || skipped
-      ? `My AI: Deleted ${deleted} visible blocked mission(s)${skipped ? `; ${skipped} skipped` : ""}.`
-      : "My AI: No matching blocked missions to delete (list may have changed)."
+      ? `Autonomous Factory: Deleted ${deleted} visible blocked mission(s)${skipped ? `; ${skipped} skipped` : ""}.`
+      : "Autonomous Factory: No matching blocked missions to delete (list may have changed)."
   );
   host.postMissionDashboardSnapshotImmediate(msg.interactionId);
   host.scheduleBackgroundDashboardReconciliation();

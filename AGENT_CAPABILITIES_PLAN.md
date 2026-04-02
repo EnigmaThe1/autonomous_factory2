@@ -15,7 +15,7 @@ This plan adds documentation lookup, workspace skills, optional web research, an
 
 | Item | Behavior |
 |------|-----------|
-| **Workspace skills** | Load markdown from configurable globs (default: `.my-ai/skills/**/*.md`). Injected into agent **system** instructions (bounded total size). Command: **My AI: Open Workspace Skills Folder**. |
+| **Workspace skills** | Load markdown from configurable globs (default: `.my-ai/skills/**/*.md`). Injected into agent **system** instructions (bounded total size). Command: **Autonomous Factory: Open Workspace Skills Folder**. |
 | **`webSearch`** | If `myAi.webResearch.enabled`, query DuckDuckGo Instant Answer API (fixed URL, no user URL). Validates query length; policy = `http_request`. |
 | **`fetchWebPage`** | GET a single https URL (validated); larger response budget than generic `httpRequest`; optional HTML→text simplification; policy = `http_request`. |
 | **HttpClient** | Optional `maxResponseBodyChars` for bounded reads. **Tests**: live **https://httpbin.org** checks in the repo run only when **`MY_AI_RUN_HTTP_INTEGRATION=1`** (`npm run test:http-integration`); default **`npm test`** skips that suite (real network, **no mocks**). |
@@ -24,7 +24,7 @@ This plan adds documentation lookup, workspace skills, optional web research, an
 
 ### 2a — MCP (full automation: click, console, navigate)
 
-The extension reads **`myAi.mcp.configPath`** (default **`examples/mcp.sample.json`**): a JSON file with a **`servers`** array. Each entry has **`name`**, **`command`**, optional **`args`**, **`cwd`**, etc. (see repo **`examples/mcp.sample.json`**). Command Palette: **My AI: Open MCP Config File** opens that path when it exists.
+The extension reads **`myAi.mcp.configPath`** (default **`examples/mcp.sample.json`**): a JSON file with a **`servers`** array. Each entry has **`name`**, **`command`**, optional **`args`**, **`cwd`**, etc. (see repo **`examples/mcp.sample.json`**). Command Palette: **Autonomous Factory: Open MCP Config File** opens that path when it exists.
 
 Example (Playwright MCP; adjust package/version to what you install):
 
@@ -54,14 +54,14 @@ Example command:
 
 | Item | Behavior |
 |------|-----------|
-| **`myAi.webSearch.provider`** | `duckduckgo` (default) — DuckDuckGo instant-answer JSON API (fair use; no key). `brave` — [Brave Search API](https://api.search.brave.com). Store the subscription token with **Command Palette → “My AI: Set Brave Search API Key”** (Secret Storage key `myAi.webSearch.braveApiKey`; never in `settings.json`). **“My AI: Clear Brave Search API Key”** removes it. |
+| **`myAi.webSearch.provider`** | `duckduckgo` (default) — DuckDuckGo instant-answer JSON API (fair use; no key). `brave` — [Brave Search API](https://api.search.brave.com). Store the subscription token with **Command Palette → “Autonomous Factory: Set Brave Search API Key”** (Secret Storage key `myAi.webSearch.braveApiKey`; never in `settings.json`). **“Autonomous Factory: Clear Brave Search API Key”** removes it. |
 | **`myAi.webSearch.minIntervalMs`** | Optional minimum milliseconds between **`webSearch`** HTTP calls after approval (`0` = off). Reduces accidental API hammering. |
 
 ## Phase 4 — Skills UX (shipped)
 
 | Item | Behavior |
 |------|-----------|
-| **Open skills folder** | **My AI: Open Workspace Skills Folder** — creates `.my-ai/skills`, seeds `README.md` if missing. |
+| **Open skills folder** | **Autonomous Factory: Open Workspace Skills Folder** — creates `.my-ai/skills`, seeds `README.md` if missing. |
 | **Globs / import** | Default patterns include `docs/agent-skills/**/*.md`; add paths in **myAi.skills.globPatterns** or copy skill packs into the workspace. |
 
 ## Phase 5 — “Lazy” tool catalog (shipped, opt-in)
@@ -113,22 +113,22 @@ Example command:
 
 | Item | Behavior |
 |------|-----------|
-| **Open MCP config** | **My AI: Open MCP Config File** (`myAi.openMcpConfig`) opens the resolved MCP JSON when the file exists; otherwise a warning points at **`myAi.mcp.configPath`** and **`examples/mcp.sample.json`**. If the path is **absolute**, a workspace folder is not required; relative paths need an open workspace. Sidebar **Tools** tab: **Open MCP Config** posts the same action. **Chat & Missions** view title: same command (JSON icon), left of roadmap / blueprint / mission settings. |
+| **Open MCP config** | **Autonomous Factory: Open MCP Config File** (`myAi.openMcpConfig`) opens the resolved MCP JSON when the file exists; otherwise a warning points at **`myAi.mcp.configPath`** and **`examples/mcp.sample.json`**. If the path is **absolute**, a workspace folder is not required; relative paths need an open workspace. Sidebar **Tools** tab: **Open MCP Config** posts the same action. **Chat & Missions** view title: same command (JSON icon), left of roadmap / blueprint / mission settings. |
 | **Docs** | Phase 2a example JSON matches the **`servers`** array format the host parses (not Cursor-style **`mcpServers`** maps). |
 
 ## Phase 13 — Lazy discovery workspace preset (shipped)
 
 | Item | Behavior |
 |------|-----------|
-| **Apply preset** | **My AI: Apply Lazy Discovery Preset (Workspace)** (`myAi.applyLazyDiscoveryPreset`) sets **workspace** settings: **`myAi.agents.lazyToolPrompt`** = **true**, **`myAi.tools.listMcpToolsSummaryMaxChars`** = **48000**, **`myAi.tools.listToolsRedactExternalUrls`** = **true**. Requires an open workspace folder. Operators can still tune individual keys afterward. |
-| **Revert preset** | **My AI: Revert Lazy Discovery Preset (Workspace)** (`myAi.revertLazyDiscoveryPreset`) sets those three keys back to extension defaults (**false** / **0** / **false**). Same workspace-folder requirement. |
+| **Apply preset** | **Autonomous Factory: Apply Lazy Discovery Preset (Workspace)** (`myAi.applyLazyDiscoveryPreset`) sets **workspace** settings: **`myAi.agents.lazyToolPrompt`** = **true**, **`myAi.tools.listMcpToolsSummaryMaxChars`** = **48000**, **`myAi.tools.listToolsRedactExternalUrls`** = **true**. Requires an open workspace folder. Operators can still tune individual keys afterward. |
+| **Revert preset** | **Autonomous Factory: Revert Lazy Discovery Preset (Workspace)** (`myAi.revertLazyDiscoveryPreset`) sets those three keys back to extension defaults (**false** / **0** / **false**). Same workspace-folder requirement. |
 | **Activation** | **`onCommand`** activation for **`myAi.openMcpConfig`**, **`myAi.applyLazyDiscoveryPreset`**, and **`myAi.revertLazyDiscoveryPreset`** so these run without opening the sidebar first. Sidebar **Tools** tab: **Apply lazy discovery preset** / **Revert lazy discovery preset** post the same actions. |
 
 ## Phase 14 — Open roadmap from the extension (shipped)
 
 | Item | Behavior |
 |------|-----------|
-| **Command** | **My AI: Open Agent Capabilities Roadmap** (`myAi.openAgentCapabilitiesDoc`) opens **`AGENT_CAPABILITIES_PLAN.md`** from the installed extension folder (bundled with the VSIX when the file is not excluded). **`onCommand`** activation included. Sidebar **Settings** tab: **Agent capabilities roadmap**. **Chat & Missions** view title: **Open MCP Config** (json) leftmost, then this command (map), mission blueprint (book), mission settings (gear). |
+| **Command** | **Autonomous Factory: Open Agent Capabilities Roadmap** (`myAi.openAgentCapabilitiesDoc`) opens **`AGENT_CAPABILITIES_PLAN.md`** from the installed extension folder (bundled with the VSIX when the file is not excluded). **`onCommand`** activation included. Sidebar **Settings** tab: **Agent capabilities roadmap**. **Chat & Missions** view title: **Open MCP Config** (json) leftmost, then this command (map), mission blueprint (book), mission settings (gear). |
 
 ## Phase 15 — Mission autonomy & upfront planning (host + webview shipped)
 

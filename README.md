@@ -1,4 +1,4 @@
-# My AI Sidebar
+# Autonomous Factory
 
 A modular VS Code AI assistant with a unified sidebar for:
 
@@ -20,7 +20,7 @@ The extension is designed around a single sidebar workflow instead of scattered 
 
 ### Unified sidebar
 
-The extension adds a **My AI** activity bar view with a webview-based sidebar that includes these tabs:
+The extension adds an **Autonomous Factory** activity bar view with a webview-based sidebar that includes these tabs:
 
 - **Chat**
 - **Providers**
@@ -333,7 +333,7 @@ npm run trace:summarize
 
 ### Configuration
 
-The extension contributes many settings under the `My AI` namespace.
+The extension contributes many settings under the `myAi.*` keys (shown under **Autonomous Factory** in Settings).
 
 #### Provider defaults
 
@@ -425,29 +425,29 @@ See `package.json` for the full up-to-date configuration surface.
 
 The extension contributes commands including:
 
-- `My AI: Open Chat`
-- `My AI: Start Autonomous Mission`
-- `My AI: Resume Mission`
-- `My AI: List Missions`
-- `My AI: Approve Pending Action`
-- `My AI: Reject Pending Action`
-- `My AI: Review Pending Diff`
-- `My AI: Review Pending Hunks`
-- `My AI: Show Mission Memory`
-- `My AI: Export Mission Bundle`
-- `My AI: List MCP Tools`
-- `My AI: List MCP Sessions`
-- `My AI: Restart MCP Session`
-- `My AI: Edit Mission Policy`
-- `My AI: Edit Agent Routing`
-- `My AI: Edit Mission DAG`
-- `My AI: Search Global Memory`
-- `My AI: Archive Mission`
-- `My AI: Delete Mission`
-- `My AI: Show Trace Log`
-- `My AI: Export Trace Log`
-- `My AI: Clear Trace Log`
-- `My AI: Set Trace Level`
+- `Autonomous Factory: Open Chat`
+- `Autonomous Factory: Start Autonomous Mission`
+- `Autonomous Factory: Resume Mission`
+- `Autonomous Factory: List Missions`
+- `Autonomous Factory: Approve Pending Action`
+- `Autonomous Factory: Reject Pending Action`
+- `Autonomous Factory: Review Pending Diff`
+- `Autonomous Factory: Review Pending Hunks`
+- `Autonomous Factory: Show Mission Memory`
+- `Autonomous Factory: Export Mission Bundle`
+- `Autonomous Factory: List MCP Tools`
+- `Autonomous Factory: List MCP Sessions`
+- `Autonomous Factory: Restart MCP Session`
+- `Autonomous Factory: Edit Mission Policy`
+- `Autonomous Factory: Edit Agent Routing`
+- `Autonomous Factory: Edit Mission DAG`
+- `Autonomous Factory: Search Global Memory`
+- `Autonomous Factory: Archive Mission`
+- `Autonomous Factory: Delete Mission`
+- `Autonomous Factory: Show Trace Log`
+- `Autonomous Factory: Export Trace Log`
+- `Autonomous Factory: Clear Trace Log`
+- `Autonomous Factory: Set Trace Level`
 
 ### Storage and persistence
 
@@ -493,7 +493,7 @@ The extension still benefits from short manual smoke checks after significant si
 
 Use a real workspace with valid provider credentials for the mission you start. Each flow **fails** if the webview throws visibly, the extension host logs an unhandled exception from this extension, or the stated outcome is missing.
 
-1. **Sidebar and webview load** — Open **My AI**; switch across **Chat**, **Missions**, **Approvals**, **Timeline**. **Pass:** panes render, no persistent blank mission/approval area. **Fail:** blank webview or repeated errors in the developer console tied to the extension.
+1. **Sidebar and webview load** — Open **Autonomous Factory**; switch across **Chat**, **Missions**, **Approvals**, **Timeline**. **Pass:** panes render, no persistent blank mission/approval area. **Fail:** blank webview or repeated errors in the developer console tied to the extension.
 2. **Start mission** — From **Chat**, start an autonomous mission with a short title/prompt. **Pass:** a new row appears on **Missions** with a sensible status badge and title. **Fail:** no row, or mission stuck with no visible state after a reasonable wait.
 3. **Resume** — With a mission in a resumable state (e.g. paused after max steps or stopped), use **Resume focused** or the resume command for that mission. **Pass:** status/events update or a clear operator-visible message (e.g. still blocked). **Fail:** no UI change and no explanation when a resume was expected.
 4. **Approval accept and reject** — Provoke a pending approval (e.g. write with approval required). **Pass:** item appears in **Approvals**; **Approve** clears or advances it; on a separate attempt, **Reject** is reflected in mission/approval UI. **Fail:** action does nothing or queue stays wrong.

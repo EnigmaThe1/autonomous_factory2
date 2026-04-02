@@ -8,7 +8,7 @@ import { traceLevelPassesFilter } from "./traceLevel";
 import { parseTraceLevel } from "./traceLevel";
 import { normalizeWebviewTracePayload } from "./tracePayload";
 
-const CHANNEL_NAME = "My AI Trace";
+const CHANNEL_NAME = "Autonomous Factory Trace";
 const CONFIG_SECTION = "myAi.trace";
 const DEFAULT_BUFFER = 5000;
 

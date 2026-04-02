@@ -35,7 +35,7 @@ export async function activate(context: vscode.ExtensionContext) {
   await Promise.all([globalMemory.hydrateFromDisk(), missionStore.hydrateFromDisk()]);
   const loadIssues = disk.getAndClearLoadIssues();
   if (loadIssues.length) {
-    void vscode.window.showWarningMessage(`My AI: detected ${loadIssues.length} persistence load issue(s). See logs for details.`);
+    void vscode.window.showWarningMessage(`Autonomous Factory: detected ${loadIssues.length} persistence load issue(s). See logs for details.`);
     console.warn("[my-ai] persistence load issues", loadIssues);
   }
   const externalAdapters = new ExternalToolAdapterRegistry(paths);

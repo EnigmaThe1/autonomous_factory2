@@ -255,7 +255,7 @@ export class McpRegistry implements vscode.Disposable {
       await this.sendRequest(session, "initialize", {
         protocolVersion: "2024-11-05",
         capabilities: {},
-        clientInfo: { name: "my-ai-extension-v7", version: "0.7.0" }
+        clientInfo: { name: "autonomous-factory", version: "2.0.1" }
       }, Math.max(2000, server.timeoutMs || 12000));
       this.sendNotification(session, "notifications/initialized", {});
       session.status = "ready";

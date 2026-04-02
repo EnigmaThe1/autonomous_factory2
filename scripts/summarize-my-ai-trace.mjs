@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 /**
- * Summarize My AI Trace JSONL (exported via "My AI: Export Trace Log" or
+ * Summarize Autonomous Factory Trace JSONL (exported via "Autonomous Factory: Export Trace Log" or
  * my-ai-trace-append.jsonl when myAi.trace.persistToFile is on).
  *
  * Usage:

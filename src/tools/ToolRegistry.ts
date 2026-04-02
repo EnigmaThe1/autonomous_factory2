@@ -902,7 +902,7 @@ export class ToolRegistry {
         }
       };
     }
-    const terminal = vscode.window.createTerminal({ name: `My AI ${uid("term")}` });
+    const terminal = vscode.window.createTerminal({ name: `Autonomous Factory ${uid("term")}` });
     terminal.show(true);
     terminal.sendText(command, true);
     await this.missionStore.saveEvent(missionId, { level: "info", source: "tool:runTerminal", message: command });

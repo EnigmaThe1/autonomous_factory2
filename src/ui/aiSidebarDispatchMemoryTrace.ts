@@ -37,14 +37,14 @@ export async function dispatchUi_requestTraceLog(host: AiSidebarUiDispatchHost):
 export async function dispatchUi_clearTraceLogFromUi(host: AiSidebarUiDispatchHost): Promise<boolean> {
   host.traceLogger.clear();
   host.postMessage(traceLogSnapshotForUi([], host.traceLogger.getConfiguredLevel()));
-  host.postMessage({ type: "info", message: "My AI: trace log cleared." });
+  host.postMessage({ type: "info", message: "Autonomous Factory: trace log cleared." });
   return true;
 }
 
 export async function dispatchUi_exportTraceLogFromUi(host: AiSidebarUiDispatchHost): Promise<boolean> {
   const fp = await host.traceLogger.exportBufferToFile();
   host.postMessage({ type: "traceExportResult", path: fp });
-  host.postMessage({ type: "info", message: `My AI: trace exported to ${fp}` });
+  host.postMessage({ type: "info", message: `Autonomous Factory: trace exported to ${fp}` });
   return true;
 }
 
