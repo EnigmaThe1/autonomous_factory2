@@ -29,6 +29,7 @@ export const MYAI_SIDEBAR_SNAPSHOT_SETTINGS_KEYS = {
 export const SIDEBAR_SNAPSHOT_SETTINGS_CONFIG_KEYS: readonly string[] = Object.values(MYAI_SIDEBAR_SNAPSHOT_SETTINGS_KEYS);
 
 export function configurationAffectsSidebarSnapshotSettings(e: vscode.ConfigurationChangeEvent): boolean {
+  if (!e.affectsConfiguration("myAi")) return false;
   return SIDEBAR_SNAPSHOT_SETTINGS_CONFIG_KEYS.some((k) => e.affectsConfiguration(k));
 }
 
