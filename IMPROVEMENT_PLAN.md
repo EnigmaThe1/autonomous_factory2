@@ -220,4 +220,4 @@ See **`AGENT_CAPABILITIES_PLAN.md`** for the full roadmap (browser via MCP, futu
 - [x] **`myAi.missions.pauseAfterEachValidator`** — after a successful validator step, mission **`awaiting_input`** with **`post_validator_checkpoint`**; **`resumeMission`** clears the gate and continues (v0.18.42+).
 - [x] **`myAi.missions.preBlueprintClarification`** — with blueprint mode, planner emits JSON **`questions[]`** first; operator answers via missions inspector or **`myAi.submitPreBlueprintClarification`** (multiline quick input when the host supports it); then **`blueprint_generate`** runs with Q&A in the prompt (`preBlueprintClarification` on mission, **`awaiting_pre_blueprint_answers`**).
 
-**Tests**: 647 host + 78 webview smoke (725 total).
+**Tests**: 648 host + 78 webview smoke (726 total).
