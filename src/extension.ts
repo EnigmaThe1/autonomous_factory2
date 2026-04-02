@@ -30,9 +30,8 @@ export async function activate(context: vscode.ExtensionContext) {
   const disk = new DiskMissionPersistence(paths);
   await disk.ensureFolders();
   const globalMemory = new GlobalMemoryStore(context.globalState, disk);
-  await globalMemory.hydrateFromDisk();
   const missionStore = new MissionStore(context.globalState, context.workspaceState, disk);
-  await missionStore.hydrateFromDisk();
+  await Promise.all([globalMemory.hydrateFromDisk(), missionStore.hydrateFromDisk()]);
   const loadIssues = disk.getAndClearLoadIssues();
   if (loadIssues.length) {
     void vscode.window.showWarningMessage(`My AI: detected ${loadIssues.length} persistence load issue(s). See logs for details.`);
@@ -40,7 +39,8 @@ export async function activate(context: vscode.ExtensionContext) {
   }
   const externalAdapters = new ExternalToolAdapterRegistry(paths);
   const mcp = new McpRegistry(paths, disk);
-  await mcp.hydrate();
+  const templates = new MissionTemplateStore(paths);
+  await Promise.all([mcp.hydrate(), templates.hydrate()]);
   const tools = new ToolRegistry(context, missionStore, disk, externalAdapters, mcp, secrets);
   const wsIndex = new WorkspaceIndex();
   tools.workspaceIndex = wsIndex;
@@ -57,8 +57,6 @@ export async function activate(context: vscode.ExtensionContext) {
     fileTracker.flush(missionId);
     fileTracker.clear(missionId);
   };
-  const templates = new MissionTemplateStore(paths);
-  await templates.hydrate();
   const runner = new BackgroundMissionRunner(orchestrator, missionStore);
 
   const traceLogger = new ExtensionTraceLogger(context, randomUUID());
