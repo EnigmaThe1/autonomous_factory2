@@ -1,5 +1,6 @@
-# Default branch tests: compile + unit/webview smoke. HttpClient httpbin.org suite stays
-# skipped unless MY_AI_RUN_HTTP_INTEGRATION=1 (see npm run test:http-integration).
+# Push/PR: npm run ci (= npm run test: compile once + unit tests + webview smoke).
+# HttpClient httpbin.org suite skipped unless MY_AI_RUN_HTTP_INTEGRATION=1.
+# Manual "Run workflow" runs the optional live HttpClient job only.
 name: CI
 
 on:
@@ -7,9 +8,11 @@ on:
     branches: [main, master]
   pull_request:
     branches: [main, master]
+  workflow_dispatch:
 
 jobs:
   test:
+    if: github.event_name == 'push' || github.event_name == 'pull_request'
     runs-on: ubuntu-latest
     timeout-minutes: 15
     steps:
@@ -26,3 +29,22 @@ jobs:
 
       - name: Compile and test
         run: npm run ci
+
+  http-integration:
+    if: github.event_name == 'workflow_dispatch'
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+          cache: npm
+          cache-dependency-path: package-lock.json
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Live HttpClient tests (httpbin.org)
+        run: npm run test:http-integration
