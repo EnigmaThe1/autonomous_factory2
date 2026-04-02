@@ -66,7 +66,10 @@ export function buildAiSidebarWebviewHtml(extensionUri: vscode.Uri, webview: vsc
           </div>
           <input id="missionTitle" placeholder="Mission title" />
           <textarea id="missionPrompt" placeholder="Describe an autonomous mission"></textarea>
-          <div id="missionStartBlueprintHint" class="meta" style="margin-top:8px;" aria-live="polite"></div>
+          <div class="row split" style="margin-top:8px;align-items:flex-start;gap:8px;flex-wrap:wrap;">
+            <div id="missionStartBlueprintHint" class="meta" style="flex:1;min-width:140px;" aria-live="polite"></div>
+            <button type="button" class="ghost compact" data-action="openSettings" data-query="myAi.missions" title="Open VS Code Settings filtered to myAi.missions">Mission settings…</button>
+          </div>
           <div class="meta" style="margin-top:6px;">Mission default provider/model come from the Chat row above. Per-role overrides live in the <strong>Routing</strong> tab after you start or focus a mission.</div>
         </div>
         <div class="card">
