@@ -1,5 +1,6 @@
 import * as path from "path";
 import * as vscode from "vscode";
+import { MISSION_SETTINGS_SEARCH_QUERY } from "../ui/extensionSettingsSearchQuery";
 import { ToolRegistry } from "../tools/ToolRegistry";
 import { McpRegistry } from "../tools/McpRegistry";
 import { GlobalMemoryStore } from "../memory/GlobalMemoryStore";
@@ -44,6 +45,12 @@ export function registerToolCommands(
       }
       const doc = await vscode.workspace.openTextDocument(uri);
       await vscode.window.showTextDocument(doc, { preview: false });
+    })
+  );
+
+  disposables.push(
+    vscode.commands.registerCommand("myAi.openMissionSettings", async () => {
+      await vscode.commands.executeCommand("workbench.action.openSettings", MISSION_SETTINGS_SEARCH_QUERY);
     })
   );
 

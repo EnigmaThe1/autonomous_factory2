@@ -2,10 +2,7 @@ import * as vscode from "vscode";
 import { createStarterMcpFromSample } from "../tools/mcpStarterConfig";
 import type { AiSidebarUiDispatchHost } from "./aiSidebarUiDispatchHost";
 import type { UiToExtMessage } from "./protocol";
-
-const DEFAULT_SETTINGS_QUERY = "myAi";
-/** Only allow settings keys under our extension namespace (Settings UI search string). */
-const SETTINGS_SEARCH_SAFE = /^myAi(\.[a-zA-Z][a-zA-Z0-9_]*){0,16}$/;
+import { sanitizeExtensionSettingsSearchQuery } from "./extensionSettingsSearchQuery";
 
 export async function dispatchUi_listMcpTools(host: AiSidebarUiDispatchHost): Promise<boolean> {
   host.invalidateMcpToolsSessionsCache();
@@ -65,8 +62,9 @@ export async function dispatchUi_openTerminal(host: AiSidebarUiDispatchHost): Pr
 export async function dispatchUi_openSettings(
   msg?: Extract<UiToExtMessage, { type: "openSettings" }>
 ): Promise<boolean> {
-  const raw = msg && typeof msg.query === "string" ? msg.query.trim() : "";
-  const q = raw && SETTINGS_SEARCH_SAFE.test(raw) ? raw : DEFAULT_SETTINGS_QUERY;
+  const q = sanitizeExtensionSettingsSearchQuery(
+    msg && typeof msg.query === "string" ? msg.query : undefined
+  );
   await vscode.commands.executeCommand("workbench.action.openSettings", q);
   return true;
 }
