@@ -342,6 +342,9 @@ export function createMissionRenderer(deps) {
             </div>`
                 : ""
             }
+      <div class="row" style="gap:6px;flex-wrap:wrap;margin-top:8px;">
+        <button type="button" class="ghost" data-action="exportMissionBlueprint" data-mission-id="${escapeHtml(m.id)}">Export blueprint (markdown)…</button>
+      </div>
       <details style="margin-top:8px;"><summary>Requirements / architecture</summary>
         <pre class="small-pre" style="max-height:200px;overflow:auto;white-space:pre-wrap;">${escapeHtml(
               (m.blueprint.requirementsSummary + "\n\n" + m.blueprint.architectureSummary).slice(0, 8000)

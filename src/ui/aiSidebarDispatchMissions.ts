@@ -6,6 +6,7 @@ import {
   editMissionPolicyForMission,
   openApprovalBundleSummaryForMission
 } from "../commands/registerCommands";
+import { exportMissionBlueprintToWorkspaceFile } from "../missions/missionBlueprintExportActions";
 import { generateMissionReport } from "../missions/missionReport";
 import { MISSION_LIST_INCLUDE_ARCHIVED_KEY } from "./aiSidebarConstants";
 import type { UiToExtMessage } from "./protocol";
@@ -482,5 +483,24 @@ export async function dispatchUi_submitPreBlueprintAnswers(
   void vscode.window.showInformationMessage(out.message);
   host.postMissionDashboardSnapshotImmediate();
   host.scheduleBackgroundDashboardReconciliation();
+  return true;
+}
+
+export async function dispatchUi_exportMissionBlueprint(
+  host: AiSidebarUiDispatchHost,
+  msg: Extract<UiToExtMessage, { type: "exportMissionBlueprint" }>
+): Promise<boolean> {
+  const mission = host.missionStore.get(msg.missionId);
+  if (!mission) {
+    host.postMessage({ type: "error", message: "Mission not found." });
+    return true;
+  }
+  const out = await exportMissionBlueprintToWorkspaceFile(mission);
+  if (out.ok) {
+    void vscode.window.showInformationMessage(out.message);
+    void vscode.window.showTextDocument(out.exportedUri);
+  } else if (out.message !== "Export cancelled.") {
+    void vscode.window.showWarningMessage(out.message);
+  }
   return true;
 }

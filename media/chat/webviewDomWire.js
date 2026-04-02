@@ -115,6 +115,9 @@ document.body.addEventListener('click', e => {
     const answers = ta && "value" in ta ? String(ta.value) : "";
     return post("submitPreBlueprintAnswers", { missionId, answers });
   }
+  if (action === "exportMissionBlueprint" && missionId) {
+    return post("exportMissionBlueprint", { missionId });
+  }
   if (action === 'copyMissionReport' && missionId) {
     const c = state.missionReportCache;
     const statusEl = globalThis.document?.getElementById?.("missionActionStatus");

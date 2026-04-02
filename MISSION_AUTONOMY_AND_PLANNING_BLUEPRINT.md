@@ -173,7 +173,7 @@ User goal
 - Missions tab / inspector:
   - Render steps with status icons; show **Acceptance criteria** collapsed.
   - Buttons: **Approve plan**, **Request changes** (prompt), **Reject** (fail mission or return to draft).
-- Optional: export blueprint as markdown file into workspace (user-triggered).
+- **Shipped (v0.18.45+)**: export blueprint as markdown — inspector **Export blueprint (markdown)…** and command **`myAi.exportMissionBlueprint`** (save dialog under workspace folder; opens the file).
 
 **Acceptance**
 
@@ -374,4 +374,4 @@ Use this as a **burn-down** when implementing (host + webview **shipped** v0.18.
 
 ---
 
-*Document version: 1.4 — Checklist synced to shipped state; runner/`awaiting_input` notes clarified.*
+*Document version: 1.5 — Blueprint markdown export (inspector + `myAi.exportMissionBlueprint`).*

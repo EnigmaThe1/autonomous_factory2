@@ -174,7 +174,7 @@ Phase 10 is the capstone.
 - [x] **Chat tab focused mission strip** — title, status badge, progress line; `chatPanelSig` includes `pst`, `ft`, `fs` so chat re-renders when focused mission or stats change
 - [x] **Dashboard header missions summary** — `#summaryMissions` shows total plus running / queued / awaiting counts (`formatDashboardMissionSummaryText`)
 - [x] **Copy mission report** — inspector **Copy report** uses Clipboard API with status line feedback
-- [x] **710 tests** (632 host + 78 webview smoke), 0 failures, 0 lint errors
+- [x] **Host + webview tests** — see Mission autonomy section below for current counts; 0 failures target
 
 ---
 
@@ -202,7 +202,7 @@ See **`AGENT_CAPABILITIES_PLAN.md`** for the full roadmap (browser via MCP, futu
 
 ---
 
-## Mission autonomy & upfront planning (shipped in v0.18.40+; Phase 10 fidelity v0.18.41+; validator pause v0.18.42+; pre-blueprint Q&A v0.18.43+; multiline submit input v0.18.44+)
+## Mission autonomy & upfront planning (shipped in v0.18.40+; Phase 10 fidelity v0.18.41+; validator pause v0.18.42+; pre-blueprint Q&A v0.18.43+; multiline submit v0.18.44+; blueprint markdown export v0.18.45+)
 
 **Spec**: **`MISSION_AUTONOMY_AND_PLANNING_BLUEPRINT.md`**.
 
@@ -211,13 +211,13 @@ See **`AGENT_CAPABILITIES_PLAN.md`** for the full roadmap (browser via MCP, futu
 - [x] **Types + persistence** — `Mission.blueprint`, `WorkItem.blueprintStepId` / `workItemPurpose`, `AgentRole.architect`, `blockReasonCode.awaiting_blueprint_approval`; JSON round-trip via existing mission envelope.
 - [x] **`parseBlueprintModelOutput`**, **`synthesizeWorkItemsFromBlueprint`**, **`computeBlueprintProgress`**, **`applyBlueprintStepStatusFromWorkItem`**.
 - [x] **`myAi.missions.blueprintMode`** — start mission with blueprint planner item; parse → `awaiting_approval` + `awaiting_input` when **`myAi.missions.requireBlueprintApproval`**; auto-approve path synthesizes queue.
-- [x] **Commands** — `myAi.approveMissionBlueprint`, `rejectMissionBlueprint`, `requestMissionBlueprintRevision`, `openMissionAutonomyBlueprint`.
+- [x] **Commands** — `myAi.approveMissionBlueprint`, `rejectMissionBlueprint`, `requestMissionBlueprintRevision`, `openMissionAutonomyBlueprint`, **`myAi.exportMissionBlueprint`** (markdown via save dialog).
 - [x] **Orchestrator** — loop exits on `awaiting_input`; blueprint blocks premature completion; optional **`myAi.missions.architectPassAfterValidator`**; global memory mirror on approve.
-- [x] **Webview** — Missions inspector: blueprint status, progress, approve/reject/revision; Settings: open blueprint doc.
+- [x] **Webview** — Missions inspector: blueprint status, progress, approve/reject/revision, **export blueprint (markdown)**; Settings: open blueprint doc.
 - [x] **Researcher** — uses web tools hint when **`myAi.webResearch.enabled`**.
 - [x] **`myAi.agents.enforceDefaultCodingStandards`** + shared fragments (planner/implementer/reviewer/architect).
 - [x] **Plan fidelity / drift (Phase 10)** — **`myAi.missions.blueprintFidelityCheck`**: after implementer completion, **`MissionFileTracker.flush`**, **`computePlanFidelityDrift`** vs blueprint text + path allowlist; optional reviewer **“Plan fidelity — unexpected file paths”**; `blueprintPlanFidelity` unit tests.
 - [x] **`myAi.missions.pauseAfterEachValidator`** — after a successful validator step, mission **`awaiting_input`** with **`post_validator_checkpoint`**; **`resumeMission`** clears the gate and continues (v0.18.42+).
 - [x] **`myAi.missions.preBlueprintClarification`** — with blueprint mode, planner emits JSON **`questions[]`** first; operator answers via missions inspector or **`myAi.submitPreBlueprintClarification`** (multiline quick input when the host supports it); then **`blueprint_generate`** runs with Q&A in the prompt (`preBlueprintClarification` on mission, **`awaiting_pre_blueprint_answers`**).
 
-**Tests**: 643 host + 78 webview smoke (721 total).
+**Tests**: 645 host + 78 webview smoke (723 total).

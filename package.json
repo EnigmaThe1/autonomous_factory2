@@ -2,7 +2,7 @@
   "name": "my-ai-extension-v18",
   "displayName": "My AI Extension V18",
   "description": "VS Code AI assistant with unified sidebar, in-pane diff review, richer tool/result cards, mission inspector, grouped timeline, live agent stream, approvals, bundles, tools, memory, console, and settings",
-  "version": "0.18.44",
+  "version": "0.18.45",
   "publisher": "enigma-the",
   "repository": {
     "type": "git",
@@ -32,7 +32,8 @@
     "onCommand:myAi.approveMissionBlueprint",
     "onCommand:myAi.rejectMissionBlueprint",
     "onCommand:myAi.requestMissionBlueprintRevision",
-    "onCommand:myAi.submitPreBlueprintClarification"
+    "onCommand:myAi.submitPreBlueprintClarification",
+    "onCommand:myAi.exportMissionBlueprint"
   ],
   "main": "./dist/extension.js",
   "contributes": {
@@ -120,6 +121,10 @@
       {
         "command": "myAi.submitPreBlueprintClarification",
         "title": "My AI: Submit Pre-Blueprint Answers"
+      },
+      {
+        "command": "myAi.exportMissionBlueprint",
+        "title": "My AI: Export Mission Blueprint as Markdown"
       },
       {
         "command": "myAi.setBraveSearchApiKey",
