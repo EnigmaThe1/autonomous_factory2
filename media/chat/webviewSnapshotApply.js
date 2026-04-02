@@ -270,6 +270,7 @@ function renderSnapshot(snapshot, traceContext) {
   {
     const incoming = snapshot?.settings?.traceAutoRefreshIntervalMs;
     if (typeof incoming === 'number' && Number.isFinite(incoming)) {
+      /* Defensive clamp; host uses TRACE_* in src/config/myAiSettingBounds.ts (keep in sync). */
       const clamped = Math.max(3000, Math.min(120000, Math.floor(incoming)));
       const prev = state.traceAutoRefreshIntervalMs;
       state.traceAutoRefreshIntervalMs = clamped;

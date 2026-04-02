@@ -59,6 +59,7 @@ export function createTraceAndPersist(vscode, getState) {
   function startTraceAutoRefresh() {
     const st = getState();
     stopTraceAutoRefresh();
+    /* Defensive clamp; host uses TRACE_* in src/config/myAiSettingBounds.ts (keep in sync). */
     const ms = Math.max(3000, Math.min(120000, Number(st.traceAutoRefreshIntervalMs) || 10000));
     st.traceAutoRefreshTimer = setInterval(() => {
       if (st.activeTab === "trace") {

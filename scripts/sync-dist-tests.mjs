@@ -11,13 +11,15 @@ const srcDir = join(root, "src", "test");
 const distDir = join(root, "dist", "test");
 
 if (!existsSync(distDir)) process.exit(0);
+if (!existsSync(srcDir)) {
+  console.warn("[sync-dist-tests] src/test missing; skip orphan prune");
+  process.exit(0);
+}
 
 const srcBasenames = new Set(
-  existsSync(srcDir)
-    ? readdirSync(srcDir)
-        .filter((f) => f.endsWith(".test.ts"))
-        .map((f) => f.replace(/\.ts$/, ".js"))
-    : []
+  readdirSync(srcDir)
+    .filter((f) => f.endsWith(".test.ts"))
+    .map((f) => f.replace(/\.ts$/, ".js"))
 );
 
 for (const f of readdirSync(distDir)) {
