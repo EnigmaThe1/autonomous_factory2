@@ -1,6 +1,11 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { buildListToolsHintEntries, BUILTIN_TOOL_HINTS, EXTRA_TOOL_HINTS } from "../tools/listToolsCatalog";
+import {
+  buildListToolsHintEntries,
+  BUILTIN_TOOL_HINTS,
+  EXTRA_TOOL_HINTS,
+  hintForExternalAdapter
+} from "../tools/listToolsCatalog";
 import { BUILTIN_TOOL_NAMES } from "../tools/builtinToolNames";
 
 test("BUILTIN_TOOL_HINTS covers every builtin name", () => {
@@ -29,4 +34,28 @@ test("buildListToolsHintEntries: maxChars < 1 yields empty", () => {
   const { entries, truncated } = buildListToolsHintEntries(0);
   assert.equal(entries.length, 0);
   assert.equal(truncated, false);
+});
+
+test("hintForExternalAdapter: no URL in hint", () => {
+  const h = hintForExternalAdapter({
+    name: "myService",
+    description: "Does a thing",
+    mutating: true,
+    method: "post"
+  });
+  assert.match(h, /ext\.myService/);
+  assert.doesNotMatch(h, /https?:\/\//);
+  assert.match(h, /mutating/);
+});
+
+test("buildListToolsHintEntries: appends ext.* after core hints", () => {
+  const adapters = [{ name: "alpha", description: "Alpha hook", mutating: false }];
+  const { entries, truncated } = buildListToolsHintEntries(200_000, adapters);
+  assert.equal(truncated, false);
+  const ext = entries.filter((e) => e.tool.startsWith("ext."));
+  assert.equal(ext.length, 1);
+  assert.equal(ext[0].tool, "ext.alpha");
+  const ixBuiltin = entries.findIndex((e) => e.tool === "readFile");
+  const ixExt = entries.findIndex((e) => e.tool === "ext.alpha");
+  assert.ok(ixBuiltin >= 0 && ixExt > ixBuiltin);
 });

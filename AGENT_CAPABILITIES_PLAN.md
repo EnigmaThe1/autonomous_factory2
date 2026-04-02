@@ -72,7 +72,7 @@ Example command:
 
 | Item | Behavior |
 |------|-----------|
-| **`listTools` response** | Besides `builtins` (names) and `external` (adapter ids), includes **`hints`**: `{ tool, hint }[]` with one-line argument / policy guidance for each builtin plus **git.*** / **docker.*** / **db.*** tools. |
+| **`listTools` response** | Besides `builtins` (names) and `external` (adapter definitions), includes **`hints`**: `{ tool, hint }[]` with one-line argument / policy guidance for each builtin plus **git.*** / **docker.*** / **db.*** tools and **`ext.<adapter>`** rows (Phase 8; hints omit URLs). |
 | **`myAi.tools.listToolsHintsMaxChars`** | Budget for serializing the hints list (default **16000**). If the budget is exceeded, rows are cut early and **`hintsTruncated`: true** is set. **0** omits **`hints`** entirely (previous behavior). |
 
 ## Phase 7 — `listMcpTools` summary budget (shipped)
@@ -81,6 +81,12 @@ Example command:
 |------|-----------|
 | **`myAi.tools.listMcpToolsSummaryMaxChars`** | Default **0** — **`listMcpTools`** returns full **`McpToolDescriptor[]`** (including **`inputSchema`**). When **> 0**, each row is slimmed (no **`inputSchema`**, description trimmed) and trailing tools are dropped until **`JSON.stringify(data)`** fits the budget; a sentinel row **`__myAi__.list_budget`** explains omissions. **`data`** stays an **array** (sidebar / command palette unchanged). |
 | **Lazy prompt** | Recommended **24000–64000** with **`myAi.agents.lazyToolPrompt`** so MCP discovery does not flood the context with JSON Schema. |
+
+## Phase 8 — External adapter hints in `listTools` (shipped)
+
+| Item | Behavior |
+|------|-----------|
+| **`hints` + `external`** | When **`myAi.tools.listToolsHintsMaxChars` > 0**, after builtin and git/docker/db rows, **`hints`** includes one row per configured HTTP adapter: **`tool`:** `ext.<name>` and a **`hint`** built from description, mutating flag, and HTTP method — **no URL**, so adapter endpoints are not copied into the model context via hints. |
 
 ---
 

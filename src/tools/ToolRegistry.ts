@@ -435,7 +435,7 @@ export class ToolRegistry {
     await this.missionStore.saveEvent(missionId, { level: "info", source: "tool:listTools", message: "Listed built-in and external tools" });
     const data: Record<string, unknown> = { builtins, external };
     if (hintsBudget > 0) {
-      const hints = buildListToolsHintEntries(hintsBudget);
+      const hints = buildListToolsHintEntries(hintsBudget, external);
       data.hints = hints.entries;
       if (hints.truncated) {
         data.hintsTruncated = true;

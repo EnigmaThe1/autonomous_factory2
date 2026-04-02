@@ -59,11 +59,37 @@ function entryWeight(e: ListToolsHintEntry): number {
   return e.tool.length + e.hint.length + 8;
 }
 
+/** Shape needed to build `ext.*` rows (no URL — avoids leaking adapter endpoints into prompts). */
+export interface ExternalAdapterHintSource {
+  name: string;
+  description?: string;
+  mutating?: boolean;
+  method?: string;
+}
+
+export function hintForExternalAdapter(a: ExternalAdapterHintSource): string {
+  const desc = a.description ? trimText(a.description, 140) : "";
+  const policy = a.mutating ? "mutating — approval if configured" : "non-mutating";
+  const method = (a.method || "POST").toUpperCase();
+  const tail = `${method} to configured URL; call TOOL with tool id ext.${a.name}`;
+  return trimText([desc, policy, tail].filter(Boolean).join(" — "), MAX_HINT_LEN);
+}
+
+export function externalAdapterHintEntries(adapters: ExternalAdapterHintSource[]): ListToolsHintEntry[] {
+  return adapters.map((a) => ({
+    tool: `ext.${a.name}`,
+    hint: hintForExternalAdapter(a)
+  }));
+}
+
 /**
- * Ordered hint rows for listTools: builtins (registry order), then git/docker/db extras.
+ * Ordered hint rows for listTools: builtins (registry order), git/docker/db extras, then `ext.*` adapters.
  * Stops before exceeding `maxChars` (rough JSON body budget for the hints array).
  */
-export function buildListToolsHintEntries(maxChars: number): BuildListToolsHintsResult {
+export function buildListToolsHintEntries(
+  maxChars: number,
+  externalAdapters: ExternalAdapterHintSource[] = []
+): BuildListToolsHintsResult {
   if (maxChars < 1) {
     return { entries: [], truncated: false };
   }
@@ -84,6 +110,15 @@ export function buildListToolsHintEntries(maxChars: number): BuildListToolsHints
 
   for (const x of EXTRA_TOOL_HINTS) {
     const e: ListToolsHintEntry = { tool: x.tool, hint: trimText(x.hint, MAX_HINT_LEN) };
+    const w = entryWeight(e);
+    if (used + w > maxChars) {
+      return { entries, truncated: true };
+    }
+    entries.push(e);
+    used += w;
+  }
+
+  for (const e of externalAdapterHintEntries(externalAdapters)) {
     const w = entryWeight(e);
     if (used + w > maxChars) {
       return { entries, truncated: true };
