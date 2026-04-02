@@ -2,7 +2,7 @@
   "name": "my-ai-extension-v18",
   "displayName": "My AI Extension V18",
   "description": "VS Code AI assistant with unified sidebar, in-pane diff review, richer tool/result cards, mission inspector, grouped timeline, live agent stream, approvals, bundles, tools, memory, console, and settings",
-  "version": "0.18.52",
+  "version": "0.18.53",
   "publisher": "enigma-the",
   "repository": {
     "type": "git",
@@ -110,7 +110,8 @@
       },
       {
         "command": "myAi.openMissionSettings",
-        "title": "My AI: Open Mission Settings"
+        "title": "My AI: Open Mission Settings",
+        "icon": "$(settings-gear)"
       },
       {
         "command": "myAi.approveMissionBlueprint",
@@ -264,6 +265,15 @@
           "type": "webview",
           "id": "myAi.sidebar",
           "name": "Chat & Missions"
+        }
+      ]
+    },
+    "menus": {
+      "view/title": [
+        {
+          "command": "myAi.openMissionSettings",
+          "when": "view == myAi.sidebar",
+          "group": "navigation@35"
         }
       ]
     },

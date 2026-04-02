@@ -202,7 +202,7 @@ See **`AGENT_CAPABILITIES_PLAN.md`** for the full roadmap (browser via MCP, futu
 
 ---
 
-## Mission autonomy & upfront planning (core v0.18.40+; fidelity v0.18.41+; validator pause v0.18.42+; pre-blueprint v0.18.43+; multiline submit v0.18.44+; blueprint export v0.18.45+; export + pre-Q&A v0.18.46+; copy blueprint v0.18.47+; Chat blueprint hint v0.18.48+; Settings blueprint rows v0.18.49+; Settings → `myAi.missions` v0.18.50+; Chat mission settings button v0.18.51+; command Open Mission Settings v0.18.52+)
+## Mission autonomy & upfront planning (core v0.18.40+; fidelity v0.18.41+; validator pause v0.18.42+; pre-blueprint v0.18.43+; multiline submit v0.18.44+; blueprint export v0.18.45+; export + pre-Q&A v0.18.46+; copy blueprint v0.18.47+; Chat blueprint hint v0.18.48+; Settings blueprint rows v0.18.49+; Settings → `myAi.missions` v0.18.50+; Chat mission settings button v0.18.51+; command Open Mission Settings v0.18.52+; sidebar view-title gear v0.18.53+)
 
 **Spec**: **`MISSION_AUTONOMY_AND_PLANNING_BLUEPRINT.md`**.
 
@@ -211,7 +211,7 @@ See **`AGENT_CAPABILITIES_PLAN.md`** for the full roadmap (browser via MCP, futu
 - [x] **Types + persistence** — `Mission.blueprint`, `WorkItem.blueprintStepId` / `workItemPurpose`, `AgentRole.architect`, `blockReasonCode.awaiting_blueprint_approval`; JSON round-trip via existing mission envelope.
 - [x] **`parseBlueprintModelOutput`**, **`synthesizeWorkItemsFromBlueprint`**, **`computeBlueprintProgress`**, **`applyBlueprintStepStatusFromWorkItem`**.
 - [x] **`myAi.missions.blueprintMode`** — start mission with blueprint planner item; parse → `awaiting_approval` + `awaiting_input` when **`myAi.missions.requireBlueprintApproval`**; auto-approve path synthesizes queue.
-- [x] **Commands** — `myAi.approveMissionBlueprint`, `rejectMissionBlueprint`, `requestMissionBlueprintRevision`, `openMissionAutonomyBlueprint`, **`myAi.openMissionSettings`** (VS Code Settings → `myAi.missions`), **`myAi.exportMissionBlueprint`**, **`myAi.copyMissionBlueprint`** (markdown + pre-Q&A to clipboard or file).
+- [x] **Commands** — `myAi.approveMissionBlueprint`, `rejectMissionBlueprint`, `requestMissionBlueprintRevision`, `openMissionAutonomyBlueprint`, **`myAi.openMissionSettings`** (VS Code Settings → `myAi.missions`; Command Palette + **Chat & Missions** view title), **`myAi.exportMissionBlueprint`**, **`myAi.copyMissionBlueprint`** (markdown + pre-Q&A to clipboard or file).
 - [x] **Orchestrator** — loop exits on `awaiting_input`; blueprint blocks premature completion; optional **`myAi.missions.architectPassAfterValidator`**; global memory mirror on approve.
 - [x] **Webview** — Missions inspector: blueprint status, progress, approve/reject/revision, **copy / export blueprint (markdown)**; **Chat** tab: live **blueprint / pre-Q&A / approval** hint + **Mission settings…** opens **`myAi.missions`** in VS Code Settings; **Settings** tab: same read-only rows + **Edit mission settings in VS Code**; Settings: open blueprint doc.
 - [x] **Researcher** — uses web tools hint when **`myAi.webResearch.enabled`**.
@@ -220,4 +220,4 @@ See **`AGENT_CAPABILITIES_PLAN.md`** for the full roadmap (browser via MCP, futu
 - [x] **`myAi.missions.pauseAfterEachValidator`** — after a successful validator step, mission **`awaiting_input`** with **`post_validator_checkpoint`**; **`resumeMission`** clears the gate and continues (v0.18.42+).
 - [x] **`myAi.missions.preBlueprintClarification`** — with blueprint mode, planner emits JSON **`questions[]`** first; operator answers via missions inspector or **`myAi.submitPreBlueprintClarification`** (multiline quick input when the host supports it); then **`blueprint_generate`** runs with Q&A in the prompt (`preBlueprintClarification` on mission, **`awaiting_pre_blueprint_answers`**).
 
-**Tests**: 650 host + 78 webview smoke (728 total).
+**Tests**: 651 host + 78 webview smoke (729 total).
