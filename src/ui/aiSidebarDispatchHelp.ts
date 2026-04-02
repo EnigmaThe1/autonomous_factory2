@@ -5,3 +5,13 @@ export async function dispatchUi_openAgentCapabilitiesDoc(_host: AiSidebarUiDisp
   await vscode.commands.executeCommand("myAi.openAgentCapabilitiesDoc");
   return false;
 }
+
+export async function dispatchUi_applyLazyDiscoveryPreset(_host: AiSidebarUiDispatchHost): Promise<boolean> {
+  await vscode.commands.executeCommand("myAi.applyLazyDiscoveryPreset");
+  return false;
+}
+
+export async function dispatchUi_revertLazyDiscoveryPreset(_host: AiSidebarUiDispatchHost): Promise<boolean> {
+  await vscode.commands.executeCommand("myAi.revertLazyDiscoveryPreset");
+  return false;
+}

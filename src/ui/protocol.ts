@@ -261,6 +261,8 @@ export type UiToExtMessage =
   | { type: "listMcpSessions" }
   | { type: "openMcpConfig" }
   | { type: "openAgentCapabilitiesDoc" }
+  | { type: "applyLazyDiscoveryPreset" }
+  | { type: "revertLazyDiscoveryPreset" }
   | { type: "searchGlobalMemory"; query: string }
   | { type: "generateMissionReport"; missionId: string }
   | { type: "saveQuickSettings"; defaultProvider: string; defaultModel: string; heartbeatSeconds: number; allowTerminal: boolean; requireWriteApproval: boolean; autoRevealOnActivation: boolean; defaultTab: string }

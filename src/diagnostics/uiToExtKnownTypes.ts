@@ -34,6 +34,8 @@ export const UI_TO_EXT_KNOWN_TYPES = new Set([
   "listMcpSessions",
   "openMcpConfig",
   "openAgentCapabilitiesDoc",
+  "applyLazyDiscoveryPreset",
+  "revertLazyDiscoveryPreset",
   "searchGlobalMemory",
   "generateMissionReport",
   "saveQuickSettings",

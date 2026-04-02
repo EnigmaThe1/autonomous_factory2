@@ -47,6 +47,8 @@ test("router wires representative families to expected dispatch imports", () => 
     ["listMcpTools", /case "listMcpTools":\s*\n\s*return await dispatchUi_listMcpTools/],
     ["openMcpConfig", /case "openMcpConfig":\s*\n\s*return await dispatchUi_openMcpConfig/],
     ["openAgentCapabilitiesDoc", /case "openAgentCapabilitiesDoc":\s*\n\s*return await dispatchUi_openAgentCapabilitiesDoc/],
+    ["applyLazyDiscoveryPreset", /case "applyLazyDiscoveryPreset":\s*\n\s*return await dispatchUi_applyLazyDiscoveryPreset/],
+    ["revertLazyDiscoveryPreset", /case "revertLazyDiscoveryPreset":\s*\n\s*return await dispatchUi_revertLazyDiscoveryPreset/],
     ["searchGlobalMemory", /case "searchGlobalMemory":\s*\n\s*return await dispatchUi_searchGlobalMemory/],
     ["generateMissionReport", /case "generateMissionReport":\s*\n\s*return await dispatchUi_generateMissionReport/],
     ["requestTraceLog", /case "requestTraceLog":\s*\n\s*return await dispatchUi_requestTraceLog/],

@@ -259,6 +259,8 @@ export function buildAiSidebarWebviewHtml(extensionUri: vscode.Uri, webview: vsc
             <button id="reviewFocusedHunks">Review Pending Hunks</button>
             <button id="reviewFocusedBundle">Bundle Summary</button>
             <button id="openBundlesTab" class="ghost">Open Bundles</button>
+            <button id="applyLazyDiscoveryPreset" class="ghost">Apply lazy discovery preset</button>
+            <button id="revertLazyDiscoveryPreset" class="ghost">Revert lazy discovery preset</button>
           </div>
           <div id="toolSummary" class="meta-block"></div>
         </div>

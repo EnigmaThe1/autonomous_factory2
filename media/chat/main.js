@@ -99,6 +99,8 @@ const els = {
   reviewFocusedHunks: document.getElementById("reviewFocusedHunks"),
   reviewFocusedBundle: document.getElementById("reviewFocusedBundle"),
   openBundlesTab: document.getElementById("openBundlesTab"),
+  applyLazyDiscoveryPreset: document.getElementById("applyLazyDiscoveryPreset"),
+  revertLazyDiscoveryPreset: document.getElementById("revertLazyDiscoveryPreset"),
   openSettings: document.getElementById("openSettings"),
   openAgentCapabilitiesDoc: document.getElementById("openAgentCapabilitiesDoc"),
   focusChatInput: document.getElementById("focusChatInput"),
