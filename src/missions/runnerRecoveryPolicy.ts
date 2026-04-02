@@ -4,6 +4,9 @@
  */
 import { clampMissionHeartbeatSeconds } from "../config/myAiSettingBounds";
 
+/** Runner lease TTL (ms) = clamped heartbeat seconds × this factor (2.5s wall per 1s heartbeat setting). */
+export const RUNNER_LEASE_TTL_MS_PER_HEARTBEAT_SECOND = 2500;
+
 export type StallRecoveryDecision = "none" | "inject_replan" | "mark_blocked";
 
 export function decideStallRecovery(input: {
@@ -23,5 +26,5 @@ export function decideStallRecovery(input: {
 }
 
 export function leaseTtlMsFromHeartbeatSeconds(heartbeatSeconds: number): number {
-  return clampMissionHeartbeatSeconds(heartbeatSeconds) * 2500;
+  return clampMissionHeartbeatSeconds(heartbeatSeconds) * RUNNER_LEASE_TTL_MS_PER_HEARTBEAT_SECOND;
 }

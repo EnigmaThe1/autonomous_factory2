@@ -1,6 +1,10 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { decideStallRecovery, leaseTtlMsFromHeartbeatSeconds } from "../missions/runnerRecoveryPolicy";
+import {
+  decideStallRecovery,
+  leaseTtlMsFromHeartbeatSeconds,
+  RUNNER_LEASE_TTL_MS_PER_HEARTBEAT_SECOND
+} from "../missions/runnerRecoveryPolicy";
 
 test("decideStallRecovery: below threshold does nothing", () => {
   assert.equal(
@@ -55,8 +59,9 @@ test("decideStallRecovery: block when autoReplans exhausted", () => {
 });
 
 test("leaseTtlMsFromHeartbeatSeconds matches runner convention (integer heartbeat seconds)", () => {
-  assert.equal(leaseTtlMsFromHeartbeatSeconds(8), 20000);
-  assert.equal(leaseTtlMsFromHeartbeatSeconds(3), 7500);
+  assert.equal(RUNNER_LEASE_TTL_MS_PER_HEARTBEAT_SECOND, 2500);
+  assert.equal(leaseTtlMsFromHeartbeatSeconds(8), 8 * RUNNER_LEASE_TTL_MS_PER_HEARTBEAT_SECOND);
+  assert.equal(leaseTtlMsFromHeartbeatSeconds(3), 3 * RUNNER_LEASE_TTL_MS_PER_HEARTBEAT_SECOND);
 });
 
 test("leaseTtlMsFromHeartbeatSeconds floors like clampMissionHeartbeatSeconds", () => {

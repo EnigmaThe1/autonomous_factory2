@@ -3,12 +3,14 @@ import assert from "node:assert/strict";
 import {
   clampDashboardPollIntervalMs,
   clampIndexIncrementalSaveDebounceMs,
+  clampMcpSessionWarmupStaggerMs,
   clampMissionHeartbeatSeconds,
   clampTraceAutoRefreshIntervalMs,
   DASHBOARD_POLL_INTERVAL_MS_MAX,
   DASHBOARD_POLL_INTERVAL_MS_MIN,
   INDEX_INCREMENTAL_SAVE_DEBOUNCE_MS_MAX,
   INDEX_INCREMENTAL_SAVE_DEBOUNCE_MS_MIN,
+  MCP_SESSION_WARMUP_STAGGER_MS_MAX,
   MISSION_HEARTBEAT_SECONDS_MIN,
   TRACE_AUTO_REFRESH_INTERVAL_MS_MAX,
   TRACE_AUTO_REFRESH_INTERVAL_MS_MIN
@@ -42,4 +44,11 @@ test("clampDashboardPollIntervalMs: clamps to package.json min/max", () => {
 
 test("clampDashboardPollIntervalMs: floors non-integers", () => {
   assert.equal(clampDashboardPollIntervalMs(10_000.7), 10_000);
+});
+
+test("clampMcpSessionWarmupStaggerMs", () => {
+  assert.equal(clampMcpSessionWarmupStaggerMs(-100), 0);
+  assert.equal(clampMcpSessionWarmupStaggerMs(500), 500);
+  assert.equal(clampMcpSessionWarmupStaggerMs(99_000), MCP_SESSION_WARMUP_STAGGER_MS_MAX);
+  assert.equal(clampMcpSessionWarmupStaggerMs(Number.NaN), 0);
 });

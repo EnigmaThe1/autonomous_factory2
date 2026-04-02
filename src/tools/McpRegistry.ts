@@ -5,6 +5,7 @@ import { spawn, ChildProcessWithoutNullStreams } from "child_process";
 import { DiskMissionPersistence, PersistedMcpSessionState } from "../storage/DiskMissionPersistence";
 import { WorkspacePaths } from "../storage/WorkspacePaths";
 import { McpToolDescriptor, ToolCall } from "../types";
+import { clampMcpSessionWarmupStaggerMs } from "../config/myAiSettingBounds";
 import { trimText } from "../util";
 
 interface McpServerConfig {
@@ -70,7 +71,7 @@ export class McpRegistry implements vscode.Disposable {
     if (vscode.workspace.getConfiguration().get<boolean>("myAi.mcp.sessionWarmupOnStartup", false)) {
       const cfg = vscode.workspace.getConfiguration();
       const rawStagger = cfg.get<number>("myAi.mcp.sessionWarmupStaggerMs", 0);
-      const staggerMs = Math.max(0, Math.min(60_000, Number.isFinite(rawStagger) ? rawStagger : 0));
+      const staggerMs = clampMcpSessionWarmupStaggerMs(Number.isFinite(rawStagger) ? rawStagger : 0);
       const servers = await this.listServers();
       for (let i = 0; i < servers.length; i++) {
         if (i > 0 && staggerMs > 0) {

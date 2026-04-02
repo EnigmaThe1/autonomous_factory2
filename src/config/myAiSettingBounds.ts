@@ -37,3 +37,10 @@ export const MISSION_HEARTBEAT_SECONDS_DEFAULT = 12;
 export function clampMissionHeartbeatSeconds(n: number): number {
   return Math.max(MISSION_HEARTBEAT_SECONDS_MIN, Math.floor(n));
 }
+
+/** `myAi.mcp.sessionWarmupStaggerMs` */
+export const MCP_SESSION_WARMUP_STAGGER_MS_MAX = 60_000;
+
+export function clampMcpSessionWarmupStaggerMs(n: number): number {
+  return Math.max(0, Math.min(MCP_SESSION_WARMUP_STAGGER_MS_MAX, Math.floor(Number.isFinite(n) ? n : 0)));
+}
