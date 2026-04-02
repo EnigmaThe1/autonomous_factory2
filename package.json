@@ -949,7 +949,7 @@
     "lint": "npm run compile && npx eslint src/ --ext .ts",
     "typecheck": "node ./node_modules/typescript/lib/tsc.js -p . --noEmit",
     "typecheck:webview": "node ./node_modules/typescript/lib/tsc.js -p tsconfig.webview.json --noEmit",
-    "test": "npm run compile && node --require ./scripts/vscode-test-shim.cjs --test dist/test/**/*.test.js && node --test scripts/webview-modular-smoke.mjs",
+    "test": "npm run compile && node scripts/sync-dist-tests.mjs && node --require ./scripts/vscode-test-shim.cjs --test dist/test/**/*.test.js && node --test scripts/webview-modular-smoke.mjs",
     "test:http-integration": "MY_AI_RUN_HTTP_INTEGRATION=1 npm test",
     "test:approval-e2e-counterfactual": "bash scripts/verify-approval-write-e2e-counterfactual.sh",
     "test:webview-smoke": "node --test scripts/webview-modular-smoke.mjs",
