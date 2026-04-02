@@ -2,7 +2,7 @@ import * as vscode from "vscode";
 import { createStarterMcpFromSample } from "../tools/mcpStarterConfig";
 import type { AiSidebarUiDispatchHost } from "./aiSidebarUiDispatchHost";
 import type { UiToExtMessage } from "./protocol";
-import { sanitizeExtensionSettingsSearchQuery } from "./extensionSettingsSearchQuery";
+import { MISSION_SETTINGS_SEARCH_QUERY, sanitizeExtensionSettingsSearchQuery } from "./extensionSettingsSearchQuery";
 
 export async function dispatchUi_listMcpTools(host: AiSidebarUiDispatchHost): Promise<boolean> {
   host.invalidateMcpToolsSessionsCache();
@@ -65,7 +65,11 @@ export async function dispatchUi_openSettings(
   const q = sanitizeExtensionSettingsSearchQuery(
     msg && typeof msg.query === "string" ? msg.query : undefined
   );
-  await vscode.commands.executeCommand("workbench.action.openSettings", q);
+  if (q === MISSION_SETTINGS_SEARCH_QUERY) {
+    await vscode.commands.executeCommand("myAi.openMissionSettings");
+  } else {
+    await vscode.commands.executeCommand("workbench.action.openSettings", q);
+  }
   return true;
 }
 

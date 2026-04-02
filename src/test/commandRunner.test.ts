@@ -49,7 +49,7 @@ describe("CommandRunner", () => {
 
   it("truncates output exceeding maxBytes limit", async () => {
     const result = await runCommand({
-      command: 'python3 -c "print(\'A\' * 20000)"',
+      command: `node -e "process.stdout.write('A'.repeat(20000))"`,
       timeoutMs: 5000
     });
     assert.equal(result.exitCode, 0);
