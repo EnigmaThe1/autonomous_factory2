@@ -1,4 +1,5 @@
 import * as vscode from "vscode";
+import { clampMissionHeartbeatSeconds, MISSION_HEARTBEAT_SECONDS_DEFAULT } from "../config/myAiSettingBounds";
 import { uid } from "../util";
 import { MissionOrchestrator } from "./MissionOrchestrator";
 import { MissionStore } from "./MissionStore";
@@ -19,7 +20,8 @@ export class BackgroundMissionRunner implements vscode.Disposable {
 
   start(): void {
     this.stop();
-    const seconds = Math.max(3, vscode.workspace.getConfiguration().get<number>("myAi.missions.heartbeatSeconds", 12));
+    const hb = vscode.workspace.getConfiguration().get<number>("myAi.missions.heartbeatSeconds", MISSION_HEARTBEAT_SECONDS_DEFAULT);
+    const seconds = clampMissionHeartbeatSeconds(Number.isFinite(hb) ? hb : MISSION_HEARTBEAT_SECONDS_DEFAULT);
     this.timer = setInterval(() => void this.tick(), seconds * 1000);
     void this.tick();
   }
@@ -41,7 +43,8 @@ export class BackgroundMissionRunner implements vscode.Disposable {
       const missions = this.store.list().filter((m) => ["queued", "running"].includes(m.status));
       const threshold = Math.max(1, vscode.workspace.getConfiguration().get<number>("myAi.missions.stallHeartbeatThreshold", 10));
       const maxAutoReplans = Math.max(1, vscode.workspace.getConfiguration().get<number>("myAi.missions.maxStallAutoReplans", 2));
-      const seconds = Math.max(3, vscode.workspace.getConfiguration().get<number>("myAi.missions.heartbeatSeconds", 12));
+      const hb = vscode.workspace.getConfiguration().get<number>("myAi.missions.heartbeatSeconds", MISSION_HEARTBEAT_SECONDS_DEFAULT);
+      const seconds = clampMissionHeartbeatSeconds(Number.isFinite(hb) ? hb : MISSION_HEARTBEAT_SECONDS_DEFAULT);
       const leaseTtlMs = leaseTtlMsFromHeartbeatSeconds(seconds);
 
       for (const mission of missions) {

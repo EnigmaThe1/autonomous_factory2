@@ -1,4 +1,10 @@
 import * as vscode from "vscode";
+import {
+  clampMissionHeartbeatSeconds,
+  clampTraceAutoRefreshIntervalMs,
+  MISSION_HEARTBEAT_SECONDS_DEFAULT,
+  TRACE_AUTO_REFRESH_INTERVAL_MS_DEFAULT
+} from "../config/myAiSettingBounds";
 import type { ProviderRegistry } from "../providers/ProviderRegistry";
 import { baseUrlSettingKey, defaultBaseUrl } from "../providers/providerCredentialKeys";
 import { modelsConfigKeyForProvider, resolveModelForProvider } from "../providers/providerModelResolution";
@@ -33,12 +39,6 @@ export function configurationAffectsSidebarSnapshotSettings(e: vscode.Configurat
   return SIDEBAR_SNAPSHOT_SETTINGS_CONFIG_KEYS.some((k) => e.affectsConfiguration(k));
 }
 
-function clampInt(n: unknown, lo: number, hi: number, fallback: number): number {
-  const v = typeof n === "number" ? n : Number(n);
-  if (!Number.isFinite(v)) return fallback;
-  return Math.max(lo, Math.min(hi, Math.floor(v)));
-}
-
 export function readSidebarWorkspaceSettings(): SidebarSnapshot["settings"] & {
   defaultProvider: string;
   defaultModel: string;
@@ -49,7 +49,10 @@ export function readSidebarWorkspaceSettings(): SidebarSnapshot["settings"] & {
     defaultProvider: cfg.get<string>(K.defaultProvider, "ollama"),
     defaultModel: cfg.get<string>(K.defaultModel, "llama3.1"),
     autoResumeOnStartup: cfg.get<boolean>(K.autoResumeOnStartup, true),
-    heartbeatSeconds: cfg.get<number>(K.heartbeatSeconds, 12),
+    heartbeatSeconds: (() => {
+      const raw = cfg.get<number>(K.heartbeatSeconds, MISSION_HEARTBEAT_SECONDS_DEFAULT);
+      return clampMissionHeartbeatSeconds(Number.isFinite(raw) ? raw : MISSION_HEARTBEAT_SECONDS_DEFAULT);
+    })(),
     allowTerminal: cfg.get<boolean>(K.allowTerminal, false),
     requireWriteApproval: cfg.get<boolean>(K.requireWriteApproval, true),
     useNativeChatParticipant: cfg.get<boolean>(K.useNativeChatParticipant, false),
@@ -59,7 +62,10 @@ export function readSidebarWorkspaceSettings(): SidebarSnapshot["settings"] & {
     missionBlueprintMode: cfg.get<boolean>(K.missionBlueprintMode, false),
     missionPreBlueprintClarification: cfg.get<boolean>(K.missionPreBlueprintClarification, false),
     missionRequireBlueprintApproval: cfg.get<boolean>(K.missionRequireBlueprintApproval, true),
-    traceAutoRefreshIntervalMs: clampInt(cfg.get<number>(K.traceAutoRefreshIntervalMs, 10_000), 3000, 120_000, 10_000)
+    traceAutoRefreshIntervalMs: (() => {
+      const raw = cfg.get<number>(K.traceAutoRefreshIntervalMs, TRACE_AUTO_REFRESH_INTERVAL_MS_DEFAULT);
+      return clampTraceAutoRefreshIntervalMs(Number.isFinite(raw) ? raw : TRACE_AUTO_REFRESH_INTERVAL_MS_DEFAULT);
+    })()
   };
 }
 

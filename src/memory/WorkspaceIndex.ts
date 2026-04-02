@@ -1,4 +1,5 @@
 import * as vscode from "vscode";
+import { clampIndexIncrementalSaveDebounceMs, INDEX_INCREMENTAL_SAVE_DEBOUNCE_MS_DEFAULT } from "../config/myAiSettingBounds";
 import { MemoryItem } from "../types";
 import { runSingleFlight, uid, trimText } from "../util";
 import { EmbeddingMemoryIndex } from "./EmbeddingMemoryIndex";
@@ -91,8 +92,8 @@ export class WorkspaceIndex {
     if (!root || !this.indexed) return;
     this.pendingSaveRels.add(relativePath);
     const cfg = vscode.workspace.getConfiguration();
-    const raw = cfg.get<number>("myAi.index.incrementalSaveDebounceMs", 2000);
-    const debounceMs = Math.max(200, Math.min(30_000, Number.isFinite(raw) ? raw : 2000));
+    const raw = cfg.get<number>("myAi.index.incrementalSaveDebounceMs", INDEX_INCREMENTAL_SAVE_DEBOUNCE_MS_DEFAULT);
+    const debounceMs = clampIndexIncrementalSaveDebounceMs(Number.isFinite(raw) ? raw : INDEX_INCREMENTAL_SAVE_DEBOUNCE_MS_DEFAULT);
     if (this.saveDebounceTimer) clearTimeout(this.saveDebounceTimer);
     this.saveDebounceTimer = setTimeout(() => {
       this.saveDebounceTimer = null;
