@@ -2,6 +2,26 @@ import * as vscode from "vscode";
 import type { Mission } from "../types";
 import { missionBlueprintToMarkdown, slugifyMissionTitleForFile } from "./blueprintExportMarkdown";
 
+export type CopyMissionBlueprintResult = { ok: true } | { ok: false; message: string };
+
+/** Writes the same markdown as file export to the system clipboard (no workspace folder required). */
+export async function copyMissionBlueprintMarkdownToClipboard(mission: Mission): Promise<CopyMissionBlueprintResult> {
+  if (!mission.blueprint) {
+    return { ok: false, message: "This mission has no blueprint." };
+  }
+  try {
+    const md = missionBlueprintToMarkdown(
+      mission.title,
+      mission.blueprint,
+      mission.preBlueprintClarification
+    );
+    await vscode.env.clipboard.writeText(md);
+    return { ok: true };
+  } catch {
+    return { ok: false, message: "Could not write to clipboard." };
+  }
+}
+
 /**
  * Prompt for a path under the workspace and write the mission blueprint as markdown.
  */

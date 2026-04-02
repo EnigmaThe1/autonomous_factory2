@@ -134,7 +134,7 @@ Example command:
 
 | Item | Behavior |
 |------|-----------|
-| **Blueprint mode** | **`myAi.missions.blueprintMode`** — JSON blueprint pass; optional **`myAi.missions.preBlueprintClarification`**; **`myAi.missions.requireBlueprintApproval`**, **`maxBlueprintSteps`**, **`maxBlueprintRevisions`**, optional **`architectPassAfterValidator`**, **`blueprintFidelityCheck`**, **`pauseAfterEachValidator`**. Commands: **Submit Pre-Blueprint Answers**, **Approve / Reject / Request revision**, **Export Mission Blueprint as Markdown**; inspector export button; **Open Mission Autonomy Blueprint** doc. See **`MISSION_AUTONOMY_AND_PLANNING_BLUEPRINT.md`** and **`IMPROVEMENT_PLAN.md`**. |
+| **Blueprint mode** | **`myAi.missions.blueprintMode`** — JSON blueprint pass; optional **`myAi.missions.preBlueprintClarification`**; **`myAi.missions.requireBlueprintApproval`**, **`maxBlueprintSteps`**, **`maxBlueprintRevisions`**, optional **`architectPassAfterValidator`**, **`blueprintFidelityCheck`**, **`pauseAfterEachValidator`**. Commands: **Submit Pre-Blueprint Answers**, **Approve / Reject / Request revision**, **Export / Copy Mission Blueprint**; inspector copy + export; **Open Mission Autonomy Blueprint** doc. See **`MISSION_AUTONOMY_AND_PLANNING_BLUEPRINT.md`** and **`IMPROVEMENT_PLAN.md`**. |
 
 ---
 

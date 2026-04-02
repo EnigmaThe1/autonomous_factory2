@@ -9,7 +9,10 @@ import { AgentRole, MissionAgentRouting, MissionPolicy, WorkItem } from "../type
 import { presentResumeMissionOutcome, presentStartMissionOutcome } from "../ui/missionActionOutcomePresentation";
 import { presentResumeMissionOutcomeEvent, presentStartMissionOutcomeEvent } from "../missions/missionActionOutcomeEventPresentation";
 import { saveOperatorActionMissionEventIfChanged } from "../missions/missionActionOutcomeEventLogging";
-import { exportMissionBlueprintToWorkspaceFile } from "../missions/missionBlueprintExportActions";
+import {
+  copyMissionBlueprintMarkdownToClipboard,
+  exportMissionBlueprintToWorkspaceFile
+} from "../missions/missionBlueprintExportActions";
 import { chooseMission, pickWorkItem, workItemQuickLabel } from "./commandHelpers";
 
 /** VS Code quick input supports `multiline` at runtime on recent builds; `@types/vscode` may omit it. */
@@ -322,6 +325,27 @@ export function registerMissionCommands(
         void vscode.window.showInformationMessage(out.message);
         void vscode.window.showTextDocument(out.exportedUri);
       } else if (out.message !== "Export cancelled.") {
+        void vscode.window.showWarningMessage(out.message);
+      }
+      sidebar.reveal();
+      sidebar.focusMission(picked.missionId);
+    })
+  );
+
+  disposables.push(
+    vscode.commands.registerCommand("myAi.copyMissionBlueprint", async () => {
+      const missions = store.listVisible(false).filter((m) => m.blueprint);
+      const picked = await vscode.window.showQuickPick(
+        missions.map((m) => ({ label: m.title, missionId: m.id, detail: m.blueprint?.status })),
+        { placeHolder: "Select mission whose blueprint to copy as markdown" }
+      );
+      if (!picked) return;
+      const mission = store.get(picked.missionId);
+      if (!mission) return;
+      const out = await copyMissionBlueprintMarkdownToClipboard(mission);
+      if (out.ok) {
+        void vscode.window.showInformationMessage("Blueprint markdown copied to clipboard.");
+      } else {
         void vscode.window.showWarningMessage(out.message);
       }
       sidebar.reveal();

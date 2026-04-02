@@ -343,6 +343,7 @@ export function createMissionRenderer(deps) {
                 : ""
             }
       <div class="row" style="gap:6px;flex-wrap:wrap;margin-top:8px;">
+        <button type="button" class="ghost" data-action="copyMissionBlueprint" data-mission-id="${escapeHtml(m.id)}" title="Copy full blueprint markdown to clipboard">Copy blueprint</button>
         <button type="button" class="ghost" data-action="exportMissionBlueprint" data-mission-id="${escapeHtml(m.id)}">Export blueprint (markdown)…</button>
       </div>
       <details style="margin-top:8px;"><summary>Requirements / architecture</summary>

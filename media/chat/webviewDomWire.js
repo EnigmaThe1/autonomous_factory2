@@ -118,6 +118,9 @@ document.body.addEventListener('click', e => {
   if (action === "exportMissionBlueprint" && missionId) {
     return post("exportMissionBlueprint", { missionId });
   }
+  if (action === "copyMissionBlueprint" && missionId) {
+    return post("copyMissionBlueprint", { missionId });
+  }
   if (action === 'copyMissionReport' && missionId) {
     const c = state.missionReportCache;
     const statusEl = globalThis.document?.getElementById?.("missionActionStatus");

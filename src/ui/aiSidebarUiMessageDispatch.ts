@@ -33,7 +33,8 @@ import {
   dispatchUi_rejectMissionBlueprint,
   dispatchUi_requestMissionBlueprintRevision,
   dispatchUi_submitPreBlueprintAnswers,
-  dispatchUi_exportMissionBlueprint
+  dispatchUi_exportMissionBlueprint,
+  dispatchUi_copyMissionBlueprint
 } from "./aiSidebarDispatchMissions";
 import {
   dispatchUi_approve,
@@ -168,6 +169,8 @@ export async function dispatchUiToExtMessage(
       return await dispatchUi_submitPreBlueprintAnswers(host, msg);
     case "exportMissionBlueprint":
       return await dispatchUi_exportMissionBlueprint(host, msg);
+    case "copyMissionBlueprint":
+      return await dispatchUi_copyMissionBlueprint(host, msg);
     case "applyLazyDiscoveryPreset":
       return await dispatchUi_applyLazyDiscoveryPreset(host);
     case "revertLazyDiscoveryPreset":

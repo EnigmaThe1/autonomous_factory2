@@ -51,6 +51,7 @@ test("router wires representative families to expected dispatch imports", () => 
     ["approveMissionBlueprint", /case "approveMissionBlueprint":\s*\n\s*return await dispatchUi_approveMissionBlueprint/],
     ["submitPreBlueprintAnswers", /case "submitPreBlueprintAnswers":\s*\n\s*return await dispatchUi_submitPreBlueprintAnswers/],
     ["exportMissionBlueprint", /case "exportMissionBlueprint":\s*\n\s*return await dispatchUi_exportMissionBlueprint/],
+    ["copyMissionBlueprint", /case "copyMissionBlueprint":\s*\n\s*return await dispatchUi_copyMissionBlueprint/],
     ["applyLazyDiscoveryPreset", /case "applyLazyDiscoveryPreset":\s*\n\s*return await dispatchUi_applyLazyDiscoveryPreset/],
     ["revertLazyDiscoveryPreset", /case "revertLazyDiscoveryPreset":\s*\n\s*return await dispatchUi_revertLazyDiscoveryPreset/],
     ["searchGlobalMemory", /case "searchGlobalMemory":\s*\n\s*return await dispatchUi_searchGlobalMemory/],
