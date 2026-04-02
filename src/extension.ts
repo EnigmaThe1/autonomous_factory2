@@ -23,6 +23,7 @@ import { MissionFileTracker } from "./missions/MissionFileTracker";
 
 export async function activate(context: vscode.ExtensionContext) {
   console.info(`[my-ai] activate ${context.extension.id}@${context.extension.packageJSON.version}`);
+  const activationCfg = vscode.workspace.getConfiguration();
   const secrets = new SecretStore(context.secrets);
   const providers = new ProviderRegistry(secrets);
   const collector = new EnhancedContextCollector();
@@ -46,7 +47,6 @@ export async function activate(context: vscode.ExtensionContext) {
   tools.workspaceIndex = wsIndex;
   const fileTracker = new MissionFileTracker(missionStore);
   tools.fileTracker = fileTracker;
-  const activationCfg = vscode.workspace.getConfiguration();
   if (activationCfg.get<boolean>("myAi.index.buildOnActivation", false)) {
     void wsIndex.build().then((n) => {
       if (n > 0) console.info(`[my-ai] Workspace index: ${n} files`);
@@ -103,16 +103,16 @@ export async function activate(context: vscode.ExtensionContext) {
     })
   );
 
-  if (vscode.workspace.getConfiguration().get<boolean>("myAi.useNativeChatParticipant", false)) {
+  if (activationCfg.get<boolean>("myAi.useNativeChatParticipant", false)) {
     registerNativeParticipant(context, providers, collector);
   }
 
-  if (vscode.workspace.getConfiguration().get<boolean>("myAi.missions.autoResumeOnStartup", true)) {
+  if (activationCfg.get<boolean>("myAi.missions.autoResumeOnStartup", true)) {
     void orchestrator.resumeActiveMissions();
   }
   runner.start();
 
-  if (vscode.workspace.getConfiguration().get<boolean>("myAi.ui.autoRevealOnActivation", false)) {
+  if (activationCfg.get<boolean>("myAi.ui.autoRevealOnActivation", false)) {
     setTimeout(() => {
       void vscode.commands.executeCommand("myAi.sidebar.focus").then(undefined, () => undefined);
     }, 300);
