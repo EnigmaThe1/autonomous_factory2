@@ -20,3 +20,15 @@ export const MISSION_HOST_TRUTH_COALESCE_MS = 50;
 export const MCP_ONBOARDING_CACHE_TTL_MS = 30_000;
 export const MCP_TOOLS_SESSIONS_TTL_MS = 15_000;
 export const PROVIDER_CREDENTIAL_ENTRY_TTL_MS = 15_000;
+
+/**
+ * Sidebar dashboard poll interval (`myAi.ui.dashboardPollIntervalMs`).
+ * Keep in sync with `package.json` contributes.configuration minimum, maximum, and default.
+ */
+export const DASHBOARD_POLL_INTERVAL_MS_MIN = 2000;
+export const DASHBOARD_POLL_INTERVAL_MS_MAX = 120_000;
+export const DASHBOARD_POLL_INTERVAL_MS_DEFAULT = 25_000;
+
+export function clampDashboardPollIntervalMs(n: number): number {
+  return Math.min(DASHBOARD_POLL_INTERVAL_MS_MAX, Math.max(DASHBOARD_POLL_INTERVAL_MS_MIN, Math.floor(n)));
+}

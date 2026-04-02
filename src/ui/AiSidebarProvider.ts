@@ -39,6 +39,8 @@ import {
 } from "../missions/missionActionOutcomeEventPresentation";
 
 import {
+  clampDashboardPollIntervalMs,
+  DASHBOARD_POLL_INTERVAL_MS_DEFAULT,
   MCP_ONBOARDING_CACHE_TTL_MS,
   MCP_TOOLS_SESSIONS_TTL_MS,
   MISSION_HOST_TRUTH_COALESCE_MS,
@@ -537,8 +539,10 @@ export class AiSidebarProvider implements vscode.WebviewViewProvider {
       }
     });
 
-    const clampPoll = () =>
-      Math.min(120_000, Math.max(2000, vscode.workspace.getConfiguration().get<number>("myAi.ui.dashboardPollIntervalMs", 25_000)));
+    const clampPoll = () => {
+      const raw = vscode.workspace.getConfiguration().get<number>("myAi.ui.dashboardPollIntervalMs", DASHBOARD_POLL_INTERVAL_MS_DEFAULT);
+      return clampDashboardPollIntervalMs(Number.isFinite(raw) ? raw : DASHBOARD_POLL_INTERVAL_MS_DEFAULT);
+    };
     const pollTick = () => {
       if (!view.visible) return;
       void this.maybePollDashboardRefresh("interval");
