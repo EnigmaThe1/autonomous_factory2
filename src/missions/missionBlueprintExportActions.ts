@@ -29,7 +29,7 @@ export async function exportMissionBlueprintToWorkspaceFile(mission: Mission): P
   if (!picked) {
     return { ok: false, message: "Export cancelled." };
   }
-  const md = missionBlueprintToMarkdown(mission.title, mission.blueprint);
+  const md = missionBlueprintToMarkdown(mission.title, mission.blueprint, mission.preBlueprintClarification);
   await vscode.workspace.fs.writeFile(picked, new TextEncoder().encode(md));
   return { ok: true, message: `Blueprint exported to ${picked.fsPath}`, exportedUri: picked };
 }

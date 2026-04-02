@@ -1,3 +1,4 @@
+import type { PreBlueprintClarificationState } from "../types";
 import type { MissionBlueprint } from "./missionBlueprintTypes";
 
 /** Safe filename segment from mission title. */
@@ -12,8 +13,13 @@ export function slugifyMissionTitleForFile(title: string, maxLen = 48): string {
 
 /**
  * Human-readable markdown for operators (version control, sharing, audit).
+ * When `pre` is set (pre-blueprint Q&A was used), questions and operator answers are included for traceability.
  */
-export function missionBlueprintToMarkdown(missionTitle: string, bp: MissionBlueprint): string {
+export function missionBlueprintToMarkdown(
+  missionTitle: string,
+  bp: MissionBlueprint,
+  pre?: PreBlueprintClarificationState
+): string {
   const lines: string[] = [];
   lines.push(`# Mission blueprint: ${missionTitle}`);
   lines.push("");
@@ -24,6 +30,23 @@ export function missionBlueprintToMarkdown(missionTitle: string, bp: MissionBlue
     lines.push(`- **Approved:** ${new Date(bp.approvedAt).toISOString()}`);
   }
   lines.push("");
+  if (pre && (pre.questions.length > 0 || (pre.answersMarkdown && pre.answersMarkdown.trim()))) {
+    lines.push("## Pre-blueprint clarification");
+    lines.push(`- **Status:** \`${pre.status}\``);
+    lines.push("");
+    if (pre.questions.length > 0) {
+      lines.push("### Questions");
+      pre.questions.forEach((q, i) => {
+        lines.push(`${i + 1}. ${q}`);
+      });
+      lines.push("");
+    }
+    if (pre.answersMarkdown?.trim()) {
+      lines.push("### Operator answers");
+      lines.push(pre.answersMarkdown.trim());
+      lines.push("");
+    }
+  }
   lines.push("## Requirements summary");
   lines.push(bp.requirementsSummary.trim() || "_(empty)_");
   lines.push("");

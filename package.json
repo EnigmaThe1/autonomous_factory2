@@ -2,7 +2,7 @@
   "name": "my-ai-extension-v18",
   "displayName": "My AI Extension V18",
   "description": "VS Code AI assistant with unified sidebar, in-pane diff review, richer tool/result cards, mission inspector, grouped timeline, live agent stream, approvals, bundles, tools, memory, console, and settings",
-  "version": "0.18.45",
+  "version": "0.18.46",
   "publisher": "enigma-the",
   "repository": {
     "type": "git",

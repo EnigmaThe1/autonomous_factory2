@@ -1,6 +1,6 @@
 # Mission autonomy & upfront planning — implementation blueprint
 
-**Status (2026-04)**: Core host + webview behavior through **Phase 10** and **cross-cutting** items is **implemented** in extension **v0.18.40+** (see checklist below). **Optional** hardening (e.g. blueprint export to file, formal module globs for fidelity v2) and product polish remain future work.
+**Status (2026-04)**: Core host + webview behavior through **Phase 10** and **cross-cutting** items is **implemented** in extension **v0.18.40+** (see checklist below). **Blueprint markdown export** to the workspace is **shipped** (includes pre-blueprint Q&A when present). **Optional** hardening (e.g. formal module globs for plan-fidelity v2) and polish remain future work.
 
 This document is the **full engineering plan** for the behaviors discussed in product conversations:
 
@@ -374,4 +374,4 @@ Use this as a **burn-down** when implementing (host + webview **shipped** v0.18.
 
 ---
 
-*Document version: 1.5 — Blueprint markdown export (inspector + `myAi.exportMissionBlueprint`).*
+*Document version: 1.6 — Export includes pre-blueprint clarification when `preBlueprintClarification` exists.*

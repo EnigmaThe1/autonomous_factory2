@@ -34,3 +34,33 @@ test("missionBlueprintToMarkdown: includes steps and criteria", () => {
   assert.match(md, /Tests pass/);
   assert.match(md, /awaiting_approval/);
 });
+
+test("missionBlueprintToMarkdown: includes pre-blueprint Q&A when provided", () => {
+  const bp: MissionBlueprint = {
+    version: 1,
+    createdAt: 1,
+    status: "approved",
+    requirementsSummary: "R",
+    architectureSummary: "A",
+    steps: [
+      {
+        id: "s1",
+        title: "T",
+        summary: "S",
+        roleHint: "implementer",
+        acceptanceCriteria: ["C"],
+        status: "pending"
+      }
+    ],
+    amendments: []
+  };
+  const md = missionBlueprintToMarkdown("M", bp, {
+    questions: ["Which stack?"],
+    answersMarkdown: "Use Node.",
+    status: "complete"
+  });
+  assert.match(md, /## Pre-blueprint clarification/);
+  assert.match(md, /Which stack/);
+  assert.match(md, /Operator answers/);
+  assert.match(md, /Use Node/);
+});
