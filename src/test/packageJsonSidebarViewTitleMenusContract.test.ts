@@ -24,10 +24,14 @@ test("package.json: sidebar view/title menus for capabilities, blueprint, missio
     assert.ok(cmd?.icon, `${id} should have a view-title icon`);
   }
   const titleMenus = raw.contributes.menus?.["view/title"] ?? [];
-  for (const id of sidebarTitleCommands) {
-    assert.ok(
-      titleMenus.some((m) => m.command === id && m.when === "view == myAi.sidebar"),
-      `view/title should expose ${id} on the sidebar`
-    );
-  }
+  const sidebarTitle = titleMenus.filter((m) => m.when === "view == myAi.sidebar");
+  assert.deepEqual(
+    sidebarTitle.map((m) => ({ command: m.command, group: m.group })),
+    [
+      { command: "myAi.openAgentCapabilitiesDoc", group: "navigation@33" },
+      { command: "myAi.openMissionAutonomyBlueprint", group: "navigation@34" },
+      { command: "myAi.openMissionSettings", group: "navigation@35" }
+    ],
+    "Chat & Missions view/title actions should stay map → book → gear (stable operator muscle memory)"
+  );
 });
