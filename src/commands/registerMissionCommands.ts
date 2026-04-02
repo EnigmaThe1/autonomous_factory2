@@ -11,6 +11,9 @@ import { presentResumeMissionOutcomeEvent, presentStartMissionOutcomeEvent } fro
 import { saveOperatorActionMissionEventIfChanged } from "../missions/missionActionOutcomeEventLogging";
 import { chooseMission, pickWorkItem, workItemQuickLabel } from "./commandHelpers";
 
+/** VS Code quick input supports `multiline` at runtime on recent builds; `@types/vscode` may omit it. */
+type InputBoxOptionsMultiline = vscode.InputBoxOptions & { multiline?: boolean };
+
 function parseRoleMap(raw?: string): Record<string, string> {
   return Object.fromEntries((raw || '').split(',').map((p) => p.trim()).filter(Boolean).map((p) => p.split(':').map((x) => x.trim())).filter((parts) => parts.length === 2));
 }
@@ -285,11 +288,15 @@ export function registerMissionCommands(
         { placeHolder: "Select mission waiting for pre-blueprint answers" }
       );
       if (!picked) return;
-      const answers = await vscode.window.showInputBox({
-        prompt: "Pre-blueprint answers (for multiple lines, use the Missions inspector textarea)",
+      const inputOpts: InputBoxOptionsMultiline = {
+        title: "Pre-blueprint answers",
+        prompt:
+          "Answer the mission’s clarification questions. On recent VS Code, Shift+Enter adds a line; otherwise use the Missions inspector textarea.",
         placeHolder: "Free-form answers to the listed questions",
-        ignoreFocusOut: true
-      });
+        ignoreFocusOut: true,
+        multiline: true
+      };
+      const answers = await vscode.window.showInputBox(inputOpts);
       if (answers === undefined) return;
       const out = await orchestrator.submitPreBlueprintClarificationAnswers(picked.missionId, answers);
       void vscode.window.showInformationMessage(out.message);

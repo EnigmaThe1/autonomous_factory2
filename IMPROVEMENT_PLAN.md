@@ -202,7 +202,7 @@ See **`AGENT_CAPABILITIES_PLAN.md`** for the full roadmap (browser via MCP, futu
 
 ---
 
-## Mission autonomy & upfront planning (shipped in v0.18.40+; Phase 10 fidelity v0.18.41+; validator pause v0.18.42+; pre-blueprint Q&A v0.18.43+)
+## Mission autonomy & upfront planning (shipped in v0.18.40+; Phase 10 fidelity v0.18.41+; validator pause v0.18.42+; pre-blueprint Q&A v0.18.43+; multiline submit input v0.18.44+)
 
 **Spec**: **`MISSION_AUTONOMY_AND_PLANNING_BLUEPRINT.md`**.
 
@@ -218,6 +218,6 @@ See **`AGENT_CAPABILITIES_PLAN.md`** for the full roadmap (browser via MCP, futu
 - [x] **`myAi.agents.enforceDefaultCodingStandards`** + shared fragments (planner/implementer/reviewer/architect).
 - [x] **Plan fidelity / drift (Phase 10)** — **`myAi.missions.blueprintFidelityCheck`**: after implementer completion, **`MissionFileTracker.flush`**, **`computePlanFidelityDrift`** vs blueprint text + path allowlist; optional reviewer **“Plan fidelity — unexpected file paths”**; `blueprintPlanFidelity` unit tests.
 - [x] **`myAi.missions.pauseAfterEachValidator`** — after a successful validator step, mission **`awaiting_input`** with **`post_validator_checkpoint`**; **`resumeMission`** clears the gate and continues (v0.18.42+).
-- [x] **`myAi.missions.preBlueprintClarification`** — with blueprint mode, planner emits JSON **`questions[]`** first; operator answers via missions inspector or **`myAi.submitPreBlueprintClarification`**; then **`blueprint_generate`** runs with Q&A in the prompt (`preBlueprintClarification` on mission, **`awaiting_pre_blueprint_answers`**).
+- [x] **`myAi.missions.preBlueprintClarification`** — with blueprint mode, planner emits JSON **`questions[]`** first; operator answers via missions inspector or **`myAi.submitPreBlueprintClarification`** (multiline quick input when the host supports it); then **`blueprint_generate`** runs with Q&A in the prompt (`preBlueprintClarification` on mission, **`awaiting_pre_blueprint_answers`**).
 
 **Tests**: 643 host + 78 webview smoke (721 total).
