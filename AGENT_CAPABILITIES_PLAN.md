@@ -128,14 +128,14 @@ Example command:
 
 | Item | Behavior |
 |------|-----------|
-| **Command** | **My AI: Open Agent Capabilities Roadmap** (`myAi.openAgentCapabilitiesDoc`) opens **`AGENT_CAPABILITIES_PLAN.md`** from the installed extension folder (bundled with the VSIX when the file is not excluded). **`onCommand`** activation included. Sidebar **Settings** tab: **Agent capabilities roadmap**. |
+| **Command** | **My AI: Open Agent Capabilities Roadmap** (`myAi.openAgentCapabilitiesDoc`) opens **`AGENT_CAPABILITIES_PLAN.md`** from the installed extension folder (bundled with the VSIX when the file is not excluded). **`onCommand`** activation included. Sidebar **Settings** tab: **Agent capabilities roadmap**. **Chat & Missions** view title: same command (map icon), with mission blueprint (book) and mission settings (gear). |
 
 ## Phase 15 — Mission autonomy & upfront planning (host + webview shipped)
 
 | Item | Behavior |
 |------|-----------|
 | **Blueprint mode** | **`myAi.missions.blueprintMode`** — JSON blueprint pass; optional **`myAi.missions.preBlueprintClarification`**; **`myAi.missions.requireBlueprintApproval`**, **`maxBlueprintSteps`**, **`maxBlueprintRevisions`**, optional **`architectPassAfterValidator`**, **`blueprintFidelityCheck`**, **`pauseAfterEachValidator`**. Commands: **Submit Pre-Blueprint Answers**, **Approve / Reject / Request revision**, **Export / Copy Mission Blueprint**; inspector copy + export; **Open Mission Autonomy Blueprint** doc. See **`MISSION_AUTONOMY_AND_PLANNING_BLUEPRINT.md`** and **`IMPROVEMENT_PLAN.md`**. |
-| **Sidebar UX (missions)** | **Chat** (start card): read-only line for workspace blueprint / pre-Q&A / approval flags, plus **Mission settings…** → VS Code Settings search **`myAi.missions`**. **Settings** tab: the same three flags as rows and **Edit mission settings in VS Code…** → same search. **Chat & Missions** view title: **Open Mission Autonomy Blueprint** (book) and **Open Mission Settings** (gear); both commands stay in the Command Palette. Webview **`openSettings`** accepts an optional **`query`**; the host only forwards strings that match the **`myAi…`** settings-key pattern (otherwise falls back to **`myAi`**). |
+| **Sidebar UX (missions)** | **Chat** (start card): read-only line for workspace blueprint / pre-Q&A / approval flags, plus **Mission settings…** → VS Code Settings search **`myAi.missions`**. **Settings** tab: the same three flags as rows and **Edit mission settings in VS Code…** → same search. **Chat & Missions** view title: **Open Agent Capabilities Roadmap** (map), **Open Mission Autonomy Blueprint** (book), **Open Mission Settings** (gear); all three in the Command Palette. Webview **`openSettings`** accepts an optional **`query`**; the host only forwards strings that match the **`myAi…`** settings-key pattern (otherwise falls back to **`myAi`**). |
 
 ---
 

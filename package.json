@@ -2,7 +2,7 @@
   "name": "my-ai-extension-v18",
   "displayName": "My AI Extension V18",
   "description": "VS Code AI assistant with unified sidebar, in-pane diff review, richer tool/result cards, mission inspector, grouped timeline, live agent stream, approvals, bundles, tools, memory, console, and settings",
-  "version": "0.18.54",
+  "version": "0.18.55",
   "publisher": "enigma-the",
   "repository": {
     "type": "git",
@@ -102,7 +102,8 @@
       },
       {
         "command": "myAi.openAgentCapabilitiesDoc",
-        "title": "My AI: Open Agent Capabilities Roadmap"
+        "title": "My AI: Open Agent Capabilities Roadmap",
+        "icon": "$(map)"
       },
       {
         "command": "myAi.openMissionAutonomyBlueprint",
@@ -271,6 +272,11 @@
     },
     "menus": {
       "view/title": [
+        {
+          "command": "myAi.openAgentCapabilitiesDoc",
+          "when": "view == myAi.sidebar",
+          "group": "navigation@33"
+        },
         {
           "command": "myAi.openMissionAutonomyBlueprint",
           "when": "view == myAi.sidebar",
