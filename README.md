@@ -474,6 +474,7 @@ The extension still benefits from short manual smoke checks after significant si
 
 - `npm run ci` (compile + `dist/test/**` + webview modular smoke).
 - `npm run package` completes and produces a `.vsix` under `.vsix/` (see extension packaging rules).
+- When using GitHub: **`.github/workflows/ci.yml`** runs the same **`npm run ci`** on push/PR (**HttpClient** httpbin tests remain skipped unless you add a separate workflow step with **`MY_AI_RUN_HTTP_INTEGRATION=1`**).
 
 **Optional (real network, not mocked)** — **HttpClient** integration tests call **https://httpbin.org** and DNS; they are **skipped by default** so CI and offline runs stay stable. Before a release that touches `HttpClient` or HTTP tooling, run `npm run test:http-integration` (sets `MY_AI_RUN_HTTP_INTEGRATION=1`) or `MY_AI_RUN_HTTP_INTEGRATION=1 npm test` on a machine with outbound HTTPS.
 

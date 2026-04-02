@@ -20,8 +20,10 @@ dist/
 .tmp/
 .output/
 
-# === CI/CD workflows (not part of extension source) ===
-.github/
+# === GitHub: keep Actions workflows; ignore other local .github clutter ===
+.github/**
+!.github/workflows/
+!.github/workflows/**
 
 # === Logs ===
 *.log

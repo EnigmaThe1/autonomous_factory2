@@ -1,0 +1,28 @@
+# Default branch tests: compile + unit/webview smoke. HttpClient httpbin.org suite stays
+# skipped unless MY_AI_RUN_HTTP_INTEGRATION=1 (see npm run test:http-integration).
+name: CI
+
+on:
+  push:
+    branches: [main, master]
+  pull_request:
+    branches: [main, master]
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+          cache: npm
+          cache-dependency-path: package-lock.json
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Compile and test
+        run: npm run ci
