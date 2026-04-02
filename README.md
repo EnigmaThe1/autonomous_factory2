@@ -469,6 +469,8 @@ The extension still benefits from short manual smoke checks after significant si
 - `npm run ci` (compile + `dist/test/**` + webview modular smoke).
 - `npm run package` completes and produces a `.vsix` under `.vsix/` (see extension packaging rules).
 
+**Optional (real network, not mocked)** — **HttpClient** integration tests call **https://httpbin.org** and DNS; they are **skipped by default** so CI and offline runs stay stable. Before a release that touches `HttpClient` or HTTP tooling, run `npm run test:http-integration` (sets `MY_AI_RUN_HTTP_INTEGRATION=1`) or `MY_AI_RUN_HTTP_INTEGRATION=1 npm test` on a machine with outbound HTTPS.
+
 **Extension Development Host — manual (7 flows, pass/fail)**
 
 Use a real workspace with valid provider credentials for the mission you start. Each flow **fails** if the webview throws visibly, the extension host logs an unhandled exception from this extension, or the stated outcome is missing.

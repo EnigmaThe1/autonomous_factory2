@@ -2,7 +2,7 @@
   "name": "my-ai-extension-v18",
   "displayName": "My AI Extension V18",
   "description": "VS Code AI assistant with unified sidebar, in-pane diff review, richer tool/result cards, mission inspector, grouped timeline, live agent stream, approvals, bundles, tools, memory, console, and settings",
-  "version": "0.18.56",
+  "version": "0.18.57",
   "publisher": "enigma-the",
   "repository": {
     "type": "git",
@@ -919,6 +919,7 @@
     "typecheck": "node ./node_modules/typescript/lib/tsc.js -p . --noEmit",
     "typecheck:webview": "node ./node_modules/typescript/lib/tsc.js -p tsconfig.webview.json --noEmit",
     "test": "npm run compile && node --require ./scripts/vscode-test-shim.cjs --test dist/test/**/*.test.js && node --test scripts/webview-modular-smoke.mjs",
+    "test:http-integration": "MY_AI_RUN_HTTP_INTEGRATION=1 npm test",
     "test:approval-e2e-counterfactual": "bash scripts/verify-approval-write-e2e-counterfactual.sh",
     "test:webview-smoke": "node --test scripts/webview-modular-smoke.mjs",
     "package": "mkdir -p .vsix && npx @vscode/vsce package --out .vsix",

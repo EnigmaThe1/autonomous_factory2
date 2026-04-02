@@ -91,6 +91,7 @@
 
 - [x] **Step 7.1** — `httpRequest` tool (`src/tools/HttpClient.ts`) using native `fetch`
 - [x] **Step 7.2** — `http_request` policy action, `requireApprovalForHttp` config, registered and instructed
+- [x] **Integration tests** — Live **httpbin.org** checks in **`src/test/httpClient.test.ts`** run only when **`MY_AI_RUN_HTTP_INTEGRATION=1`** (`npm run test:http-integration`); default **`npm test`** skips them (real network, no mocks; stable offline CI).
 
 ---
 

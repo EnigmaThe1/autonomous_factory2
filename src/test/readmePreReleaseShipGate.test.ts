@@ -23,4 +23,8 @@ test("README: pre-release ship gate section and minimum manual/automated coverag
   for (const needle of ["start mission", "resume", "approval", "bundle", "timeline", "blocked", "gated"]) {
     assert.ok(lower.includes(needle), `ship gate section should mention ${needle}`);
   }
+  assert.ok(
+    lower.includes("my_ai_run_http_integration") || lower.includes("test:http-integration"),
+    "ship gate should document gated HttpClient / httpbin integration tests"
+  );
 });

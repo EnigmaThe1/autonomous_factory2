@@ -1,13 +1,23 @@
+/**
+ * Live HTTP checks against https://httpbin.org (no mocks).
+ * Skipped unless MY_AI_RUN_HTTP_INTEGRATION=1 (or "true") so default `npm test` / CI stay deterministic offline.
+ * Run: `MY_AI_RUN_HTTP_INTEGRATION=1 npm test` or `npm run test:http-integration`.
+ */
 import { describe, it } from "node:test";
 import * as assert from "node:assert/strict";
 import { httpRequest } from "../tools/HttpClient";
 
-describe("HttpClient", () => {
+const runHttpIntegration =
+  process.env.MY_AI_RUN_HTTP_INTEGRATION === "1" || process.env.MY_AI_RUN_HTTP_INTEGRATION === "true";
+
+const httpDescribe = runHttpIntegration ? describe : describe.skip;
+
+httpDescribe("HttpClient (live network, httpbin.org)", () => {
   it("performs a successful GET request", async () => {
     const result = await httpRequest({
       method: "GET",
       url: "https://httpbin.org/get",
-      timeoutMs: 10_000,
+      timeoutMs: 10_000
     });
     assert.equal(result.ok, true);
     assert.equal(result.status, 200);
@@ -21,7 +31,7 @@ describe("HttpClient", () => {
       url: "https://httpbin.org/post",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ key: "value" }),
-      timeoutMs: 10_000,
+      timeoutMs: 10_000
     });
     assert.equal(result.ok, true);
     assert.equal(result.status, 200);
@@ -32,7 +42,7 @@ describe("HttpClient", () => {
     const result = await httpRequest({
       method: "GET",
       url: "https://httpbin.org/status/404",
-      timeoutMs: 10_000,
+      timeoutMs: 10_000
     });
     assert.equal(result.ok, false);
     assert.equal(result.status, 404);
@@ -42,7 +52,7 @@ describe("HttpClient", () => {
     const result = await httpRequest({
       method: "GET",
       url: "https://httpbin.org/delay/10",
-      timeoutMs: 1000,
+      timeoutMs: 1000
     });
     assert.equal(result.ok, false);
     assert.ok(result.summary.includes("timed out"), "should report timeout");
@@ -52,7 +62,7 @@ describe("HttpClient", () => {
     const result = await httpRequest({
       method: "GET",
       url: "http://this-host-does-not-exist-999.example.com",
-      timeoutMs: 5000,
+      timeoutMs: 5000
     });
     assert.equal(result.ok, false);
     assert.ok(result.summary.includes("error"), "should report error");
@@ -62,7 +72,7 @@ describe("HttpClient", () => {
     const result = await httpRequest({
       method: "",
       url: "https://httpbin.org/get",
-      timeoutMs: 10_000,
+      timeoutMs: 10_000
     });
     assert.equal(result.ok, true);
     assert.ok(result.summary.includes("GET"));
@@ -73,7 +83,7 @@ describe("HttpClient", () => {
       method: "GET",
       url: "https://httpbin.org/get",
       body: "should be ignored",
-      timeoutMs: 10_000,
+      timeoutMs: 10_000
     });
     assert.equal(result.ok, true);
   });
@@ -82,7 +92,7 @@ describe("HttpClient", () => {
     const result = await httpRequest({
       method: "GET",
       url: "https://httpbin.org/get",
-      timeoutMs: 10_000,
+      timeoutMs: 10_000
     });
     assert.ok(result.headers, "should have headers");
     assert.ok(result.headers!["content-type"], "should have content-type header");
