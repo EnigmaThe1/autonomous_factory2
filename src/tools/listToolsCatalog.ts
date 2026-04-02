@@ -22,7 +22,7 @@ export const BUILTIN_TOOL_HINTS: Record<string, string> = {
   fetchWebPage: 'args: { "url" } — requires myAi.webResearch.enabled',
   browserCapture: 'args: { "url" } — requires myAi.browser.enabled + captureCommand',
   findRelevantFiles: 'args: { "query" }',
-  listTools: "args: {} — returns this catalog",
+  listTools: "args: {} — builtins, external, mcpServers (names from MCP JSON), optional hints",
   listMcpTools: "args: {} — MCP tool names, then mcp.server.tool"
 };
 

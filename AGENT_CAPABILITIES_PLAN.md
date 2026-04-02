@@ -72,7 +72,7 @@ Example command:
 
 | Item | Behavior |
 |------|-----------|
-| **`listTools` response** | Besides `builtins` (names) and `external` (adapter definitions), includes **`hints`**: `{ tool, hint }[]` with one-line argument / policy guidance for each builtin plus **git.*** / **docker.*** / **db.*** tools and **`ext.<adapter>`** rows (Phase 8; hints omit URLs). |
+| **`listTools` response** | Besides `builtins` (names), **`mcpServers`** (Phase 11), and `external` (adapter definitions), includes **`hints`**: `{ tool, hint }[]` with one-line argument / policy guidance for each builtin plus **git.*** / **docker.*** / **db.*** tools and **`ext.<adapter>`** rows (Phase 8; hints omit URLs). |
 | **`myAi.tools.listToolsHintsMaxChars`** | Budget for serializing the hints list (default **16000**). If the budget is exceeded, rows are cut early and **`hintsTruncated`: true** is set. **0** omits **`hints`** entirely (previous behavior). |
 
 ## Phase 7 — `listMcpTools` summary budget (shipped)
@@ -99,6 +99,12 @@ Example command:
 | Item | Behavior |
 |------|-----------|
 | **`myAi.tools.listToolsRedactExternalUrls`** | Default **false**. When **true**, **`listTools`** **`data.external`** is a public summary only (**`name`**, **`type`**, **`method`**, **`description`**, **`mutating`**) — no **`url`** or **`headers`**. Response includes **`externalUrlsRedacted`: true**. **`hints`** for **`ext.*`** are unchanged (they never included URLs). |
+
+## Phase 11 — `listTools` MCP server names (shipped)
+
+| Item | Behavior |
+|------|-----------|
+| **`data.mcpServers`** | String array of MCP server **`name`** values from the configured MCP JSON (**`myAi.mcp.configPath`**), read from disk only — **does not** start MCP processes. Use with **`listMcpTools`** to resolve tools per server (`mcp.<server>.<tool>`). |
 
 ---
 

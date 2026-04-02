@@ -192,3 +192,4 @@ See **`AGENT_CAPABILITIES_PLAN.md`** for the full roadmap (browser via MCP, futu
 - [x] **Phase 8 (agent capabilities)** — `listTools` `hints` includes `ext.*` rows from adapters.json (no URL in hint text)
 - [x] **Phase 9 (agent capabilities)** — compact `listMcpTools`: `McpToolDescriptor.inputPropertyNames` from JSON Schema `properties` (`extractJsonSchemaPropertyKeys`)
 - [x] **Phase 10 (agent capabilities)** — `myAi.tools.listToolsRedactExternalUrls` + `toExternalAdapterPublicSummaries`; `externalUrlsRedacted` on payload
+- [x] **Phase 11 (agent capabilities)** — `listTools` includes `data.mcpServers` from MCP config (no session spawn)

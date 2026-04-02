@@ -436,7 +436,9 @@ export class ToolRegistry {
     const external = redactExternal ? toExternalAdapterPublicSummaries(externalRaw) : externalRaw;
     const builtins = [...BUILTIN_TOOL_NAMES];
     await this.missionStore.saveEvent(missionId, { level: "info", source: "tool:listTools", message: "Listed built-in and external tools" });
-    const data: Record<string, unknown> = { builtins, external };
+    const mcpServerConfigs = await this.mcp.listServers();
+    const mcpServers = mcpServerConfigs.map((s) => String(s.name || "").trim()).filter(Boolean);
+    const data: Record<string, unknown> = { builtins, external, mcpServers };
     if (redactExternal) {
       data.externalUrlsRedacted = true;
     }
@@ -448,9 +450,10 @@ export class ToolRegistry {
       }
     }
     const redactNote = redactExternal ? "; external URLs redacted" : "";
+    const mcpNote = mcpServers.length ? `; ${mcpServers.length} MCP server(s) in config` : "";
     return {
       ok: true,
-      summary: `Listed ${builtins.length + external.length} tools${hintsBudget > 0 ? " with hints" : ""}${redactNote}.`,
+      summary: `Listed ${builtins.length + external.length} tools${hintsBudget > 0 ? " with hints" : ""}${redactNote}${mcpNote}.`,
       data
     };
   }
