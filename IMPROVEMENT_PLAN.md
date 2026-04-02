@@ -174,7 +174,7 @@ Phase 10 is the capstone.
 - [x] **Chat tab focused mission strip** — title, status badge, progress line; `chatPanelSig` includes `pst`, `ft`, `fs` so chat re-renders when focused mission or stats change
 - [x] **Dashboard header missions summary** — `#summaryMissions` shows total plus running / queued / awaiting counts (`formatDashboardMissionSummaryText`)
 - [x] **Copy mission report** — inspector **Copy report** uses Clipboard API with status line feedback
-- [x] **682 tests** (604 host + 78 webview smoke), 0 failures, 0 lint errors
+- [x] **691 tests** (613 host + 78 webview smoke), 0 failures, 0 lint errors
 
 ---
 
@@ -184,4 +184,5 @@ See **`AGENT_CAPABILITIES_PLAN.md`** for the full roadmap (browser via MCP, futu
 
 - [x] **Phase 1** — Workspace skills (globs, cache, system prompt injection); `webSearch` + `fetchWebPage` gated by `myAi.webResearch.enabled`; `HttpClient.maxResponseBodyChars`; command **Open Workspace Skills Folder**
 - [x] **Phase 2** — MCP Playwright recipe in `AGENT_CAPABILITIES_PLAN.md`; optional **`browserCapture`** CLI hook (`myAi.browser.*`)
-- [ ] **Phase 3+** — Additional search providers, skills UX polish
+- [x] **Phase 3** — `myAi.webSearch.provider` (duckduckgo \| brave + `myAi.webSearch.braveApiKey` secret); `myAi.webSearch.minIntervalMs` cooldown
+- [ ] **Phase 4+** — Skills UX polish, lazy tool catalog, etc. (see `AGENT_CAPABILITIES_PLAN.md`)

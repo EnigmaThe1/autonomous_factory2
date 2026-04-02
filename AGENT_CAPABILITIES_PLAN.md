@@ -47,12 +47,12 @@ Example command:
 
 `npx playwright screenshot {url} {outPath}`
 
-## Phase 3 — Web search providers
+## Phase 3 — Web search providers (shipped)
 
-| Step | Detail |
-|------|--------|
-| Configurable backend | Add `myAi.webSearch.provider`: `duckduckgo` (default) \| future: `brave` (API key in SecretStore). |
-| Rate limits | Document DDG fair-use; add cooldown config if abuse appears. |
+| Item | Behavior |
+|------|-----------|
+| **`myAi.webSearch.provider`** | `duckduckgo` (default) — DuckDuckGo instant-answer JSON API (fair use; no key). `brave` — [Brave Search API](https://api.search.brave.com); store subscription token in VS Code Secret Storage under **`myAi.webSearch.braveApiKey`** (never in `settings.json`). |
+| **`myAi.webSearch.minIntervalMs`** | Optional minimum milliseconds between **`webSearch`** HTTP calls after approval (`0` = off). Reduces accidental API hammering. |
 
 ## Phase 4 — Skills UX
 

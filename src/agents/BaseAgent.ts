@@ -119,7 +119,7 @@ export abstract class BaseAgent {
       'TOOL:{"tool":"git.stash_pop","args":{}} — restore stashed changes (requires approval)',
       'TOOL:{"tool":"git.commit","args":{"message":"...","paths":["..."]}} — commit changes (requires approval)',
       'TOOL:{"tool":"httpRequest","args":{"method":"GET","url":"http://...","headers":{},"body":""}} — HTTP request (requires approval)',
-      'TOOL:{"tool":"webSearch","args":{"query":"keywords for documentation or facts"}} — instant-answer search (off unless myAi.webResearch.enabled; requires approval if HTTP approval on)',
+      'TOOL:{"tool":"webSearch","args":{"query":"keywords for documentation or facts"}} — web search (off unless myAi.webResearch.enabled; myAi.webSearch.provider duckduckgo|brave; optional minIntervalMs; requires approval if HTTP approval on)',
       'TOOL:{"tool":"fetchWebPage","args":{"url":"https://..."}} — GET public page text (off unless myAi.webResearch.enabled; requires approval if HTTP approval on)',
       'TOOL:{"tool":"browserCapture","args":{"url":"https://..."}} — run your configured screenshot/CLI (myAi.browser.enabled + captureCommand with {url} and {outPath}); uses run_command policy',
       'TOOL:{"tool":"docker.ps","args":{}} — list running containers',

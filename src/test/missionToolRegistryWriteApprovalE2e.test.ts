@@ -152,7 +152,7 @@ async function buildOrchestratorWithRealToolRegistry(agentRun: MissionAgentRunFo
   const providers = new ProviderRegistry(secretStore);
   const collector = new ContextCollector();
   const paths = new WorkspacePaths();
-  const registry = new ToolRegistry({} as vscode.ExtensionContext, store, disk, new ExternalToolAdapterRegistry(paths), new McpRegistry(paths, disk));
+  const registry = new ToolRegistry({} as vscode.ExtensionContext, store, disk, new ExternalToolAdapterRegistry(paths), new McpRegistry(paths, disk), secretStore);
   const tools: MissionToolExecutor = {
     execute: (missionId: string, call: ToolCall) => registry.execute(missionId, call)
   };

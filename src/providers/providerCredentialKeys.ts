@@ -1,3 +1,6 @@
+/** SecretStorage key for Brave Search API when `myAi.webSearch.provider` is `brave`. */
+export const BRAVE_WEB_SEARCH_SECRET_KEY = "myAi.webSearch.braveApiKey";
+
 /** SecretStorage keys for API keys (never store in workspace settings). */
 export const PROVIDER_SECRET_KEYS: Partial<Record<string, string>> = {
   openai: "myAi.openai.apiKey",

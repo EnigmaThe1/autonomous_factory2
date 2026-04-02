@@ -27,8 +27,10 @@ import {
   validateUrl,
   validateFilePath
 } from "./inputValidation";
-import { runFetchWebPage, runWebSearch } from "./WebResearchTools";
+import { runFetchWebPage, runWebSearch, type WebSearchProviderId } from "./WebResearchTools";
 import { buildBrowserCaptureCommand } from "./BrowserCapture";
+import { SecretStore } from "../storage/SecretStore";
+import { BRAVE_WEB_SEARCH_SECRET_KEY } from "../providers/providerCredentialKeys";
 
 function buildDiffHunks(beforeText: string, afterText: string) {
   const before = beforeText.split(/\r?\n/);
@@ -87,13 +89,16 @@ export class ToolRegistry {
   private cachedPolicyEngine?: TrustPolicyEngine;
   workspaceIndex?: WorkspaceIndex;
   fileTracker?: MissionFileTracker;
+  /** Last successful webSearch HTTP dispatch (for minIntervalMs cooldown). */
+  private webSearchLastAtMs = 0;
 
   constructor(
     private readonly context: vscode.ExtensionContext,
     private readonly missionStore: MissionStore,
     private readonly disk: DiskMissionPersistence,
     private readonly externalAdapters: ExternalToolAdapterRegistry,
-    private readonly mcp: McpRegistry
+    private readonly mcp: McpRegistry,
+    private readonly secrets: SecretStore
   ) {}
 
   private policyEngine(): TrustPolicyEngine {
@@ -619,7 +624,8 @@ export class ToolRegistry {
     if (!cfg.get<boolean>("myAi.webResearch.enabled", false)) {
       return {
         ok: false,
-        summary: "webSearch is disabled. Set myAi.webResearch.enabled to true (uses DuckDuckGo instant-answer API; subject to fair use)."
+        summary:
+          "webSearch is disabled. Set myAi.webResearch.enabled to true. Configure myAi.webSearch.provider (duckduckgo default; brave needs Secret Storage API key)."
       };
     }
     const qv = validateSearchQuery(query);
@@ -639,7 +645,33 @@ export class ToolRegistry {
         }
       };
     }
-    const r = await runWebSearch(query);
+    const providerRaw = String(cfg.get<string>("myAi.webSearch.provider", "duckduckgo") || "duckduckgo").toLowerCase();
+    const provider: WebSearchProviderId = providerRaw === "brave" ? "brave" : "duckduckgo";
+    let braveKey: string | undefined;
+    if (provider === "brave") {
+      braveKey = (await this.secrets.get(BRAVE_WEB_SEARCH_SECRET_KEY))?.trim();
+      if (!braveKey) {
+        return {
+          ok: false,
+          summary:
+            "webSearch provider is brave but no API key found. Store the key in VS Code Secret Storage as myAi.webSearch.braveApiKey (Brave Search API subscription)."
+        };
+      }
+    }
+    const minIntervalMs = Math.max(0, cfg.get<number>("myAi.webSearch.minIntervalMs", 0));
+    if (minIntervalMs > 0) {
+      const now = Date.now();
+      const elapsed = now - this.webSearchLastAtMs;
+      if (this.webSearchLastAtMs > 0 && elapsed < minIntervalMs) {
+        const waitSec = Math.ceil((minIntervalMs - elapsed) / 1000);
+        return {
+          ok: false,
+          summary: `webSearch cooldown: wait ${waitSec}s before another request (myAi.webSearch.minIntervalMs).`
+        };
+      }
+      this.webSearchLastAtMs = now;
+    }
+    const r = await runWebSearch(query, { provider, braveApiKey: braveKey });
     await this.missionStore.saveEvent(missionId, {
       level: r.ok ? "info" : "warn",
       source: "tool:webSearch",

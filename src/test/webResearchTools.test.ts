@@ -1,27 +1,36 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import {
-  htmlToPlainTextForAgent,
-  summarizeDuckDuckGoInstantAnswer
-} from "../tools/WebResearchTools";
+import { summarizeBraveWebResults, summarizeDuckDuckGoInstantAnswer } from "../tools/WebResearchTools";
 
-test("htmlToPlainTextForAgent strips tags and scripts", () => {
-  const html = `<html><script>evil()</script><p>Hello <b>world</b></p></html>`;
-  assert.equal(htmlToPlainTextForAgent(html), "Hello world");
+test("summarizeBraveWebResults: empty and malformed", () => {
+  assert.deepEqual(summarizeBraveWebResults(null), { text: "", topUrls: [] });
+  assert.deepEqual(summarizeBraveWebResults({}), { text: "", topUrls: [] });
+  assert.deepEqual(summarizeBraveWebResults({ web: {} }), { text: "", topUrls: [] });
 });
 
-test("summarizeDuckDuckGoInstantAnswer: builds text from abstract", () => {
-  const { text, attribution } = summarizeDuckDuckGoInstantAnswer({
+test("summarizeBraveWebResults: maps web.results", () => {
+  const data = {
+    web: {
+      results: [
+        { title: "A", description: "Desc A", url: "https://a.example" },
+        { title: "B", url: "https://b.example" }
+      ]
+    }
+  };
+  const r = summarizeBraveWebResults(data);
+  assert.match(r.text, /A/);
+  assert.match(r.text, /Desc A/);
+  assert.match(r.text, /B/);
+  assert.deepEqual(r.topUrls, ["https://a.example", "https://b.example"]);
+});
+
+test("summarizeDuckDuckGoInstantAnswer: heading and abstract", () => {
+  const r = summarizeDuckDuckGoInstantAnswer({
     Heading: "Topic",
-    AbstractText: "Short summary here.",
-    AbstractURL: "https://example.com"
+    AbstractText: "Body text.",
+    AbstractURL: "https://duck.example/x"
   });
-  assert.match(text, /Topic/);
-  assert.match(text, /Short summary/);
-  assert.equal(attribution, "https://example.com");
-});
-
-test("summarizeDuckDuckGoInstantAnswer: empty on bad input", () => {
-  assert.equal(summarizeDuckDuckGoInstantAnswer(null).text, "");
-  assert.equal(summarizeDuckDuckGoInstantAnswer("x").text, "");
+  assert.match(r.text, /Topic/);
+  assert.match(r.text, /Body text/);
+  assert.equal(r.attribution, "https://duck.example/x");
 });

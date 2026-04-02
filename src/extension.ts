@@ -41,7 +41,7 @@ export async function activate(context: vscode.ExtensionContext) {
   const externalAdapters = new ExternalToolAdapterRegistry(paths);
   const mcp = new McpRegistry(paths, disk);
   await mcp.hydrate();
-  const tools = new ToolRegistry(context, missionStore, disk, externalAdapters, mcp);
+  const tools = new ToolRegistry(context, missionStore, disk, externalAdapters, mcp, secrets);
   const wsIndex = new WorkspaceIndex();
   tools.workspaceIndex = wsIndex;
   const fileTracker = new MissionFileTracker(missionStore);
