@@ -68,10 +68,16 @@ export class McpRegistry implements vscode.Disposable {
     this.persisted.clear();
     for (const state of states) this.persisted.set(state.name, state);
     if (vscode.workspace.getConfiguration().get<boolean>("myAi.mcp.sessionWarmupOnStartup", false)) {
+      const cfg = vscode.workspace.getConfiguration();
+      const rawStagger = cfg.get<number>("myAi.mcp.sessionWarmupStaggerMs", 0);
+      const staggerMs = Math.max(0, Math.min(60_000, Number.isFinite(rawStagger) ? rawStagger : 0));
       const servers = await this.listServers();
-      for (const server of servers) {
+      for (let i = 0; i < servers.length; i++) {
+        if (i > 0 && staggerMs > 0) {
+          await new Promise<void>((r) => setTimeout(r, staggerMs));
+        }
         try {
-          await this.getSession(server.name);
+          await this.getSession(servers[i].name);
         } catch {
           // keep startup resilient
         }

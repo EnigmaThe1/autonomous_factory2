@@ -701,6 +701,13 @@
           "default": false,
           "description": "Warm configured MCP sessions on startup."
         },
+        "myAi.mcp.sessionWarmupStaggerMs": {
+          "type": "number",
+          "default": 0,
+          "minimum": 0,
+          "maximum": 60000,
+          "description": "When sessionWarmupOnStartup is true, wait this many milliseconds between starting each server (0 = no delay). Spreads process spawn load."
+        },
         "myAi.mcp.toolCacheTtlSeconds": {
           "type": "number",
           "default": 60,

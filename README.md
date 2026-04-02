@@ -398,6 +398,7 @@ Examples:
 - `myAi.mcp.configPath`
 - `myAi.mcp.persistSessions`
 - `myAi.mcp.sessionWarmupOnStartup`
+- `myAi.mcp.sessionWarmupStaggerMs` — optional delay between MCP server warmups when startup warmup is on (reduces simultaneous spawns).
 - `myAi.mcp.toolCacheTtlSeconds`
 
 #### UI and trace

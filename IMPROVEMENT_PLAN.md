@@ -178,6 +178,7 @@ Phase 10 is the capstone.
 - [x] **Dashboard header missions summary** — `#summaryMissions` shows total plus running / queued / awaiting counts (`formatDashboardMissionSummaryText`)
 - [x] **Copy mission report** — inspector **Copy report** uses Clipboard API with status line feedback
 - [x] **Host + webview tests** — see Mission autonomy section below for current counts; 0 failures target
+- [x] **MCP startup warmup stagger** — `myAi.mcp.sessionWarmupStaggerMs` (optional ms between server warmups when `sessionWarmupOnStartup` is true)
 
 ---
 
