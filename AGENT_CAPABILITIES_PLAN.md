@@ -18,7 +18,7 @@ This plan adds documentation lookup, workspace skills, optional web research, an
 | **Workspace skills** | Load markdown from configurable globs (default: `.my-ai/skills/**/*.md`). Injected into agent **system** instructions (bounded total size). Command: **My AI: Open Workspace Skills Folder**. |
 | **`webSearch`** | If `myAi.webResearch.enabled`, query DuckDuckGo Instant Answer API (fixed URL, no user URL). Validates query length; policy = `http_request`. |
 | **`fetchWebPage`** | GET a single https URL (validated); larger response budget than generic `httpRequest`; optional HTML→text simplification; policy = `http_request`. |
-| **HttpClient** | Optional `maxResponseBodyChars` for bounded reads. |
+| **HttpClient** | Optional `maxResponseBodyChars` for bounded reads. **Tests**: live **https://httpbin.org** checks in the repo run only when **`MY_AI_RUN_HTTP_INTEGRATION=1`** (`npm run test:http-integration`); default **`npm test`** skips that suite (real network, **no mocks**). |
 
 ## Phase 2 — Browser / GUI
 

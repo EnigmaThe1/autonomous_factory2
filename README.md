@@ -296,8 +296,14 @@ npm run test
 This currently runs:
 
 - TypeScript compile
-- extension/unit tests under `dist/test`
+- extension/unit tests under `dist/test` (including **HttpClient** live **httpbin.org** tests **skipped** unless `MY_AI_RUN_HTTP_INTEGRATION=1`)
 - webview modular smoke harness
+
+Live **HttpClient** integration (real **httpbin.org**, no mocks; needs outbound HTTPS):
+
+```bash
+npm run test:http-integration
+```
 
 Webview smoke only:
 
