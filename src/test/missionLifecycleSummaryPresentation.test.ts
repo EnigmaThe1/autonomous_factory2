@@ -108,6 +108,12 @@ test("lifecycle: awaiting approval vs other input", () => {
   });
   assert.equal(focusedMissionLifecycleSummary(appr), "Waiting for approval to continue.");
   assert.equal(focusedMissionLifecycleSummary(miniMission({ status: "awaiting_input", approvals: [] })), "Waiting for required input.");
+  assert.equal(
+    focusedMissionLifecycleSummary(
+      miniMission({ status: "awaiting_input", approvals: [], blockReasonCode: "post_validator_checkpoint" })
+    ),
+    "Validator finished; resume the mission to continue."
+  );
 });
 
 test("lifecycle: running with role and without", () => {

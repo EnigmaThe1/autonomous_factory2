@@ -2,7 +2,7 @@
   "name": "my-ai-extension-v18",
   "displayName": "My AI Extension V18",
   "description": "VS Code AI assistant with unified sidebar, in-pane diff review, richer tool/result cards, mission inspector, grouped timeline, live agent stream, approvals, bundles, tools, memory, console, and settings",
-  "version": "0.18.41",
+  "version": "0.18.42",
   "publisher": "enigma-the",
   "repository": {
     "type": "git",
@@ -737,6 +737,11 @@
           "type": "boolean",
           "default": false,
           "description": "When true, after each successful implementer step on an approved blueprint mission, flush file tracker and enqueue an optional reviewer if modified paths do not match blueprint-derived keywords (heuristic; allowlists common config files)."
+        },
+        "myAi.missions.pauseAfterEachValidator": {
+          "type": "boolean",
+          "default": false,
+          "description": "When true, after each validator work item completes successfully, pause the mission (awaiting_input) until the operator runs My AI: Resume Mission."
         },
         "myAi.reviewers.autoCreateFixTasks": {
           "type": "boolean",

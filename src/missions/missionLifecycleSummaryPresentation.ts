@@ -63,6 +63,9 @@ export function focusedMissionLifecycleSummary(mission: Mission): string {
   if (status === "awaiting_input") {
     const pend = (mission.approvals || []).filter((a) => a.status === "pending").length;
     if (pend > 0) return "Waiting for approval to continue.";
+    if (mission.blockReasonCode === "post_validator_checkpoint") {
+      return "Validator finished; resume the mission to continue.";
+    }
     return "Waiting for required input.";
   }
 

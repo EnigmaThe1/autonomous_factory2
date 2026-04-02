@@ -191,7 +191,8 @@ export class MissionOrchestrator {
    * operator stream abort, then run the mission loop. Resolves when the `runMission` pass this call
    * cares about finishes: either the pass this invocation schedules, or — if a pass is already in
    * flight — that existing pass (join; no second pass, no resume side-effects while the loop runs).
-   * No-op for terminal missions, `awaiting_input`, or pending approvals (promise resolves immediately).
+   * No-op for terminal missions, `awaiting_input` (except `blockReasonCode: post_validator_checkpoint` — then
+   * clears to `queued` and runs), or pending approvals (promise resolves immediately).
    * A `queued` mission after `maxStepsPerRun` is normal: awaiting this method completes only that pass,
    * not full terminal completion unless policy/queue allow it in one pass.
    * For “idle and terminal lifecycle” in one call, see `whenMissionReachesTerminalLifecycleStatus`.
@@ -206,7 +207,10 @@ export class MissionOrchestrator {
     if (["completed", "cancelled", "failed"].includes(mission.status)) {
       return { kind: "noop_terminal", missionId: id, status: mission.status };
     }
-    if (mission.status === "awaiting_input") {
+    if (
+      mission.status === "awaiting_input" &&
+      mission.blockReasonCode !== "post_validator_checkpoint"
+    ) {
       return { kind: "gated_awaiting_input", missionId: id };
     }
     if (mission.approvals.some((a) => a.status === "pending")) {
@@ -1403,6 +1407,26 @@ export class MissionOrchestrator {
           ]);
         }
       }
+    }
+
+    if (
+      item.role === "validator" &&
+      terminalWorkStatus === "done" &&
+      !blueprintAwaitingApproval &&
+      vscode.workspace.getConfiguration().get<boolean>("myAi.missions.pauseAfterEachValidator", false)
+    ) {
+      await this.store.updateMission(mission.id, {
+        status: "awaiting_input",
+        blocker: "Validator step finished; use My AI: Resume Mission after review.",
+        blockReasonCode: "post_validator_checkpoint"
+      });
+      await this.store.saveEvent(mission.id, {
+        level: "info",
+        source: "orchestrator",
+        message: "Paused after validator (myAi.missions.pauseAfterEachValidator)."
+      });
+      await this.store.noteProgress(mission.id);
+      return "awaiting_input";
     }
 
     if (result.markStatus === "blocked") {

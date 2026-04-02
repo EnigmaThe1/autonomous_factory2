@@ -194,6 +194,7 @@ User goal
 
 - Document and enforce:
   - **Stop reasons**: approval-gated tools, `BLOCKER:`, optional `myAi.missions.pauseAfterEachValidator` (default false), budget exhaustion, fatal errors.
+- **Shipped (v0.18.42+)**: `pauseAfterEachValidator` pauses after each successful validator step (`awaiting_input`, `post_validator_checkpoint`); operator **`resumeMission`** clears the gate and continues (unlike blueprint/approval `awaiting_input`, which stays gated until the matching command).
 - **No mid-mission “chat thread”** required: all clarifications should be **structured** (single revision round during agreement gate, or blocker form).
 - **Dry-run**: blueprint mode respects existing `mission.dryRun` (synthesis can still run; tools muted).
 

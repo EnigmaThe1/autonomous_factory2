@@ -24,7 +24,8 @@ export type MissionBlockReasonCode =
   | "approval_pending"
   | "stall_recovery_limit"
   | "generic_blocked"
-  | "awaiting_blueprint_approval";
+  | "awaiting_blueprint_approval"
+  | "post_validator_checkpoint";
 
 /**
  * Orchestrator-owned classification when `Mission.status === "failed"` (true terminal failure).
