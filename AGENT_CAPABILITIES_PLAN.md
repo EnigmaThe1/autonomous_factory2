@@ -116,6 +116,12 @@ Example command:
 | **Open MCP config** | **My AI: Open MCP Config File** (`myAi.openMcpConfig`) opens the resolved MCP JSON when the file exists; otherwise a warning points at **`myAi.mcp.configPath`** and **`examples/mcp.sample.json`**. If the path is **absolute**, a workspace folder is not required; relative paths need an open workspace. Sidebar **Tools** tab: **Open MCP Config** posts the same action. |
 | **Docs** | Phase 2a example JSON matches the **`servers`** array format the host parses (not Cursor-style **`mcpServers`** maps). |
 
+## Phase 13 — Lazy discovery workspace preset (shipped)
+
+| Item | Behavior |
+|------|-----------|
+| **Apply preset** | **My AI: Apply Lazy Discovery Preset (Workspace)** (`myAi.applyLazyDiscoveryPreset`) sets **workspace** settings: **`myAi.agents.lazyToolPrompt`** = **true**, **`myAi.tools.listMcpToolsSummaryMaxChars`** = **48000**, **`myAi.tools.listToolsRedactExternalUrls`** = **true**. Requires an open workspace folder. Operators can still tune individual keys afterward. |
+
 ---
 
 ## Safety checklist (every new tool)

@@ -195,3 +195,4 @@ See **`AGENT_CAPABILITIES_PLAN.md`** for the full roadmap (browser via MCP, futu
 - [x] **Phase 11 (agent capabilities)** — `listTools` includes `data.mcpServers` from MCP config (no session spawn)
 - [x] **Phase 12 (agent capabilities)** — `myAi.openMcpConfig` command; AGENT_CAPABILITIES Phase 2a `servers` JSON example aligned with host
 - [x] **Tools tab MCP** — webview **Open MCP Config** → `openMcpConfig` → `dispatchUi_openMcpConfig` → command
+- [x] **Phase 13 (agent capabilities)** — `myAi.applyLazyDiscoveryPreset` workspace command (lazy prompt + MCP summary budget + external redaction)

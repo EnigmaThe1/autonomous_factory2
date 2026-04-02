@@ -81,6 +81,10 @@
         "title": "My AI: Open Workspace Skills Folder"
       },
       {
+        "command": "myAi.applyLazyDiscoveryPreset",
+        "title": "My AI: Apply Lazy Discovery Preset (Workspace)"
+      },
+      {
         "command": "myAi.setBraveSearchApiKey",
         "title": "My AI: Set Brave Search API Key"
       },
