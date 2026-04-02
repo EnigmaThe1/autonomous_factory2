@@ -3,7 +3,7 @@ import assert from "node:assert/strict";
 import * as fs from "node:fs";
 import * as path from "node:path";
 
-test("package.json: sidebar view/title menus for capabilities, blueprint, mission settings", () => {
+test("package.json: sidebar view/title menus for MCP, capabilities, blueprint, mission settings", () => {
   const pkgPath = path.join(process.cwd(), "package.json");
   const raw = JSON.parse(fs.readFileSync(pkgPath, "utf8")) as {
     activationEvents: string[];
@@ -13,6 +13,7 @@ test("package.json: sidebar view/title menus for capabilities, blueprint, missio
     };
   };
   const sidebarTitleCommands = [
+    "myAi.openMcpConfig",
     "myAi.openAgentCapabilitiesDoc",
     "myAi.openMissionAutonomyBlueprint",
     "myAi.openMissionSettings"
@@ -28,10 +29,11 @@ test("package.json: sidebar view/title menus for capabilities, blueprint, missio
   assert.deepEqual(
     sidebarTitle.map((m) => ({ command: m.command, group: m.group })),
     [
+      { command: "myAi.openMcpConfig", group: "navigation@32" },
       { command: "myAi.openAgentCapabilitiesDoc", group: "navigation@33" },
       { command: "myAi.openMissionAutonomyBlueprint", group: "navigation@34" },
       { command: "myAi.openMissionSettings", group: "navigation@35" }
     ],
-    "Chat & Missions view/title actions should stay map → book → gear (stable operator muscle memory)"
+    "Chat & Missions view/title: MCP json → map → book → gear (stable operator muscle memory)"
   );
 });

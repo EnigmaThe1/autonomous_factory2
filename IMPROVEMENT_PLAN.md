@@ -193,7 +193,7 @@ See **`AGENT_CAPABILITIES_PLAN.md`** for the full roadmap (browser via MCP, futu
 - [x] **Phase 9 (agent capabilities)** — compact `listMcpTools`: `McpToolDescriptor.inputPropertyNames` from JSON Schema `properties` (`extractJsonSchemaPropertyKeys`)
 - [x] **Phase 10 (agent capabilities)** — `myAi.tools.listToolsRedactExternalUrls` + `toExternalAdapterPublicSummaries`; `externalUrlsRedacted` on payload
 - [x] **Phase 11 (agent capabilities)** — `listTools` includes `data.mcpServers` from MCP config (no session spawn)
-- [x] **Phase 12 (agent capabilities)** — `myAi.openMcpConfig` command; AGENT_CAPABILITIES Phase 2a `servers` JSON example aligned with host
+- [x] **Phase 12 (agent capabilities)** — `myAi.openMcpConfig` command; AGENT_CAPABILITIES Phase 2a `servers` JSON example aligned with host; **Chat & Missions** view title entry (JSON icon)
 - [x] **Tools tab MCP** — webview **Open MCP Config** → `openMcpConfig` → `dispatchUi_openMcpConfig` → command
 - [x] **Phase 13 (agent capabilities)** — `myAi.applyLazyDiscoveryPreset` / `myAi.revertLazyDiscoveryPreset` workspace commands; `onCommand` activation for open MCP + lazy presets
 - [x] **Phase 14 (agent capabilities)** — `myAi.openAgentCapabilitiesDoc` + `extensionUri`; `registerCommands` / `registerToolCommands` take extension root for doc path; **Chat & Missions** view title entry (map icon)
@@ -202,7 +202,7 @@ See **`AGENT_CAPABILITIES_PLAN.md`** for the full roadmap (browser via MCP, futu
 
 ---
 
-## Mission autonomy & upfront planning (core v0.18.40+; fidelity v0.18.41+; validator pause v0.18.42+; pre-blueprint v0.18.43+; multiline submit v0.18.44+; blueprint export v0.18.45+; export + pre-Q&A v0.18.46+; copy blueprint v0.18.47+; Chat blueprint hint v0.18.48+; Settings blueprint rows v0.18.49+; Settings → `myAi.missions` v0.18.50+; Chat mission settings button v0.18.51+; command Open Mission Settings v0.18.52+; sidebar view-title gear v0.18.53+; view-title blueprint doc v0.18.54+; view-title agent capabilities roadmap v0.18.55+)
+## Mission autonomy & upfront planning (core v0.18.40+; fidelity v0.18.41+; validator pause v0.18.42+; pre-blueprint v0.18.43+; multiline submit v0.18.44+; blueprint export v0.18.45+; export + pre-Q&A v0.18.46+; copy blueprint v0.18.47+; Chat blueprint hint v0.18.48+; Settings blueprint rows v0.18.49+; Settings → `myAi.missions` v0.18.50+; Chat mission settings button v0.18.51+; command Open Mission Settings v0.18.52+; sidebar view-title gear v0.18.53+; view-title blueprint doc v0.18.54+; view-title agent roadmap v0.18.55+; view-title MCP config v0.18.56+)
 
 **Spec**: **`MISSION_AUTONOMY_AND_PLANNING_BLUEPRINT.md`**.
 

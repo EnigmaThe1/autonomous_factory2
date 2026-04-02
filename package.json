@@ -2,7 +2,7 @@
   "name": "my-ai-extension-v18",
   "displayName": "My AI Extension V18",
   "description": "VS Code AI assistant with unified sidebar, in-pane diff review, richer tool/result cards, mission inspector, grouped timeline, live agent stream, approvals, bundles, tools, memory, console, and settings",
-  "version": "0.18.55",
+  "version": "0.18.56",
   "publisher": "enigma-the",
   "repository": {
     "type": "git",
@@ -153,7 +153,8 @@
       },
       {
         "command": "myAi.openMcpConfig",
-        "title": "My AI: Open MCP Config File"
+        "title": "My AI: Open MCP Config File",
+        "icon": "$(json)"
       },
       {
         "command": "myAi.restartMcpSession",
@@ -272,6 +273,11 @@
     },
     "menus": {
       "view/title": [
+        {
+          "command": "myAi.openMcpConfig",
+          "when": "view == myAi.sidebar",
+          "group": "navigation@32"
+        },
         {
           "command": "myAi.openAgentCapabilitiesDoc",
           "when": "view == myAi.sidebar",
