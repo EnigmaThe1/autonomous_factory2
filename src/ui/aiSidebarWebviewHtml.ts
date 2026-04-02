@@ -253,6 +253,7 @@ export function buildAiSidebarWebviewHtml(extensionUri: vscode.Uri, webview: vsc
           <div class="tool-grid">
             <button id="openTerminal">Open Terminal</button>
             <button id="listMcpTools">List MCP Tools</button>
+            <button id="openMcpConfig">Open MCP Config</button>
             <button id="listMcpSessions">List MCP Sessions</button>
             <button id="reviewFocusedDiff">Review Pending Diff</button>
             <button id="reviewFocusedHunks">Review Pending Hunks</button>

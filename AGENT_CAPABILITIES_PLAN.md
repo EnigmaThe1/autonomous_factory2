@@ -113,7 +113,7 @@ Example command:
 
 | Item | Behavior |
 |------|-----------|
-| **Open MCP config** | **My AI: Open MCP Config File** (`myAi.openMcpConfig`) opens the resolved MCP JSON when the file exists; otherwise a warning points at **`myAi.mcp.configPath`** and **`examples/mcp.sample.json`**. If the path is **absolute**, a workspace folder is not required; relative paths need an open workspace. |
+| **Open MCP config** | **My AI: Open MCP Config File** (`myAi.openMcpConfig`) opens the resolved MCP JSON when the file exists; otherwise a warning points at **`myAi.mcp.configPath`** and **`examples/mcp.sample.json`**. If the path is **absolute**, a workspace folder is not required; relative paths need an open workspace. Sidebar **Tools** tab: **Open MCP Config** posts the same action. |
 | **Docs** | Phase 2a example JSON matches the **`servers`** array format the host parses (not Cursor-style **`mcpServers`** maps). |
 
 ---

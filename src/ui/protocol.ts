@@ -259,6 +259,7 @@ export type UiToExtMessage =
   | { type: "openSettings" }
   | { type: "listMcpTools" }
   | { type: "listMcpSessions" }
+  | { type: "openMcpConfig" }
   | { type: "searchGlobalMemory"; query: string }
   | { type: "generateMissionReport"; missionId: string }
   | { type: "saveQuickSettings"; defaultProvider: string; defaultModel: string; heartbeatSeconds: number; allowTerminal: boolean; requireWriteApproval: boolean; autoRevealOnActivation: boolean; defaultTab: string }

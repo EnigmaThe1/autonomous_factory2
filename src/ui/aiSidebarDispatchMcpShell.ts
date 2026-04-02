@@ -61,3 +61,8 @@ export async function dispatchUi_openSettings(): Promise<boolean> {
   await vscode.commands.executeCommand("workbench.action.openSettings", "myAi");
   return true;
 }
+
+export async function dispatchUi_openMcpConfig(_host: AiSidebarUiDispatchHost): Promise<boolean> {
+  await vscode.commands.executeCommand("myAi.openMcpConfig");
+  return false;
+}

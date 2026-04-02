@@ -93,6 +93,7 @@ const els = {
   inspectFocusedDag: document.getElementById("inspectFocusedDag"),
   openTerminal: document.getElementById("openTerminal"),
   listMcpTools: document.getElementById("listMcpTools"),
+  openMcpConfig: document.getElementById("openMcpConfig"),
   listMcpSessions: document.getElementById("listMcpSessions"),
   reviewFocusedDiff: document.getElementById("reviewFocusedDiff"),
   reviewFocusedHunks: document.getElementById("reviewFocusedHunks"),

@@ -164,6 +164,7 @@ els.inspectSelectedDiff?.addEventListener('click', () => state.selectedApproval 
 els.inspectSelectedHunks?.addEventListener('click', () => state.selectedApproval && post('reviewPendingHunks', { missionId: state.selectedApproval.missionId, approvalId: state.selectedApproval.approvalId }));
 els.openTerminal?.addEventListener('click', () => post('openTerminal'));
 els.listMcpTools?.addEventListener('click', () => post('listMcpTools'));
+els.openMcpConfig?.addEventListener('click', () => post('openMcpConfig'));
 els.listMcpSessions?.addEventListener('click', () => post('listMcpSessions'));
 els.reviewFocusedDiff?.addEventListener('click', () => state.snapshot?.focusedMissionId && post('reviewPendingDiff', { missionId: state.snapshot.focusedMissionId }));
 els.reviewFocusedHunks?.addEventListener('click', () => state.snapshot?.focusedMissionId && post('reviewPendingHunks', { missionId: state.snapshot.focusedMissionId }));

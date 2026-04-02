@@ -32,6 +32,7 @@ export const UI_TO_EXT_KNOWN_TYPES = new Set([
   "openSettings",
   "listMcpTools",
   "listMcpSessions",
+  "openMcpConfig",
   "searchGlobalMemory",
   "generateMissionReport",
   "saveQuickSettings",

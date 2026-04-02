@@ -194,3 +194,4 @@ See **`AGENT_CAPABILITIES_PLAN.md`** for the full roadmap (browser via MCP, futu
 - [x] **Phase 10 (agent capabilities)** — `myAi.tools.listToolsRedactExternalUrls` + `toExternalAdapterPublicSummaries`; `externalUrlsRedacted` on payload
 - [x] **Phase 11 (agent capabilities)** — `listTools` includes `data.mcpServers` from MCP config (no session spawn)
 - [x] **Phase 12 (agent capabilities)** — `myAi.openMcpConfig` command; AGENT_CAPABILITIES Phase 2a `servers` JSON example aligned with host
+- [x] **Tools tab MCP** — webview **Open MCP Config** → `openMcpConfig` → `dispatchUi_openMcpConfig` → command

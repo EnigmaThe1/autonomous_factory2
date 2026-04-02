@@ -42,6 +42,7 @@ import {
   dispatchUi_createStarterMcpConfig,
   dispatchUi_listMcpSessions,
   dispatchUi_listMcpTools,
+  dispatchUi_openMcpConfig,
   dispatchUi_openSettings,
   dispatchUi_openTerminal
 } from "./aiSidebarDispatchMcpShell";
@@ -140,6 +141,8 @@ export async function dispatchUiToExtMessage(
       return await dispatchUi_listMcpTools(host);
     case "listMcpSessions":
       return await dispatchUi_listMcpSessions(host);
+    case "openMcpConfig":
+      return await dispatchUi_openMcpConfig(host);
     case "createStarterMcpConfig":
       return await dispatchUi_createStarterMcpConfig(host);
     case "saveMissionRouting":
