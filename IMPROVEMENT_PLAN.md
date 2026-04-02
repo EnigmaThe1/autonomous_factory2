@@ -202,7 +202,7 @@ See **`AGENT_CAPABILITIES_PLAN.md`** for the full roadmap (browser via MCP, futu
 
 ---
 
-## Mission autonomy & upfront planning (shipped in v0.18.40+)
+## Mission autonomy & upfront planning (shipped in v0.18.40+; Phase 10 fidelity in v0.18.41+)
 
 **Spec**: **`MISSION_AUTONOMY_AND_PLANNING_BLUEPRINT.md`**.
 
@@ -216,7 +216,8 @@ See **`AGENT_CAPABILITIES_PLAN.md`** for the full roadmap (browser via MCP, futu
 - [x] **Webview** — Missions inspector: blueprint status, progress, approve/reject/revision; Settings: open blueprint doc.
 - [x] **Researcher** — uses web tools hint when **`myAi.webResearch.enabled`**.
 - [x] **`myAi.agents.enforceDefaultCodingStandards`** + shared fragments (planner/implementer/reviewer/architect).
+- [x] **Plan fidelity / drift (Phase 10)** — **`myAi.missions.blueprintFidelityCheck`**: after implementer completion, **`MissionFileTracker.flush`**, **`computePlanFidelityDrift`** vs blueprint text + path allowlist; optional reviewer **“Plan fidelity — unexpected file paths”**; `blueprintPlanFidelity` unit tests.
 
-**Not yet implemented (see blueprint doc)**: structured **pre-blueprint Q&A** round; **`pauseAfterEachValidator`**; **plan fidelity / drift** heuristics (Phase 10).
+**Not yet implemented (see blueprint doc)**: structured **pre-blueprint Q&A** round; **`pauseAfterEachValidator`**.
 
-**Tests**: 632 host + 78 webview smoke (710 total) after this work.
+**Tests**: 637 host + 78 webview smoke (715 total) after this work.

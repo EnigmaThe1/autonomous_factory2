@@ -267,18 +267,27 @@ User goal
 
 **Goal**: Surface **unplanned scope** relative to approved blueprint.
 
-**Deliverables**
+**Shipped (v0.18.41+, opt-in)**
 
-- **Heuristics v1**: compare **MissionFileTracker** paths + memory tags to blueprint “modules” keywords; if large mismatch, enqueue reviewer work item “justify or amend plan.”
+- **Setting**: `myAi.missions.blueprintFidelityCheck` (default **false**). When **true**, after an **implementer** work item completes, the orchestrator calls **`MissionFileTracker.flush(missionId)`** so `mission.filesModified` is current, then runs **`computePlanFidelityDrift(mission)`** in `blueprintPlanFidelity.ts`.
+- **Heuristic v1**: tokens (length ≥ 4, stopwords stripped) from blueprint **requirements**, **architecture**, and **step** titles; a modified path “matches” if any token appears as a substring in the normalized path, or the path hits a **config/tooling allowlist** (`package.json`, lockfiles, `tsconfig`, ESLint, Docker, etc.). If there is drift, enqueue a **non-blocking** reviewer item **“Plan fidelity — unexpected file paths”** (`requiredForCompletion: false`, `dependsOn` the implementer item), with dedupe if a **Plan fidelity** todo/running item already exists. **`MissionEvent`** `source: blueprint-fidelity` on flag.
+- **v2 (later)**: structured **module list** in blueprint + path glob expectations; optional tie-in to **memory tags**.
+
+**Deliverables (original spec — v1 covered above)**
+
+- **Heuristics v1**: compare **MissionFileTracker** paths to blueprint-derived keywords; if mismatch, enqueue reviewer work item to justify or amend plan.
 - **v2 (later)**: structured **module list** in blueprint + path glob expectations.
 
 **Acceptance**
 
-- Unit test: injected file outside expected areas triggers follow-up when setting enabled.
+- Unit tests in `src/test/blueprintPlanFidelity.test.ts`: drift vs no-drift paths, allowlisted config, no blueprint / not approved → no drift.
 
 **Key files**
 
-- `src/missions/MissionFileTracker.ts`, `src/missions/missionClosurePolicy.ts` or new policy module
+- `src/missions/blueprintPlanFidelity.ts` — keyword extraction + drift
+- `src/missions/MissionOrchestrator.ts` — `maybeEnqueuePlanFidelityReview`, optional ctor `fileTracker`
+- `src/missions/MissionFileTracker.ts` — `flush` before comparison
+- `src/extension.ts` — pass `fileTracker` into orchestrator
 
 ---
 
@@ -359,9 +368,9 @@ Use this as a **burn-down** when implementing:
 - [ ] Phase 7 — Architect / gap pass
 - [ ] Phase 8 — Researcher + web tools alignment
 - [ ] Phase 9 — Shared coding-standard fragments
-- [ ] Phase 10 — Plan fidelity / drift (optional)
+- [x] Phase 10 — Plan fidelity / drift (optional; `myAi.missions.blueprintFidelityCheck`)
 - [ ] **Cross-cutting** — § Readiness & cross-cutting items (pre-plan Q&A, runner/status, closure, events, memory, VSIX)
 
 ---
 
-*Document version: 1.1 — added readiness / cross-cutting integration notes (runner, status, closure, Q&A, events, memory).*
+*Document version: 1.2 — Phase 10 shipped: blueprint keyword drift vs `MissionFileTracker` + `blueprintFidelityCheck`.*

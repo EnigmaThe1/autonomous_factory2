@@ -46,6 +46,8 @@ import { parseBlueprintModelOutput } from "./blueprintParser";
 import { synthesizeWorkItemsFromBlueprint } from "./blueprintSynthesis";
 import { blueprintBlocksMissionCompletion, computeBlueprintProgress } from "./blueprintProgress";
 import { applyBlueprintStepStatusFromWorkItem } from "./blueprintStepSync";
+import { computePlanFidelityDrift } from "./blueprintPlanFidelity";
+import type { MissionFileTracker } from "./MissionFileTracker";
 import type {
   ResolveApprovalOutcome,
   ResumeMissionOutcome,
@@ -141,7 +143,8 @@ export class MissionOrchestrator {
     private readonly store: MissionStore,
     private readonly tools: MissionToolExecutor,
     private readonly globalMemory: GlobalMemoryStore,
-    private readonly agentRunForTest?: MissionAgentRunForTest
+    private readonly agentRunForTest?: MissionAgentRunForTest,
+    private readonly fileTracker?: MissionFileTracker
   ) {
     this.agents = new AgentFactory(providers, globalMemory, collector);
   }
@@ -1383,6 +1386,9 @@ export class MissionOrchestrator {
 
     if (item.role === "implementer") {
       const refreshed = this.store.get(mission.id)!;
+      if (terminalWorkStatus === "done") {
+        await this.maybeEnqueuePlanFidelityReview(mission.id, item);
+      }
       if (refreshed.validationState !== "passed") {
         const hasTodoReview = refreshed.queue.some((w) => w.role === "reviewer" && w.status === "todo");
         if (!hasTodoReview) {
@@ -1569,6 +1575,46 @@ export class MissionOrchestrator {
 
   private async ensureClosurePolicy(mission: Mission): Promise<boolean> {
     return enforceClosurePolicy(mission, this.store);
+  }
+
+  /**
+   * When `myAi.missions.blueprintFidelityCheck` is on and blueprint is approved, flush file tracker,
+   * compare `filesModified` to blueprint-derived keywords, and enqueue an optional reviewer if drift.
+   */
+  private async maybeEnqueuePlanFidelityReview(missionId: string, implementerItem: WorkItem): Promise<void> {
+    try {
+      if (!vscode.workspace.getConfiguration().get<boolean>("myAi.missions.blueprintFidelityCheck", false)) {
+        return;
+      }
+      await this.fileTracker?.flush(missionId);
+      const mission = this.store.get(missionId);
+      if (!mission?.blueprint || mission.blueprint.status !== "approved") return;
+      const { drift, suspicious } = computePlanFidelityDrift(mission);
+      if (!drift || !suspicious.length) return;
+      const dupe = mission.queue.some(
+        (w) => w.title.startsWith("Plan fidelity") && (w.status === "todo" || w.status === "running")
+      );
+      if (dupe) return;
+      await this.store.enqueue(missionId, [
+        {
+          id: uid("work"),
+          title: "Plan fidelity — unexpected file paths",
+          role: "reviewer",
+          status: "todo",
+          requiredForCompletion: false,
+          dependsOn: [implementerItem.id],
+          prompt: `Blueprint drift heuristic flagged modified paths that do not match blueprint-derived keywords (allowlisted config files excluded): ${suspicious.slice(0, 24).join("; ")}. Review scope; if intentional, note why. Otherwise propose bounded follow-up or planner work.`
+        }
+      ]);
+      await this.store.saveEvent(missionId, {
+        level: "warn",
+        source: "blueprint-fidelity",
+        message: `Plan fidelity: ${suspicious.length} path(s) weakly aligned with blueprint tokens.`
+      });
+      await this.store.noteProgress(missionId);
+    } catch {
+      /* fidelity must not break the mission loop */
+    }
   }
 
   private async enqueueSynthesizedBlueprintWork(missionId: string): Promise<void> {
