@@ -478,6 +478,13 @@
           "default": true,
           "description": "Require approval before calling a mutating external tool adapter."
         },
+        "myAi.tools.listToolsHintsMaxChars": {
+          "type": "number",
+          "default": 16000,
+          "minimum": 0,
+          "maximum": 200000,
+          "description": "Maximum characters for the listTools `hints` array (one-line usage per tool). Set to 0 to omit hints and keep only builtin names + external adapters."
+        },
         "myAi.missions.requireImplementerBeforeComplete": {
           "type": "boolean",
           "default": true,

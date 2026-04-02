@@ -41,7 +41,7 @@ function fullToolLines(): string[] {
 
 function lazyToolLines(): string[] {
   return [
-    "LAZY TOOL CATALOG: only common tools are listed below. Emit TOOL:{\"tool\":\"listTools\",\"args\":{}} for every built-in name plus external adapters. Emit TOOL:{\"tool\":\"listMcpTools\",\"args\":{}} for MCP tools, then call mcp.server_name.tool_name.",
+    "LAZY TOOL CATALOG: only common tools are listed below. Emit TOOL:{\"tool\":\"listTools\",\"args\":{}} for built-in names, external adapters, and bounded `hints` (one-line usage; see myAi.tools.listToolsHintsMaxChars). Emit TOOL:{\"tool\":\"listMcpTools\",\"args\":{}} for MCP tools, then call mcp.server_name.tool_name.",
     'TOOL:{"tool":"readFile","args":{"path":"..."}}',
     'TOOL:{"tool":"writeFile","args":{"path":"...","content":"..."}} — may require approval',
     'TOOL:{"tool":"applyPatch","args":{"path":"...","search":"...","replace":"..."}} — may require approval',

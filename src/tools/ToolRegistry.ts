@@ -31,6 +31,8 @@ import { runFetchWebPage, runWebSearch, type WebSearchProviderId } from "./WebRe
 import { buildBrowserCaptureCommand } from "./BrowserCapture";
 import { SecretStore } from "../storage/SecretStore";
 import { BRAVE_WEB_SEARCH_SECRET_KEY } from "../providers/providerCredentialKeys";
+import { BUILTIN_TOOL_NAMES } from "./builtinToolNames";
+import { buildListToolsHintEntries } from "./listToolsCatalog";
 
 function buildDiffHunks(beforeText: string, afterText: string) {
   const before = beforeText.split(/\r?\n/);
@@ -79,11 +81,7 @@ export interface ToolResult {
   applyPatchNoop?: boolean;
 }
 
-export const BUILTIN_TOOL_NAMES = [
-  "readFile", "writeFile", "applyPatch", "searchFiles", "grepSearch",
-  "listFiles", "fileTree", "getDiagnostics", "runTerminal", "runCommand",
-  "runTests", "runLinter", "httpRequest", "webSearch", "fetchWebPage", "browserCapture", "findRelevantFiles", "listTools", "listMcpTools"
-] as const;
+export { BUILTIN_TOOL_NAMES } from "./builtinToolNames";
 
 export class ToolRegistry {
   private cachedPolicyEngine?: TrustPolicyEngine;
@@ -421,10 +419,24 @@ export class ToolRegistry {
   }
 
   private async listTools(missionId: string): Promise<ToolResult> {
+    const cfg = vscode.workspace.getConfiguration();
+    const hintsBudget = cfg.get<number>("myAi.tools.listToolsHintsMaxChars", 16_000);
     const external = await this.externalAdapters.list();
     const builtins = [...BUILTIN_TOOL_NAMES];
     await this.missionStore.saveEvent(missionId, { level: "info", source: "tool:listTools", message: "Listed built-in and external tools" });
-    return { ok: true, summary: `Listed ${builtins.length + external.length} tools.`, data: { builtins, external } };
+    const data: Record<string, unknown> = { builtins, external };
+    if (hintsBudget > 0) {
+      const hints = buildListToolsHintEntries(hintsBudget);
+      data.hints = hints.entries;
+      if (hints.truncated) {
+        data.hintsTruncated = true;
+      }
+    }
+    return {
+      ok: true,
+      summary: `Listed ${builtins.length + external.length} tools${hintsBudget > 0 ? " with hints" : ""}.`,
+      data
+    };
   }
 
   private async readFile(missionId: string, fsPath: string): Promise<ToolResult> {

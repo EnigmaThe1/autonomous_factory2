@@ -68,6 +68,13 @@ Example command:
 | **`myAi.agents.lazyToolPrompt`** | Default **false** — full TOOL cheat sheet in the user prompt (includes **writeFile**, **applyPatch**, **runTerminal**, git, docker, db, http, web, MCP patterns). When **true**, a **short** sheet plus explicit guidance to run **`listTools`** (builtins + adapter names) and **`listMcpTools`** (MCP names) before using tools not shown. |
 | **MCP / disk** | Full definitions stay in the host (`ToolRegistry`, MCP sessions); nothing new persisted. |
 
+## Phase 6 — `listTools` hints (shipped)
+
+| Item | Behavior |
+|------|-----------|
+| **`listTools` response** | Besides `builtins` (names) and `external` (adapter ids), includes **`hints`**: `{ tool, hint }[]` with one-line argument / policy guidance for each builtin plus **git.*** / **docker.*** / **db.*** tools. |
+| **`myAi.tools.listToolsHintsMaxChars`** | Budget for serializing the hints list (default **16000**). If the budget is exceeded, rows are cut early and **`hintsTruncated`: true** is set. **0** omits **`hints`** entirely (previous behavior). |
+
 ---
 
 ## Safety checklist (every new tool)
