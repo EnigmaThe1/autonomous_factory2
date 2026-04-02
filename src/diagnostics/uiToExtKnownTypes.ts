@@ -38,6 +38,7 @@ export const UI_TO_EXT_KNOWN_TYPES = new Set([
   "approveMissionBlueprint",
   "rejectMissionBlueprint",
   "requestMissionBlueprintRevision",
+  "submitPreBlueprintAnswers",
   "applyLazyDiscoveryPreset",
   "revertLazyDiscoveryPreset",
   "searchGlobalMemory",

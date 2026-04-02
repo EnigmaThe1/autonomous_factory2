@@ -26,4 +26,6 @@ export type DashboardRefreshSource =
   /** Mission blueprint approved / rejected / revision requested from command palette. */
   | "blueprint_approve"
   | "blueprint_reject"
-  | "blueprint_revise";
+  | "blueprint_revise"
+  /** Pre-blueprint Q&A answers submitted (command palette). */
+  | "pre_blueprint_submit";

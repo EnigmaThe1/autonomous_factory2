@@ -313,6 +313,20 @@ export function createMissionRenderer(deps) {
           ? `<div class="mission-lifecycle-summary" role="status">${escapeHtml(snapshot.focusedMissionLifecycleSummary)}</div>`
           : "";
         const bpProg = snapshot.focusedMissionBlueprintProgress;
+        const preBpQs = m.preBlueprintClarification?.questions;
+        const inspectorPreBlueprint =
+          m.blockReasonCode === "awaiting_pre_blueprint_answers" && preBpQs && preBpQs.length
+            ? `<div class="inspector-section"><div class="section-title small">Pre-blueprint clarification</div>
+      <ol style="margin:8px 0;padding-left:1.25rem;">${preBpQs
+              .map((q) => `<li style="margin:4px 0;">${escapeHtml(q)}</li>`)
+              .join("")}</ol>
+      <label class="meta" for="preBlueprintAnswersField">Your answers</label>
+      <textarea id="preBlueprintAnswersField" rows="7" style="width:100%;box-sizing:border-box;margin:6px 0;font-family:var(--vscode-editor-font-family);font-size:var(--vscode-editor-font-size);" placeholder="Answer the questions above (free form, multi-line OK)."></textarea>
+      <div class="row" style="margin-top:6px;"><button type="button" class="ghost" data-action="submitPreBlueprintAnswers" data-mission-id="${escapeHtml(
+              m.id
+            )}">Submit answers — generate blueprint</button></div>
+    </div>`
+            : "";
         const inspectorBlueprint = m.blueprint
           ? `<div class="inspector-section"><div class="section-title small">Mission blueprint</div>
       <div class="meta">Status: ${escapeHtml(m.blueprint.status)}${
@@ -359,6 +373,7 @@ export function createMissionRenderer(deps) {
       ${queueProgressInspector}
       ${currentNextInspector}
       ${inspectorMps}
+      ${inspectorPreBlueprint}
       ${inspectorBlueprint}
       ${reportSummaryHtml}
       ${reportActions}

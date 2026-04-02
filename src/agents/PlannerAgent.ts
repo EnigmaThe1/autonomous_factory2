@@ -5,6 +5,16 @@ import { parseAgentOutput } from "./agentOutputParser";
 import { parseRole, uid } from "../util";
 import { ARCHITECTURE_DISCIPLINE_FRAGMENT, CODING_STANDARDS_FRAGMENT } from "./instructionFragments";
 
+const PRE_BLUEPRINT_JSON_INSTRUCTIONS = [
+  "You are clarifying an upcoming mission before a full blueprint is written.",
+  "Output ONE JSON object only (optionally wrapped in ```json code fence). No WORK: lines.",
+  'Schema: { "questions": string[] }',
+  "Ask 1–8 concise questions the operator should answer so the later blueprint does not guess unstated constraints (stack, scope boundaries, environments, deadlines, quality bar, out-of-scope).",
+  "Each question must be a single non-empty string, under 400 characters, no numbering inside the string (the UI will number them).",
+  CODING_STANDARDS_FRAGMENT,
+  ARCHITECTURE_DISCIPLINE_FRAGMENT
+].join("\n");
+
 const BLUEPRINT_JSON_INSTRUCTIONS = [
   "You are the mission architect. Output ONE JSON object only (optionally wrapped in ```json code fence). No WORK: lines.",
   "Infer implicit requirements from the mission goal (capabilities, constraints, quality).",
@@ -23,6 +33,23 @@ export class PlannerAgent extends BaseAgent {
   async run(mission: Mission, item: WorkItem, context: ChatContext, options?: AgentRunOptions): Promise<AgentTurnResult> {
     const enforce = vscode.workspace.getConfiguration().get<boolean>("myAi.agents.enforceDefaultCodingStandards", true);
     const frag = enforce ? `\n\n${CODING_STANDARDS_FRAGMENT}\n${ARCHITECTURE_DISCIPLINE_FRAGMENT}` : "";
+
+    if (item.workItemPurpose === "pre_blueprint_clarify") {
+      const text = await this.askModel(
+        mission,
+        item,
+        context,
+        PRE_BLUEPRINT_JSON_INSTRUCTIONS,
+        options?.signal,
+        options?.onChunk
+      );
+      return {
+        summary: text || "{}",
+        nextWorkItems: [],
+        markStatus: "done",
+        newMemory: [{ kind: "summary", text: text || "Pre-blueprint questions", tags: ["plan", "pre_blueprint"] }]
+      };
+    }
 
     if (item.workItemPurpose === "blueprint_generate" || item.workItemPurpose === "blueprint_revise") {
       const text = await this.askModel(

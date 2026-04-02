@@ -326,7 +326,7 @@ These were double-checked against **`IMPROVEMENT_PLAN.md`** (shipped orchestrato
 
 | Topic | Why it matters | Where to handle |
 |--------|----------------|-----------------|
-| **Pre-blueprint clarification** | Product ask: short **Q&A after mission text**, *before* full blueprint generation, so the model does not guess unstated constraints. | **Phase 3** — optional setting (e.g. `myAi.missions.preBlueprintClarification`) and one planner/researcher turn that outputs **structured questions** + pause; user answers in webview; then run blueprint planner with Q&A in context. |
+| **Pre-blueprint clarification** | Product ask: short **Q&A after mission text**, *before* full blueprint generation, so the model does not guess unstated constraints. | **Shipped (v0.18.43+)**: `myAi.missions.preBlueprintClarification` + planner `pre_blueprint_clarify` JSON **`questions[]`** → **`awaiting_pre_blueprint_answers`**; inspector textarea + **`submitPreBlueprintAnswers`** / command **`myAi.submitPreBlueprintClarification`** → enqueue **`blueprint_generate`** with Q&A in prompt. |
 | **Mission status vs approval pause** | Today **`queued` / `running`** drive **`BackgroundMissionRunner`** and stall recovery. A mission **waiting only for plan approval** must **not** look like a stuck queue or trigger auto-replan. | **Phase 3** — use **`awaiting_input`** (with clear `blocker` / `blockReasonCode` if needed) **or** add an explicit status (e.g. `planning`) and teach **`BackgroundMissionRunner`**, dashboard filters, and webview copy to **exclude** “awaiting plan approval” from stall logic. |
 | **Heartbeat / runner lease** | **`tryAcquireRunnerLease`** and stall thresholds must not run destructive recovery while the mission is **only** waiting on human plan approval. | **Phase 3** — same as above; gate `decideStallRecovery` / tick paths on `mission.blueprint?.status !== "awaiting_approval"` (or equivalent). |
 | **Closure + validator vs blueprint** | **`missionClosurePolicy`** and **`validationState`** already gate completion; blueprint “all steps done” must **align** with validator closure so missions do not complete with an incomplete blueprint (or vice versa). | **Phase 4** — extend closure checks or add a single **pre-terminal** guard: `blueprint` satisfied **and** existing closure rules. Document interaction with **`shouldCollapseToComplete`**. |
@@ -374,4 +374,4 @@ Use this as a **burn-down** when implementing:
 
 ---
 
-*Document version: 1.2 — Phase 10 shipped: blueprint keyword drift vs `MissionFileTracker` + `blueprintFidelityCheck`.*
+*Document version: 1.3 — Pre-blueprint Q&A (`preBlueprintClarification`) + v0.18.43 settings/commands.*

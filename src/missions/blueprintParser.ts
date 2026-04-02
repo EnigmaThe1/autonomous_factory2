@@ -7,7 +7,7 @@ export interface ParseBlueprintResult {
 
 const ROLE_HINTS = new Set(["planner", "researcher", "implementer", "reviewer", "validator", "architect"]);
 
-function extractJsonObject(text: string): string | undefined {
+export function extractJsonObject(text: string): string | undefined {
   const fence = text.match(/```(?:json)?\s*([\s\S]*?)```/i);
   const candidate = fence ? fence[1].trim() : text.trim();
   const start = candidate.indexOf("{");

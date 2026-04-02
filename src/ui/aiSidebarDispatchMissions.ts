@@ -473,3 +473,14 @@ export async function dispatchUi_requestMissionBlueprintRevision(
   host.scheduleBackgroundDashboardReconciliation();
   return true;
 }
+
+export async function dispatchUi_submitPreBlueprintAnswers(
+  host: AiSidebarUiDispatchHost,
+  msg: Extract<UiToExtMessage, { type: "submitPreBlueprintAnswers" }>
+): Promise<boolean> {
+  const out = await host.orchestrator.submitPreBlueprintClarificationAnswers(msg.missionId, msg.answers);
+  void vscode.window.showInformationMessage(out.message);
+  host.postMissionDashboardSnapshotImmediate();
+  host.scheduleBackgroundDashboardReconciliation();
+  return true;
+}

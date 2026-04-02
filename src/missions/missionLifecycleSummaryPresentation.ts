@@ -66,6 +66,9 @@ export function focusedMissionLifecycleSummary(mission: Mission): string {
     if (mission.blockReasonCode === "post_validator_checkpoint") {
       return "Validator finished; resume the mission to continue.";
     }
+    if (mission.blockReasonCode === "awaiting_pre_blueprint_answers") {
+      return "Pre-blueprint questions need answers; submit from the inspector or command palette.";
+    }
     return "Waiting for required input.";
   }
 

@@ -110,6 +110,11 @@ document.body.addEventListener('click', e => {
     if (!note || !String(note).trim()) return;
     return post("requestMissionBlueprintRevision", { missionId, note: String(note).trim() });
   }
+  if (action === "submitPreBlueprintAnswers" && missionId) {
+    const ta = globalThis.document.getElementById("preBlueprintAnswersField");
+    const answers = ta && "value" in ta ? String(ta.value) : "";
+    return post("submitPreBlueprintAnswers", { missionId, answers });
+  }
   if (action === 'copyMissionReport' && missionId) {
     const c = state.missionReportCache;
     const statusEl = globalThis.document?.getElementById?.("missionActionStatus");

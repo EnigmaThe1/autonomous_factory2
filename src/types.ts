@@ -25,13 +25,22 @@ export type MissionBlockReasonCode =
   | "stall_recovery_limit"
   | "generic_blocked"
   | "awaiting_blueprint_approval"
-  | "post_validator_checkpoint";
+  | "post_validator_checkpoint"
+  | "awaiting_pre_blueprint_answers";
 
 /**
  * Orchestrator-owned classification when `Mission.status === "failed"` (true terminal failure).
  * Separate from `blockReasonCode` (pause/blocked semantics). Free-text detail stays in `blocker` / events.
  */
 export type MissionFailureReasonCode = "orchestrator_uncaught_error";
+
+/** Structured Q&A before blueprint generation when `myAi.missions.preBlueprintClarification` is on. */
+export interface PreBlueprintClarificationState {
+  questions: string[];
+  /** Operator-supplied answers; set when moving to blueprint generation. */
+  answersMarkdown?: string;
+  status: "awaiting_answers" | "complete";
+}
 
 export type AgentRole =
   | "planner"
@@ -154,7 +163,7 @@ export interface WorkItem {
   /** Sub-items decomposed from this work item. Parent completes only when all sub-items complete. */
   subItems?: WorkItem[];
   /** Blueprint mode: planner item that emits structured JSON plan; revision passes. */
-  workItemPurpose?: "blueprint_generate" | "blueprint_revise";
+  workItemPurpose?: "blueprint_generate" | "blueprint_revise" | "pre_blueprint_clarify";
   /** After synthesis, ties this row to `MissionBlueprint.steps[].id`. */
   blueprintStepId?: string;
 }
@@ -257,6 +266,8 @@ export interface Mission {
   blueprint?: MissionBlueprint;
   /** User-requested blueprint revision rounds (for cap). */
   blueprintRevisionCount?: number;
+  /** Pre-blueprint clarification (questions from planner; operator answers before blueprint JSON). */
+  preBlueprintClarification?: PreBlueprintClarificationState;
 }
 
 export interface ChatContext {

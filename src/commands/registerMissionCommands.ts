@@ -276,6 +276,30 @@ export function registerMissionCommands(
   );
 
   disposables.push(
+    vscode.commands.registerCommand("myAi.submitPreBlueprintClarification", async () => {
+      const missions = store
+        .listVisible(false)
+        .filter((m) => m.blockReasonCode === "awaiting_pre_blueprint_answers");
+      const picked = await vscode.window.showQuickPick(
+        missions.map((m) => ({ label: m.title, missionId: m.id, detail: m.status })),
+        { placeHolder: "Select mission waiting for pre-blueprint answers" }
+      );
+      if (!picked) return;
+      const answers = await vscode.window.showInputBox({
+        prompt: "Pre-blueprint answers (for multiple lines, use the Missions inspector textarea)",
+        placeHolder: "Free-form answers to the listed questions",
+        ignoreFocusOut: true
+      });
+      if (answers === undefined) return;
+      const out = await orchestrator.submitPreBlueprintClarificationAnswers(picked.missionId, answers);
+      void vscode.window.showInformationMessage(out.message);
+      sidebar.reveal();
+      sidebar.focusMission(picked.missionId);
+      void sidebar.refreshDashboard(undefined, { source: "pre_blueprint_submit" });
+    })
+  );
+
+  disposables.push(
     vscode.commands.registerCommand("myAi.archiveMission", async () => {
       const picked = await chooseMission(store, "Select a mission to archive");
       if (!picked) return;

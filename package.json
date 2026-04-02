@@ -2,7 +2,7 @@
   "name": "my-ai-extension-v18",
   "displayName": "My AI Extension V18",
   "description": "VS Code AI assistant with unified sidebar, in-pane diff review, richer tool/result cards, mission inspector, grouped timeline, live agent stream, approvals, bundles, tools, memory, console, and settings",
-  "version": "0.18.42",
+  "version": "0.18.43",
   "publisher": "enigma-the",
   "repository": {
     "type": "git",
@@ -31,7 +31,8 @@
     "onCommand:myAi.openMissionAutonomyBlueprint",
     "onCommand:myAi.approveMissionBlueprint",
     "onCommand:myAi.rejectMissionBlueprint",
-    "onCommand:myAi.requestMissionBlueprintRevision"
+    "onCommand:myAi.requestMissionBlueprintRevision",
+    "onCommand:myAi.submitPreBlueprintClarification"
   ],
   "main": "./dist/extension.js",
   "contributes": {
@@ -115,6 +116,10 @@
       {
         "command": "myAi.requestMissionBlueprintRevision",
         "title": "My AI: Request Mission Blueprint Revision"
+      },
+      {
+        "command": "myAi.submitPreBlueprintClarification",
+        "title": "My AI: Submit Pre-Blueprint Answers"
       },
       {
         "command": "myAi.setBraveSearchApiKey",
@@ -708,6 +713,11 @@
           "type": "boolean",
           "default": false,
           "description": "When true, new missions start with a full JSON blueprint planner pass; approve before synthesized work runs."
+        },
+        "myAi.missions.preBlueprintClarification": {
+          "type": "boolean",
+          "default": false,
+          "description": "When blueprint mode is on, run one planner pass first that outputs structured clarification questions; operator answers in the missions inspector (or command), then blueprint JSON is generated with Q&A in context."
         },
         "myAi.missions.requireBlueprintApproval": {
           "type": "boolean",

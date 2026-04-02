@@ -114,6 +114,12 @@ test("lifecycle: awaiting approval vs other input", () => {
     ),
     "Validator finished; resume the mission to continue."
   );
+  assert.equal(
+    focusedMissionLifecycleSummary(
+      miniMission({ status: "awaiting_input", approvals: [], blockReasonCode: "awaiting_pre_blueprint_answers" })
+    ),
+    "Pre-blueprint questions need answers; submit from the inspector or command palette."
+  );
 });
 
 test("lifecycle: running with role and without", () => {

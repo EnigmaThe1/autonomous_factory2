@@ -43,6 +43,7 @@ import {
 import { shouldEnqueueReviewerAutoRemediation } from "./reviewerRemediationPolicy";
 import { computePlannerCoverageItems, enforceClosurePolicy } from "./missionClosurePolicy";
 import { parseBlueprintModelOutput } from "./blueprintParser";
+import { parsePreBlueprintClarificationOutput } from "./preBlueprintClarificationParser";
 import { synthesizeWorkItemsFromBlueprint } from "./blueprintSynthesis";
 import { blueprintBlocksMissionCompletion, computeBlueprintProgress } from "./blueprintProgress";
 import { applyBlueprintStepStatusFromWorkItem } from "./blueprintStepSync";
@@ -159,16 +160,30 @@ export class MissionOrchestrator {
     const mission = await this.store.create(title, prompt, providerId, model);
     const blueprintMode = vscode.workspace.getConfiguration().get<boolean>("myAi.missions.blueprintMode", false);
     if (blueprintMode) {
-      await this.store.enqueue(mission.id, [
-        {
-          id: uid("work"),
-          title: "Mission blueprint (full plan)",
-          role: "planner",
-          status: "todo",
-          workItemPurpose: "blueprint_generate",
-          prompt: "Generate the full mission blueprint as structured JSON (see system instructions)."
-        }
-      ]);
+      const preQ = vscode.workspace.getConfiguration().get<boolean>("myAi.missions.preBlueprintClarification", false);
+      if (preQ) {
+        await this.store.enqueue(mission.id, [
+          {
+            id: uid("work"),
+            title: "Pre-blueprint clarification",
+            role: "planner",
+            status: "todo",
+            workItemPurpose: "pre_blueprint_clarify",
+            prompt: "Produce structured clarification questions only (see system instructions)."
+          }
+        ]);
+      } else {
+        await this.store.enqueue(mission.id, [
+          {
+            id: uid("work"),
+            title: "Mission blueprint (full plan)",
+            role: "planner",
+            status: "todo",
+            workItemPurpose: "blueprint_generate",
+            prompt: "Generate the full mission blueprint as structured JSON (see system instructions)."
+          }
+        ]);
+      }
     } else {
       await this.store.enqueue(mission.id, [
         {
@@ -989,7 +1004,11 @@ export class MissionOrchestrator {
     const mission = this.store.get(missionId);
     if (!mission) return;
 
-    if (item.workItemPurpose === "blueprint_generate" || item.workItemPurpose === "blueprint_revise") {
+    if (
+      item.workItemPurpose === "blueprint_generate" ||
+      item.workItemPurpose === "blueprint_revise" ||
+      item.workItemPurpose === "pre_blueprint_clarify"
+    ) {
       return;
     }
 
@@ -1022,6 +1041,7 @@ export class MissionOrchestrator {
 
   private async runWorkItem(mission: Mission, item: WorkItem): Promise<"continue" | "awaiting_input" | "blocked"> {
     let blueprintAwaitingApproval = false;
+    let preBlueprintAwaitingAnswers = false;
     const fresh = this.store.get(mission.id)!;
     if (shouldSkipRedundantValidatorWork(fresh, item)) {
       await this.store.updateWorkItem(mission.id, item.id, {
@@ -1266,6 +1286,33 @@ export class MissionOrchestrator {
       }
     }
 
+    if (item.role === "planner" && item.workItemPurpose === "pre_blueprint_clarify") {
+      const parsed = parsePreBlueprintClarificationOutput(result.summary);
+      if (parsed.errors.length) {
+        await this.store.saveEvent(mission.id, {
+          level: "error",
+          source: "pre_blueprint",
+          message: `Pre-blueprint parse failed: ${parsed.errors.join("; ")}`
+        });
+        await this.updateWorkItemWithHardStopInvariant(mission.id, item, {
+          status: "failed",
+          output: parsed.errors.join("\n")
+        });
+        await this.store.updateMission(mission.id, {
+          status: "blocked",
+          blocker: "Pre-blueprint clarification could not be parsed. Adjust the mission goal or switch model.",
+          blockReasonCode: "generic_blocked"
+        });
+        await this.store.noteProgress(mission.id);
+        return "blocked";
+      }
+      await this.store.updateMission(mission.id, {
+        preBlueprintClarification: { questions: parsed.questions, status: "awaiting_answers" }
+      });
+      preBlueprintAwaitingAnswers = true;
+      result = { ...result, nextWorkItems: [] };
+    }
+
     const isBlueprintPlanner =
       item.role === "planner" &&
       (item.workItemPurpose === "blueprint_generate" || item.workItemPurpose === "blueprint_revise");
@@ -1351,6 +1398,14 @@ export class MissionOrchestrator {
         status: "awaiting_input",
         blocker: "Review and approve the mission blueprint (command: My AI: Approve Mission Blueprint).",
         blockReasonCode: "awaiting_blueprint_approval"
+      });
+    }
+
+    if (preBlueprintAwaitingAnswers) {
+      await this.store.updateMission(mission.id, {
+        status: "awaiting_input",
+        blocker: "Answer pre-blueprint questions in the Missions inspector, then submit (or command: My AI: Submit Pre-Blueprint Answers).",
+        blockReasonCode: "awaiting_pre_blueprint_answers"
       });
     }
 
@@ -1663,6 +1718,61 @@ export class MissionOrchestrator {
       sourceMissionId: missionId
     });
     await this.globalMemory.add(saved);
+  }
+
+  /**
+   * After pre-blueprint questions are shown, operator submits answers; host enqueues blueprint generation
+   * with Q&A embedded in the planner prompt.
+   */
+  async submitPreBlueprintClarificationAnswers(
+    missionId: string,
+    answersMarkdown: string
+  ): Promise<{ ok: boolean; message: string }> {
+    const m = this.store.get(missionId);
+    if (!m) return { ok: false, message: "Mission not found." };
+    if (m.blockReasonCode !== "awaiting_pre_blueprint_answers" || m.preBlueprintClarification?.status !== "awaiting_answers") {
+      return { ok: false, message: "Mission is not waiting for pre-blueprint answers." };
+    }
+    const q = m.preBlueprintClarification;
+    if (!q?.questions?.length) {
+      return { ok: false, message: "No clarification questions on mission." };
+    }
+    const trimmed = answersMarkdown.trim().slice(0, 50_000);
+    const numbered = q.questions.map((question, i) => `${i + 1}. ${question}`).join("\n");
+    const blueprintPrompt = [
+      "Generate the full mission blueprint as structured JSON (see system instructions).",
+      "",
+      "## Pre-blueprint clarification",
+      numbered,
+      "",
+      "## Operator answers",
+      trimmed || "(none provided)"
+    ].join("\n");
+
+    await this.store.updateMission(missionId, {
+      preBlueprintClarification: { ...q, answersMarkdown: trimmed || undefined, status: "complete" },
+      status: "queued",
+      blocker: undefined,
+      blockReasonCode: undefined
+    });
+    await this.store.enqueue(missionId, [
+      {
+        id: uid("work"),
+        title: "Mission blueprint (full plan)",
+        role: "planner",
+        status: "todo",
+        workItemPurpose: "blueprint_generate",
+        prompt: blueprintPrompt
+      }
+    ]);
+    await this.store.saveEvent(missionId, {
+      level: "info",
+      source: "pre_blueprint",
+      message: "Operator submitted pre-blueprint answers; blueprint generation enqueued."
+    });
+    await this.store.noteProgress(missionId);
+    void this.runMission(missionId);
+    return { ok: true, message: "Answers recorded; blueprint generation started." };
   }
 
   /** Operator approves a parsed blueprint and starts synthesized execution. */

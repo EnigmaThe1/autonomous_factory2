@@ -268,6 +268,7 @@ export type UiToExtMessage =
   | { type: "approveMissionBlueprint"; missionId: string }
   | { type: "rejectMissionBlueprint"; missionId: string }
   | { type: "requestMissionBlueprintRevision"; missionId: string; note: string }
+  | { type: "submitPreBlueprintAnswers"; missionId: string; answers: string }
   | { type: "applyLazyDiscoveryPreset" }
   | { type: "revertLazyDiscoveryPreset" }
   | { type: "searchGlobalMemory"; query: string }
