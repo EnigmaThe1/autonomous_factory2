@@ -17,7 +17,7 @@ export async function loadWorkspaceSkillsForAgents(): Promise<string> {
   }
   const maxTotal = Math.max(500, cfg.get<number>("myAi.skills.maxTotalChars", 12_000));
   const maxPerFile = Math.max(200, cfg.get<number>("myAi.skills.maxCharsPerFile", 4000));
-  const patterns = cfg.get<string[]>("myAi.skills.globPatterns", [".my-ai/skills/**/*.md"]);
+  const patterns = cfg.get<string[]>("myAi.skills.globPatterns", [".my-ai/skills/**/*.md", "docs/agent-skills/**/*.md"]);
   const folder = vscode.workspace.workspaceFolders?.[0];
   if (!folder) {
     return "";

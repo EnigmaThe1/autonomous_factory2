@@ -121,6 +121,7 @@ export abstract class BaseAgent {
       'TOOL:{"tool":"httpRequest","args":{"method":"GET","url":"http://...","headers":{},"body":""}} — HTTP request (requires approval)',
       'TOOL:{"tool":"webSearch","args":{"query":"keywords for documentation or facts"}} — instant-answer search (off unless myAi.webResearch.enabled; requires approval if HTTP approval on)',
       'TOOL:{"tool":"fetchWebPage","args":{"url":"https://..."}} — GET public page text (off unless myAi.webResearch.enabled; requires approval if HTTP approval on)',
+      'TOOL:{"tool":"browserCapture","args":{"url":"https://..."}} — run your configured screenshot/CLI (myAi.browser.enabled + captureCommand with {url} and {outPath}); uses run_command policy',
       'TOOL:{"tool":"docker.ps","args":{}} — list running containers',
       'TOOL:{"tool":"docker.logs","args":{"container":"name","tail":100}} — container logs',
       'TOOL:{"tool":"docker.exec","args":{"container":"name","command":"..."}} — exec in container (requires approval)',

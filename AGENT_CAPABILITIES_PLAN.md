@@ -20,14 +20,32 @@ This plan adds documentation lookup, workspace skills, optional web research, an
 | **`fetchWebPage`** | GET a single https URL (validated); larger response budget than generic `httpRequest`; optional HTML→text simplification; policy = `http_request`. |
 | **HttpClient** | Optional `maxResponseBodyChars` for bounded reads. |
 
-## Phase 2 — Browser / GUI (recommended pattern)
+## Phase 2 — Browser / GUI
 
-| Approach | Notes |
-|----------|--------|
-| **MCP browser server** | e.g. Playwright MCP: connect via existing `mcp.*` tools; no Playwright inside the VSIX; operators approve MCP like today. |
-| **Document in README** | Standard recipe: install MCP, add to `.mcp.json`, `listMcpTools`, use in missions. |
+### 2a — MCP (full automation: click, console, navigate)
 
-Optional future **builtin** (only if needed): thin wrapper that runs a **user-configured** CLI (screenshot/PDF) under `run_command` policy — still no bundled browser engine.
+Add a Playwright (or similar) MCP server to your workspace **`.mcp.json`** (path from extension settings). Example shape (adjust server package/name to what you install):
+
+```json
+{
+  "mcpServers": {
+    "playwright": {
+      "command": "npx",
+      "args": ["-y", "@playwright/mcp@latest"]
+    }
+  }
+}
+```
+
+Restart MCP sessions, run **`listMcpTools`**, then agents use **`mcp.playwright.<tool>`** (exact names depend on the server). Mutations still follow **MCP approval** policy.
+
+### 2b — Shipped: `browserCapture` (CLI screenshot hook)
+
+When **`myAi.browser.enabled`** is true and **`myAi.browser.captureCommand`** contains **`{url}`** and **`{outPath}`**, the **`browserCapture`** tool runs your command under the same policy as **`runCommand`** (terminal allow + approval). Output files go to **`<diskStoreFolder>/browser-captures/`**. No browser is bundled; you provide Playwright/Chromium/etc. on the machine.
+
+Example command:
+
+`npx playwright screenshot {url} {outPath}`
 
 ## Phase 3 — Web search providers
 

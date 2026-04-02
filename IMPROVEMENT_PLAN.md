@@ -183,5 +183,5 @@ Phase 10 is the capstone.
 See **`AGENT_CAPABILITIES_PLAN.md`** for the full roadmap (browser via MCP, future providers).
 
 - [x] **Phase 1** — Workspace skills (globs, cache, system prompt injection); `webSearch` + `fetchWebPage` gated by `myAi.webResearch.enabled`; `HttpClient.maxResponseBodyChars`; command **Open Workspace Skills Folder**
-- [ ] **Phase 2** — Document + recommend Playwright MCP; optional CLI snapshot hook
+- [x] **Phase 2** — MCP Playwright recipe in `AGENT_CAPABILITIES_PLAN.md`; optional **`browserCapture`** CLI hook (`myAi.browser.*`)
 - [ ] **Phase 3+** — Additional search providers, skills UX polish

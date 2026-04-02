@@ -354,7 +354,7 @@
         },
         "myAi.skills.globPatterns": {
           "type": "array",
-          "default": [".my-ai/skills/**/*.md"],
+          "default": [".my-ai/skills/**/*.md", "docs/agent-skills/**/*.md"],
           "items": { "type": "string" },
           "description": "Workspace-relative globs for skill markdown files."
         },
@@ -372,6 +372,31 @@
           "type": "boolean",
           "default": false,
           "description": "Enable webSearch and fetchWebPage tools (HTTP; uses same approval policy as httpRequest)."
+        },
+        "myAi.browser.enabled": {
+          "type": "boolean",
+          "default": false,
+          "description": "Enable browserCapture tool (runs myAi.browser.captureCommand; no browser bundled in the extension)."
+        },
+        "myAi.browser.captureCommand": {
+          "type": "string",
+          "default": "",
+          "description": "Shell command template with {url} and {outPath} (e.g. npx playwright screenshot {url} {outPath}). Values are single-quoted. Requires Playwright or similar on PATH."
+        },
+        "myAi.browser.captureTimeoutMs": {
+          "type": "number",
+          "default": 120000,
+          "description": "Timeout for browserCapture command (ms)."
+        },
+        "myAi.browser.captureMaxOutputBytes": {
+          "type": "number",
+          "default": 65536,
+          "description": "Max stdout+stderr bytes captured for browserCapture."
+        },
+        "myAi.browser.captureFileExtension": {
+          "type": "string",
+          "default": "png",
+          "description": "File extension for capture output under diskStoreFolder/browser-captures/."
         },
         "myAi.memory.maxRecentEvents": {
           "type": "number",

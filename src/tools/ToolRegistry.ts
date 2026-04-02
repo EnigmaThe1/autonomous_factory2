@@ -28,6 +28,7 @@ import {
   validateFilePath
 } from "./inputValidation";
 import { runFetchWebPage, runWebSearch } from "./WebResearchTools";
+import { buildBrowserCaptureCommand } from "./BrowserCapture";
 
 function buildDiffHunks(beforeText: string, afterText: string) {
   const before = beforeText.split(/\r?\n/);
@@ -79,7 +80,7 @@ export interface ToolResult {
 export const BUILTIN_TOOL_NAMES = [
   "readFile", "writeFile", "applyPatch", "searchFiles", "grepSearch",
   "listFiles", "fileTree", "getDiagnostics", "runTerminal", "runCommand",
-  "runTests", "runLinter", "httpRequest", "webSearch", "fetchWebPage", "findRelevantFiles", "listTools", "listMcpTools"
+  "runTests", "runLinter", "httpRequest", "webSearch", "fetchWebPage", "browserCapture", "findRelevantFiles", "listTools", "listMcpTools"
 ] as const;
 
 export class ToolRegistry {
@@ -144,6 +145,7 @@ export class ToolRegistry {
     httpRequest: (mid, c) => this.httpRequestTool(mid, String(c.args.method || "GET"), String(c.args.url || ""), c.args.headers as Record<string, string> | undefined, c.args.body ? String(c.args.body) : undefined, Boolean(c.args.__approved)),
     webSearch: (mid, c) => this.webSearchTool(mid, String(c.args.query || ""), Boolean(c.args.__approved)),
     fetchWebPage: (mid, c) => this.fetchWebPageTool(mid, String(c.args.url || ""), Boolean(c.args.__approved)),
+    browserCapture: (mid, c) => this.browserCaptureTool(mid, String(c.args.url || ""), Boolean(c.args.__approved)),
     findRelevantFiles: (mid, c) => this.findRelevantFilesTool(mid, String(c.args.query || "")),
     runTerminal: (mid, c) => this.runTerminal(mid, String(c.args.command || ""), Boolean(c.args.__approved)),
     runCommand: (mid, c) => this.runCommandTool(
@@ -644,6 +646,94 @@ export class ToolRegistry {
       message: r.summary
     });
     return { ok: r.ok, summary: r.summary, data: r.data };
+  }
+
+  private async browserCaptureTool(missionId: string, url: string, approved?: boolean): Promise<ToolResult> {
+    const cfg = vscode.workspace.getConfiguration();
+    if (!cfg.get<boolean>("myAi.browser.enabled", false)) {
+      return {
+        ok: false,
+        summary:
+          "browserCapture is disabled. Set myAi.browser.enabled and myAi.browser.captureCommand (must include {url} and {outPath}). Or use an MCP Playwright server — see AGENT_CAPABILITIES_PLAN.md."
+      };
+    }
+    const template = String(cfg.get<string>("myAi.browser.captureCommand", "") || "");
+    const uv = validateUrl(url);
+    if (!uv.valid) {
+      return { ok: false, summary: `browserCapture rejected: ${uv.reason}` };
+    }
+    const root = vscode.workspace.workspaceFolders?.[0]?.uri.fsPath;
+    if (!root) {
+      return { ok: false, summary: "No workspace folder; cannot write capture file." };
+    }
+    const diskFolder = cfg.get<string>("myAi.missions.diskStoreFolder", ".my-ai-extension");
+    const capDir = path.join(root, diskFolder, "browser-captures");
+    try {
+      await vscode.workspace.fs.createDirectory(vscode.Uri.file(capDir));
+    } catch {
+      // exists
+    }
+    const ext = String(cfg.get<string>("myAi.browser.captureFileExtension", "png") || "png").replace(/[^a-z0-9]/gi, "") || "png";
+    const outPath = path.join(capDir, `capture-${Date.now()}.${ext}`);
+
+    const built = buildBrowserCaptureCommand(template, url, outPath);
+    if (!built.ok) {
+      return { ok: false, summary: built.reason };
+    }
+
+    const cmdValidation = validateCommand(built.command);
+    if (!cmdValidation.valid) {
+      return { ok: false, summary: `browserCapture command rejected: ${cmdValidation.reason}` };
+    }
+
+    const decision = this.policyEngine().decide({ action: "run_command" });
+    if (!decision.allowed) return this.policyBlocked(decision.reason);
+    if (decision.requiresApproval && !approved) {
+      return {
+        ok: false,
+        summary: "Approval required before browser capture command.",
+        requiresApproval: {
+          kind: "terminal",
+          title: "Browser / screenshot capture",
+          details: trimText(built.command, 2000)
+        }
+      };
+    }
+
+    const timeoutMs = cfg.get<number>("myAi.browser.captureTimeoutMs", 120_000);
+    const maxOut = cfg.get<number>("myAi.browser.captureMaxOutputBytes", 65_536);
+    const result = await runCommand({
+      command: built.command,
+      cwd: root,
+      timeoutMs,
+      maxOutputBytes: maxOut
+    });
+
+    const summary = result.timedOut
+      ? `browserCapture timed out after ${result.durationMs}ms`
+      : result.exitCode === 0
+        ? `browserCapture finished (${result.durationMs}ms); output: ${outPath}`
+        : `browserCapture failed (exit ${result.exitCode}, ${result.durationMs}ms)`;
+
+    await this.missionStore.saveEvent(missionId, {
+      level: result.exitCode === 0 && !result.timedOut ? "info" : "warn",
+      source: "tool:browserCapture",
+      message: summary,
+      data: { exitCode: result.exitCode, outPath, timedOut: result.timedOut }
+    });
+
+    return {
+      ok: result.exitCode === 0 && !result.timedOut,
+      summary,
+      data: {
+        exitCode: result.exitCode,
+        stdout: result.stdout,
+        stderr: result.stderr,
+        timedOut: result.timedOut,
+        durationMs: result.durationMs,
+        outputPath: outPath
+      }
+    };
   }
 
   private async fetchWebPageTool(missionId: string, url: string, approved?: boolean): Promise<ToolResult> {
