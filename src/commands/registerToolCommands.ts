@@ -2,11 +2,14 @@ import * as vscode from "vscode";
 import { ToolRegistry } from "../tools/ToolRegistry";
 import { McpRegistry } from "../tools/McpRegistry";
 import { GlobalMemoryStore } from "../memory/GlobalMemoryStore";
+import { SecretStore } from "../storage/SecretStore";
+import { BRAVE_WEB_SEARCH_SECRET_KEY } from "../providers/providerCredentialKeys";
 
 export function registerToolCommands(
   tools: ToolRegistry,
   mcp: McpRegistry,
-  globalMemory: GlobalMemoryStore
+  globalMemory: GlobalMemoryStore,
+  secrets: SecretStore
 ): vscode.Disposable[] {
   const disposables: vscode.Disposable[] = [];
 
@@ -82,6 +85,49 @@ export function registerToolCommands(
       ].join("\n");
       const doc = await vscode.workspace.openTextDocument({ language: "markdown", content });
       await vscode.window.showTextDocument(doc, { preview: false });
+    })
+  );
+
+  disposables.push(
+    vscode.commands.registerCommand("myAi.setBraveSearchApiKey", async () => {
+      const key = await vscode.window.showInputBox({
+        title: "Brave Search API",
+        prompt: "Paste your Brave Search API subscription token (X-Subscription-Token)",
+        password: true,
+        ignoreFocusOut: true,
+        placeHolder: "BSA…",
+        validateInput: (v) => {
+          const t = v.trim();
+          if (!t) return "Enter a non-empty token, or press Escape to cancel.";
+          if (t.length > 512) return "Token is too long.";
+          return undefined;
+        }
+      });
+      if (key === undefined) return;
+      const trimmed = key.trim();
+      if (!trimmed) return;
+      await secrets.set(BRAVE_WEB_SEARCH_SECRET_KEY, trimmed);
+      void vscode.window.showInformationMessage(
+        "Brave Search API key saved. Set myAi.webSearch.provider to brave and enable myAi.webResearch.enabled to use webSearch with Brave."
+      );
+    })
+  );
+
+  disposables.push(
+    vscode.commands.registerCommand("myAi.clearBraveSearchApiKey", async () => {
+      const existing = await secrets.get(BRAVE_WEB_SEARCH_SECRET_KEY);
+      if (!existing?.trim()) {
+        void vscode.window.showInformationMessage("No Brave Search API key is stored.");
+        return;
+      }
+      const pick = await vscode.window.showWarningMessage(
+        "Remove the stored Brave Search API key from Secret Storage?",
+        { modal: true },
+        "Remove"
+      );
+      if (pick !== "Remove") return;
+      await secrets.delete(BRAVE_WEB_SEARCH_SECRET_KEY);
+      void vscode.window.showInformationMessage("Brave Search API key removed.");
     })
   );
 

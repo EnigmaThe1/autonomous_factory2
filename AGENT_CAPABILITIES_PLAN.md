@@ -51,15 +51,15 @@ Example command:
 
 | Item | Behavior |
 |------|-----------|
-| **`myAi.webSearch.provider`** | `duckduckgo` (default) — DuckDuckGo instant-answer JSON API (fair use; no key). `brave` — [Brave Search API](https://api.search.brave.com); store subscription token in VS Code Secret Storage under **`myAi.webSearch.braveApiKey`** (never in `settings.json`). |
+| **`myAi.webSearch.provider`** | `duckduckgo` (default) — DuckDuckGo instant-answer JSON API (fair use; no key). `brave` — [Brave Search API](https://api.search.brave.com). Store the subscription token with **Command Palette → “My AI: Set Brave Search API Key”** (Secret Storage key `myAi.webSearch.braveApiKey`; never in `settings.json`). **“My AI: Clear Brave Search API Key”** removes it. |
 | **`myAi.webSearch.minIntervalMs`** | Optional minimum milliseconds between **`webSearch`** HTTP calls after approval (`0` = off). Reduces accidental API hammering. |
 
-## Phase 4 — Skills UX
+## Phase 4 — Skills UX (shipped)
 
-| Step | Detail |
-|------|--------|
-| Command | `My AI: Open workspace skills folder` (create `.my-ai/skills` + sample). |
-| Import | Copy-pack from repo; glob patterns in settings. |
+| Item | Behavior |
+|------|-----------|
+| **Open skills folder** | **My AI: Open Workspace Skills Folder** — creates `.my-ai/skills`, seeds `README.md` if missing. |
+| **Globs / import** | Default patterns include `docs/agent-skills/**/*.md`; add paths in **myAi.skills.globPatterns** or copy skill packs into the workspace. |
 
 ## Phase 5 — “Lazy” tool catalog (design)
 

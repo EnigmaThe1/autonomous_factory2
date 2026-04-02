@@ -86,7 +86,7 @@ export async function activate(context: vscode.ExtensionContext) {
     vscode.window.registerWebviewViewProvider("myAi.sidebar", sidebar, {
       webviewOptions: { retainContextWhenHidden: true }
     }),
-    registerCommands(sidebar, orchestrator, missionStore, tools, mcp, globalMemory, traceLogger, templates),
+    registerCommands(sidebar, orchestrator, missionStore, tools, mcp, globalMemory, traceLogger, secrets, templates),
     runner,
     mcp
   );

@@ -12,6 +12,7 @@ import { registerApprovalCommands } from "./registerApprovalCommands";
 import { registerToolCommands } from "./registerToolCommands";
 import { registerTraceCommands } from "./registerTraceCommands";
 import { registerTemplateCommands } from "./registerTemplateCommands";
+import { SecretStore } from "../storage/SecretStore";
 
 export {
   editAgentRoutingForMission,
@@ -29,13 +30,14 @@ export function registerCommands(
   mcp: McpRegistry,
   globalMemory: GlobalMemoryStore,
   traceLogger: ExtensionTraceLogger,
+  secrets: SecretStore,
   templates?: MissionTemplateStore
 ): vscode.Disposable {
   const disposables: vscode.Disposable[] = [
     vscode.commands.registerCommand("myAi.openChat", () => sidebar.reveal()),
     ...registerMissionCommands(sidebar, orchestrator, store),
     ...registerApprovalCommands(sidebar, orchestrator, store, tools),
-    ...registerToolCommands(tools, mcp, globalMemory),
+    ...registerToolCommands(tools, mcp, globalMemory, secrets),
     ...registerTraceCommands(traceLogger),
     ...(templates ? registerTemplateCommands(sidebar, orchestrator, store, templates) : [])
   ];

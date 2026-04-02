@@ -81,6 +81,14 @@
         "title": "My AI: Open Workspace Skills Folder"
       },
       {
+        "command": "myAi.setBraveSearchApiKey",
+        "title": "My AI: Set Brave Search API Key"
+      },
+      {
+        "command": "myAi.clearBraveSearchApiKey",
+        "title": "My AI: Clear Brave Search API Key"
+      },
+      {
         "command": "myAi.listMcpSessions",
         "title": "My AI: List MCP Sessions"
       },
@@ -377,7 +385,7 @@
           "type": "string",
           "enum": ["duckduckgo", "brave"],
           "default": "duckduckgo",
-          "description": "webSearch backend: duckduckgo (instant answer API; fair use) or brave (Brave Search API; store API key in Secret Storage as myAi.webSearch.braveApiKey)."
+          "description": "webSearch backend: duckduckgo (instant answer API; fair use) or brave (Brave Search API). For brave, run command My AI: Set Brave Search API Key (stores myAi.webSearch.braveApiKey in Secret Storage)."
         },
         "myAi.webSearch.minIntervalMs": {
           "type": "number",

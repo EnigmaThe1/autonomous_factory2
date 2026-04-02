@@ -184,5 +184,5 @@ See **`AGENT_CAPABILITIES_PLAN.md`** for the full roadmap (browser via MCP, futu
 
 - [x] **Phase 1** — Workspace skills (globs, cache, system prompt injection); `webSearch` + `fetchWebPage` gated by `myAi.webResearch.enabled`; `HttpClient.maxResponseBodyChars`; command **Open Workspace Skills Folder**
 - [x] **Phase 2** — MCP Playwright recipe in `AGENT_CAPABILITIES_PLAN.md`; optional **`browserCapture`** CLI hook (`myAi.browser.*`)
-- [x] **Phase 3** — `myAi.webSearch.provider` (duckduckgo \| brave + `myAi.webSearch.braveApiKey` secret); `myAi.webSearch.minIntervalMs` cooldown
-- [ ] **Phase 4+** — Skills UX polish, lazy tool catalog, etc. (see `AGENT_CAPABILITIES_PLAN.md`)
+- [x] **Phase 3** — `myAi.webSearch.provider` (duckduckgo \| brave + `myAi.webSearch.braveApiKey` secret); `myAi.webSearch.minIntervalMs` cooldown; commands **Set / Clear Brave Search API Key**
+- [x] **Phase 4** — Skills UX documented as shipped (`Open Workspace Skills Folder`, glob defaults); lazy tool catalog remains future work in `AGENT_CAPABILITIES_PLAN.md`
