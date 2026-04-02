@@ -710,6 +710,11 @@
           "maximum": 200000,
           "description": "Maximum characters for the prompt sent to the LLM. Sections are progressively trimmed when exceeding 80% of this budget."
         },
+        "myAi.agents.lazyToolPrompt": {
+          "type": "boolean",
+          "default": false,
+          "description": "Use a shorter TOOL cheat sheet in the user prompt; agents should call listTools and listMcpTools to discover git, docker, http, webSearch, and other builtins. Saves context tokens."
+        },
         "myAi.index.maxFiles": {
           "type": "number",
           "default": 500,

@@ -7,7 +7,7 @@ This plan adds documentation lookup, workspace skills, optional web research, an
 1. **Off by default** for network-heavy or ambiguous features; operators opt in via settings.
 2. **Reuse trust model**: new HTTP-backed tools use the same `http_request` policy as `httpRequest` (approval + URL validation + metadata host blocks).
 3. **No silent installs**: the extension does not download or register arbitrary tools from the internet; new capabilities are **MCP servers**, **workspace files**, or **explicit config**.
-4. **Lazy tool exposure**: keep `listTools` / `listMcpTools` as discovery; prompt templates stay concise; optional **capability bundles** in docs only (not auto-loaded).
+4. **Lazy tool exposure**: keep `listTools` / `listMcpTools` as discovery; optional **`myAi.agents.lazyToolPrompt`** uses a short inline cheat sheet (Phase 5). Optional **capability bundles** in docs only (not auto-loaded).
 
 ---
 
@@ -61,11 +61,12 @@ Example command:
 | **Open skills folder** | **My AI: Open Workspace Skills Folder** — creates `.my-ai/skills`, seeds `README.md` if missing. |
 | **Globs / import** | Default patterns include `docs/agent-skills/**/*.md`; add paths in **myAi.skills.globPatterns** or copy skill packs into the workspace. |
 
-## Phase 5 — “Lazy” tool catalog (design)
+## Phase 5 — “Lazy” tool catalog (shipped, opt-in)
 
-- Host keeps **full** tool list on disk or in MCP only.
-- Orchestrator may pass **short** builtin list + “call `listMcpTools` for servers X”.
-- Not changing model APIs in Phase 1; revisit when context limits bite.
+| Item | Behavior |
+|------|-----------|
+| **`myAi.agents.lazyToolPrompt`** | Default **false** — full TOOL cheat sheet in the user prompt (includes **writeFile**, **applyPatch**, **runTerminal**, git, docker, db, http, web, MCP patterns). When **true**, a **short** sheet plus explicit guidance to run **`listTools`** (builtins + adapter names) and **`listMcpTools`** (MCP names) before using tools not shown. |
+| **MCP / disk** | Full definitions stay in the host (`ToolRegistry`, MCP sessions); nothing new persisted. |
 
 ---
 
