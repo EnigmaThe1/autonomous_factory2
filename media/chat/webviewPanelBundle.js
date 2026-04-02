@@ -71,6 +71,18 @@ function missionStartBlueprintHintText(settings) {
   return bits.join(" · ");
 }
 
+/** Read-only rows for Settings tab (same flags as Chat start-mission hint). */
+function missionBlueprintSettingsRowsHtml(settings) {
+  if (!settings) return "";
+  const bm = !!settings.missionBlueprintMode;
+  const pre = !!settings.missionPreBlueprintClarification;
+  const apr = !!settings.missionRequireBlueprintApproval;
+  return `
+    <div class="setting-row"><span>Mission blueprint mode</span><strong>${bm ? "yes" : "no"}</strong></div>
+    <div class="setting-row"><span>Pre-blueprint Q&amp;A</span><strong>${pre ? "yes" : "no"}</strong></div>
+    <div class="setting-row"><span>Require blueprint approval</span><strong>${apr ? "yes" : "no"}</strong></div>`;
+}
+
 function renderChat(snapshot, opts = {}) {
   const sig = chatPanelSig(snapshot, state.chatBuffer, state.chatHistory, state.agentStream);
   if (!withSig("lastChatSig", sig, opts.force)) return;
@@ -429,6 +441,7 @@ function renderSettings(snapshot, opts = {}) {
     <div class="setting-row"><span>Allow terminal</span><strong>${s.allowTerminal ? 'yes' : 'no'}</strong></div>
     <div class="setting-row"><span>Require write approval</span><strong>${s.requireWriteApproval ? 'yes' : 'no'}</strong></div>
     <div class="setting-row"><span>Auto reveal on activation</span><strong>${s.autoRevealOnActivation ? 'yes' : 'no'}</strong></div>
+    ${missionBlueprintSettingsRowsHtml(s)}
     <div class="setting-row"><span>Default tab</span><strong>${escapeHtml(s.defaultTab)}</strong></div>`;
 
   const providerSelect = document.getElementById('settingDefaultProvider');

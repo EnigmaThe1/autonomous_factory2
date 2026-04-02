@@ -1869,6 +1869,7 @@ test("createPanelRenderers: chat and settings model pickers use provider-aware o
 
     panels.renderSettings(snapshot, { force: true });
     assert.match(els.settingsPanel.innerHTML, /Effective for provider/);
+    assert.match(els.settingsPanel.innerHTML, /Mission blueprint mode/);
     assert.equal(rows.settings.length, 2);
     assert.equal(rows.settings[0]._kids[0].dataset.model, "qwen2.5-coder");
     assert.equal(byId.btnSettingDefaultModelCatalog.dataset.providerId, "ollama");

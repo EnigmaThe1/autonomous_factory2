@@ -202,7 +202,7 @@ See **`AGENT_CAPABILITIES_PLAN.md`** for the full roadmap (browser via MCP, futu
 
 ---
 
-## Mission autonomy & upfront planning (core v0.18.40+; fidelity v0.18.41+; validator pause v0.18.42+; pre-blueprint v0.18.43+; multiline submit v0.18.44+; blueprint export v0.18.45+; export + pre-Q&A v0.18.46+; copy blueprint v0.18.47+; Chat blueprint hint v0.18.48+)
+## Mission autonomy & upfront planning (core v0.18.40+; fidelity v0.18.41+; validator pause v0.18.42+; pre-blueprint v0.18.43+; multiline submit v0.18.44+; blueprint export v0.18.45+; export + pre-Q&A v0.18.46+; copy blueprint v0.18.47+; Chat blueprint hint v0.18.48+; Settings blueprint rows v0.18.49+)
 
 **Spec**: **`MISSION_AUTONOMY_AND_PLANNING_BLUEPRINT.md`**.
 
@@ -213,7 +213,7 @@ See **`AGENT_CAPABILITIES_PLAN.md`** for the full roadmap (browser via MCP, futu
 - [x] **`myAi.missions.blueprintMode`** — start mission with blueprint planner item; parse → `awaiting_approval` + `awaiting_input` when **`myAi.missions.requireBlueprintApproval`**; auto-approve path synthesizes queue.
 - [x] **Commands** — `myAi.approveMissionBlueprint`, `rejectMissionBlueprint`, `requestMissionBlueprintRevision`, `openMissionAutonomyBlueprint`, **`myAi.exportMissionBlueprint`**, **`myAi.copyMissionBlueprint`** (markdown + pre-Q&A to clipboard or file).
 - [x] **Orchestrator** — loop exits on `awaiting_input`; blueprint blocks premature completion; optional **`myAi.missions.architectPassAfterValidator`**; global memory mirror on approve.
-- [x] **Webview** — Missions inspector: blueprint status, progress, approve/reject/revision, **copy / export blueprint (markdown)**; **Chat** tab shows live workspace **blueprint / pre-Q&A / approval** hint above Start Mission; Settings: open blueprint doc.
+- [x] **Webview** — Missions inspector: blueprint status, progress, approve/reject/revision, **copy / export blueprint (markdown)**; **Chat** tab shows live workspace **blueprint / pre-Q&A / approval** hint above Start Mission; **Settings** tab read-only rows for the same three flags; Settings: open blueprint doc.
 - [x] **Researcher** — uses web tools hint when **`myAi.webResearch.enabled`**.
 - [x] **`myAi.agents.enforceDefaultCodingStandards`** + shared fragments (planner/implementer/reviewer/architect).
 - [x] **Plan fidelity / drift (Phase 10)** — **`myAi.missions.blueprintFidelityCheck`**: after implementer completion, **`MissionFileTracker.flush`**, **`computePlanFidelityDrift`** vs blueprint text + path allowlist; optional reviewer **“Plan fidelity — unexpected file paths”**; `blueprintPlanFidelity` unit tests.
