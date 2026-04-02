@@ -79,7 +79,7 @@ Example command:
 
 | Item | Behavior |
 |------|-----------|
-| **`myAi.tools.listMcpToolsSummaryMaxChars`** | Default **0** — **`listMcpTools`** returns full **`McpToolDescriptor[]`** (including **`inputSchema`**). When **> 0**, each row is slimmed (no **`inputSchema`**, description trimmed) and trailing tools are dropped until **`JSON.stringify(data)`** fits the budget; a sentinel row **`__myAi__.list_budget`** explains omissions. **`data`** stays an **array** (sidebar / command palette unchanged). |
+| **`myAi.tools.listMcpToolsSummaryMaxChars`** | Default **0** — **`listMcpTools`** returns full **`McpToolDescriptor[]`** (including **`inputSchema`**). When **> 0**, each row is slimmed (no **`inputSchema`**, description trimmed), optional **`inputPropertyNames`** lists top-level JSON Schema **`properties`** keys (up to 36) when present; trailing tools are dropped until **`JSON.stringify(data)`** fits the budget; a sentinel row **`__myAi__.list_budget`** explains omissions. **`data`** stays an **array** (sidebar / command palette unchanged). |
 | **Lazy prompt** | Recommended **24000–64000** with **`myAi.agents.lazyToolPrompt`** so MCP discovery does not flood the context with JSON Schema. |
 
 ## Phase 8 — External adapter hints in `listTools` (shipped)
@@ -87,6 +87,12 @@ Example command:
 | Item | Behavior |
 |------|-----------|
 | **`hints` + `external`** | When **`myAi.tools.listToolsHintsMaxChars` > 0**, after builtin and git/docker/db rows, **`hints`** includes one row per configured HTTP adapter: **`tool`:** `ext.<name>` and a **`hint`** built from description, mutating flag, and HTTP method — **no URL**, so adapter endpoints are not copied into the model context via hints. |
+
+## Phase 9 — MCP summary `inputPropertyNames` (shipped)
+
+| Item | Behavior |
+|------|-----------|
+| **Compact `listMcpTools`** | When **`listMcpToolsSummaryMaxChars` > 0**, each tool may include **`inputPropertyNames`**: top-level keys from **`inputSchema.properties`** (best-effort; no `$ref` / `allOf` expansion). Omitted when the schema has no usable **`properties`** object. |
 
 ---
 

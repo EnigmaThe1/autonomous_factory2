@@ -313,6 +313,8 @@ export interface McpToolDescriptor {
   name: string;
   description?: string;
   inputSchema?: unknown;
+  /** Present in compact `listMcpTools` summaries: top-level `properties` keys from inputSchema. */
+  inputPropertyNames?: string[];
   sessionState?: "disconnected" | "starting" | "ready" | "error";
 }
 

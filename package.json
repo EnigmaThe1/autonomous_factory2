@@ -490,7 +490,7 @@
           "default": 0,
           "minimum": 0,
           "maximum": 2000000,
-          "description": "When > 0, listMcpTools strips inputSchema and trims descriptions so JSON.stringify(data) stays within this character budget; may drop trailing tools and append a __myAi__.list_budget row. 0 = full MCP descriptors (legacy)."
+          "description": "When > 0, listMcpTools strips inputSchema, adds inputPropertyNames from schema properties when available, trims descriptions, and fits JSON.stringify(data) to this budget; may drop trailing tools and append __myAi__.list_budget. 0 = full MCP descriptors (legacy)."
         },
         "myAi.missions.requireImplementerBeforeComplete": {
           "type": "boolean",

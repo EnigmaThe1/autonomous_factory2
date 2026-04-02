@@ -1,6 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { compactMcpToolDescriptors } from "../tools/mcpToolsListCompact";
+import { compactMcpToolDescriptors, extractJsonSchemaPropertyKeys } from "../tools/mcpToolsListCompact";
 import type { McpToolDescriptor } from "../types";
 
 const sample: McpToolDescriptor[] = [
@@ -20,6 +20,24 @@ test("compactMcpToolDescriptors: maxChars > 0 strips inputSchema", () => {
   assert.equal(out.length, 2);
   assert.equal(out[0].inputSchema, undefined);
   assert.equal(out[0].description, "one");
+});
+
+test("compactMcpToolDescriptors: adds inputPropertyNames from schema", () => {
+  const out = compactMcpToolDescriptors(sample, 500_000);
+  assert.deepEqual(out[0].inputPropertyNames, ["x"]);
+  assert.equal(out[1].inputPropertyNames, undefined);
+});
+
+test("extractJsonSchemaPropertyKeys: empty without properties", () => {
+  assert.equal(extractJsonSchemaPropertyKeys({ type: "object" }), undefined);
+  assert.equal(extractJsonSchemaPropertyKeys(null), undefined);
+});
+
+test("extractJsonSchemaPropertyKeys: lists keys in order", () => {
+  const keys = extractJsonSchemaPropertyKeys({
+    properties: { url: {}, depth: {}, foo: {} }
+  });
+  assert.deepEqual(keys, ["url", "depth", "foo"]);
 });
 
 test("compactMcpToolDescriptors: tiny budget drops rows and adds sentinel", () => {
