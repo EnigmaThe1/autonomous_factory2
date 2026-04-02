@@ -100,6 +100,7 @@ const els = {
   reviewFocusedBundle: document.getElementById("reviewFocusedBundle"),
   openBundlesTab: document.getElementById("openBundlesTab"),
   openSettings: document.getElementById("openSettings"),
+  openAgentCapabilitiesDoc: document.getElementById("openAgentCapabilitiesDoc"),
   focusChatInput: document.getElementById("focusChatInput"),
   approveFocusedBundle: document.getElementById("approveFocusedBundle"),
   rejectFocusedBundle: document.getElementById("rejectFocusedBundle"),

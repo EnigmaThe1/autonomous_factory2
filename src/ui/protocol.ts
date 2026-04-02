@@ -260,6 +260,7 @@ export type UiToExtMessage =
   | { type: "listMcpTools" }
   | { type: "listMcpSessions" }
   | { type: "openMcpConfig" }
+  | { type: "openAgentCapabilitiesDoc" }
   | { type: "searchGlobalMemory"; query: string }
   | { type: "generateMissionReport"; missionId: string }
   | { type: "saveQuickSettings"; defaultProvider: string; defaultModel: string; heartbeatSeconds: number; allowTerminal: boolean; requireWriteApproval: boolean; autoRevealOnActivation: boolean; defaultTab: string }

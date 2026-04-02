@@ -171,6 +171,7 @@ els.reviewFocusedHunks?.addEventListener('click', () => state.snapshot?.focusedM
 els.reviewFocusedBundle?.addEventListener('click', () => state.snapshot?.focusedMissionId && post('reviewBundleSummary', { missionId: state.snapshot.focusedMissionId }));
 els.openBundlesTab?.addEventListener('click', () => setActiveTab('bundles'));
 els.openSettings?.addEventListener('click', () => post('openSettings'));
+els.openAgentCapabilitiesDoc?.addEventListener('click', () => post('openAgentCapabilitiesDoc'));
 els.focusChatInput?.addEventListener('click', () => els.chatPrompt?.focus());
 els.approveFocusedBundle?.addEventListener('click', () => state.selectedBundle?.id && postWithInteractionId('approveBundle', { bundleId: state.selectedBundle.id }));
 els.rejectFocusedBundle?.addEventListener('click', () => state.selectedBundle?.id && postWithInteractionId('rejectBundle', { bundleId: state.selectedBundle.id }));

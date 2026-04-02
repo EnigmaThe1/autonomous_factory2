@@ -38,6 +38,7 @@ import {
   dispatchUi_reviewPendingDiff,
   dispatchUi_reviewPendingHunks
 } from "./aiSidebarDispatchApprovalsReview";
+import { dispatchUi_openAgentCapabilitiesDoc } from "./aiSidebarDispatchHelp";
 import {
   dispatchUi_createStarterMcpConfig,
   dispatchUi_listMcpSessions,
@@ -143,6 +144,8 @@ export async function dispatchUiToExtMessage(
       return await dispatchUi_listMcpSessions(host);
     case "openMcpConfig":
       return await dispatchUi_openMcpConfig(host);
+    case "openAgentCapabilitiesDoc":
+      return await dispatchUi_openAgentCapabilitiesDoc(host);
     case "createStarterMcpConfig":
       return await dispatchUi_createStarterMcpConfig(host);
     case "saveMissionRouting":

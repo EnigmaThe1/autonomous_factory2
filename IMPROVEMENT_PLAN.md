@@ -197,3 +197,4 @@ See **`AGENT_CAPABILITIES_PLAN.md`** for the full roadmap (browser via MCP, futu
 - [x] **Tools tab MCP** — webview **Open MCP Config** → `openMcpConfig` → `dispatchUi_openMcpConfig` → command
 - [x] **Phase 13 (agent capabilities)** — `myAi.applyLazyDiscoveryPreset` / `myAi.revertLazyDiscoveryPreset` workspace commands; `onCommand` activation for open MCP + lazy presets
 - [x] **Phase 14 (agent capabilities)** — `myAi.openAgentCapabilitiesDoc` + `extensionUri`; `registerCommands` / `registerToolCommands` take extension root for doc path
+- [x] **Settings tab docs** — webview `openAgentCapabilitiesDoc` → `dispatchUi_openAgentCapabilitiesDoc` → command (`aiSidebarDispatchHelp.ts`)
