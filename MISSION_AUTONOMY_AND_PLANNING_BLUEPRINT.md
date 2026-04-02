@@ -308,6 +308,23 @@ Phase 10 Plan fidelity (after Phase 4 + file tracker integration)
 
 ---
 
+## Readiness & cross-cutting items (review pass)
+
+These were double-checked against **`IMPROVEMENT_PLAN.md`** (shipped orchestrator, runner, reports) and the host **`MissionStatus`** / **`BackgroundMissionRunner`** behavior. Address them during implementation so nothing fights the new flow.
+
+| Topic | Why it matters | Where to handle |
+|--------|----------------|-----------------|
+| **Pre-blueprint clarification** | Product ask: short **Q&A after mission text**, *before* full blueprint generation, so the model does not guess unstated constraints. | **Phase 3** — optional setting (e.g. `myAi.missions.preBlueprintClarification`) and one planner/researcher turn that outputs **structured questions** + pause; user answers in webview; then run blueprint planner with Q&A in context. |
+| **Mission status vs approval pause** | Today **`queued` / `running`** drive **`BackgroundMissionRunner`** and stall recovery. A mission **waiting only for plan approval** must **not** look like a stuck queue or trigger auto-replan. | **Phase 3** — use **`awaiting_input`** (with clear `blocker` / `blockReasonCode` if needed) **or** add an explicit status (e.g. `planning`) and teach **`BackgroundMissionRunner`**, dashboard filters, and webview copy to **exclude** “awaiting plan approval” from stall logic. |
+| **Heartbeat / runner lease** | **`tryAcquireRunnerLease`** and stall thresholds must not run destructive recovery while the mission is **only** waiting on human plan approval. | **Phase 3** — same as above; gate `decideStallRecovery` / tick paths on `mission.blueprint?.status !== "awaiting_approval"` (or equivalent). |
+| **Closure + validator vs blueprint** | **`missionClosurePolicy`** and **`validationState`** already gate completion; blueprint “all steps done” must **align** with validator closure so missions do not complete with an incomplete blueprint (or vice versa). | **Phase 4** — extend closure checks or add a single **pre-terminal** guard: `blueprint` satisfied **and** existing closure rules. Document interaction with **`shouldCollapseToComplete`**. |
+| **Mission events / audit** | Operators need a trail: blueprint generated, revised, approved, synthesized, amended. | **Phase 3–5** — append **`MissionEvent`** rows (or structured `source` tags) on each transition; mission report already surfaces events. |
+| **Memory mirror** | Semantic recall (`BaseAgent.askModel`) works best if the **approved** blueprint summary lives in **`mission.memory`**. | **Phase 3–4** — on approve, add a **`MemoryItem`** (e.g. kind `summary`, tags `["blueprint","approved"]`) with a trimmed text cap. |
+| **Sub-items / DECOMPOSE** | Existing **`WorkItem.subItems`** and **`DECOMPOSE:`** flow must **coexist** with `blueprintStepId` (either nest under a step or forbid double-decomposition per policy). | **Phase 4** — document policy in `blueprintSynthesis.ts` (recommend: one synthesized top-level item per blueprint step; internal decomposition unchanged). |
+| **VSIX / docs** | Ship this blueprint for operators (same pattern as **`AGENT_CAPABILITIES_PLAN.md`**). | Confirm **`MISSION_AUTONOMY_AND_PLANNING_BLUEPRINT.md`** is **not** listed in **`.vscodeignore`**. Optional command **“Open Mission Autonomy Blueprint”** later (like Phase 14 for capabilities). |
+
+---
+
 ## Risks & mitigations
 
 | Risk | Mitigation |
@@ -341,7 +358,8 @@ Use this as a **burn-down** when implementing:
 - [ ] Phase 8 — Researcher + web tools alignment
 - [ ] Phase 9 — Shared coding-standard fragments
 - [ ] Phase 10 — Plan fidelity / drift (optional)
+- [ ] **Cross-cutting** — § Readiness & cross-cutting items (pre-plan Q&A, runner/status, closure, events, memory, VSIX)
 
 ---
 
-*Document version: 1.0 — created as the concrete implementation blueprint for mission-level autonomy and upfront planning.*
+*Document version: 1.1 — added readiness / cross-cutting integration notes (runner, status, closure, Q&A, events, memory).*

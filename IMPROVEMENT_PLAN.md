@@ -204,4 +204,23 @@ See **`AGENT_CAPABILITIES_PLAN.md`** for the full roadmap (browser via MCP, futu
 
 ## Mission autonomy & upfront planning (blueprint — not yet implemented)
 
-Full phased plan for **agreed-upfront blueprint**, **approval gate**, **queue synthesis**, **blueprint progress UI**, **architect/gap pass**, **researcher+web alignment**, **shared coding defaults**, and optional **plan fidelity**. See **`MISSION_AUTONOMY_AND_PLANNING_BLUEPRINT.md`**.
+**Source of truth**: **`MISSION_AUTONOMY_AND_PLANNING_BLUEPRINT.md`** (v1.1+) — includes **readiness & cross-cutting** notes (pre-plan Q&A, `BackgroundMissionRunner` / status, closure alignment, events, memory).
+
+**Phases (burn-down)**:
+
+1. Blueprint types + persistence (mission + disk round-trip).
+2. Parseable blueprint output + `BlueprintParser` + planner contract.
+3. Agreement gate + lifecycle + commands / protocol (and runner/status integration per blueprint § Readiness).
+4. `synthesizeWorkItemsFromBlueprint` + `blueprintStepId` + progress + closure alignment.
+5. Webview blueprint UI + approval / revision / reject.
+6. Autonomous execution policy (stop reasons, settings).
+7. Architect / gap pass after milestones.
+8. Researcher + `webSearch` / `fetchWebPage` when web research enabled.
+9. Shared coding-standard instruction fragments.
+10. (Optional) Plan fidelity / drift vs `MissionFileTracker`.
+
+**First shippable slice**: Phases **1–4** + minimal **5** + **9**, behind **`myAi.missions.blueprintMode`** (start **false** until stable).
+
+**Depends on (already shipped per above)**: `MissionOrchestrator`, `MissionStore` + disk persistence, `WorkItem.dependsOn` / sub-items, `missionClosurePolicy`, `MissionFileTracker`, `missionProgressStats` / webview dashboard, `EnhancedContextCollector`, web research tools, mission report + events.
+
+**Ready to implement**: Yes — start **Phase 1** in `src/types.ts` + persistence layer; keep **legacy missions** (`blueprint` undefined) on current behavior until blueprint mode is on.
