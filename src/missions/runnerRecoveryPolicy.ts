@@ -2,6 +2,8 @@
  * Pure policy for background-runner stall / auto-replan decisions.
  * Keeps recovery behavior testable without the extension host.
  */
+import { clampMissionHeartbeatSeconds } from "../config/myAiSettingBounds";
+
 export type StallRecoveryDecision = "none" | "inject_replan" | "mark_blocked";
 
 export function decideStallRecovery(input: {
@@ -21,5 +23,5 @@ export function decideStallRecovery(input: {
 }
 
 export function leaseTtlMsFromHeartbeatSeconds(heartbeatSeconds: number): number {
-  return Math.max(3, heartbeatSeconds) * 2500;
+  return clampMissionHeartbeatSeconds(heartbeatSeconds) * 2500;
 }

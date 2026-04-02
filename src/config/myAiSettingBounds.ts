@@ -3,6 +3,15 @@
  * When schema min/max/default change, update here and the manifest together.
  */
 
+/** `myAi.ui.dashboardPollIntervalMs` */
+export const DASHBOARD_POLL_INTERVAL_MS_MIN = 2000;
+export const DASHBOARD_POLL_INTERVAL_MS_MAX = 120_000;
+export const DASHBOARD_POLL_INTERVAL_MS_DEFAULT = 25_000;
+
+export function clampDashboardPollIntervalMs(n: number): number {
+  return Math.min(DASHBOARD_POLL_INTERVAL_MS_MAX, Math.max(DASHBOARD_POLL_INTERVAL_MS_MIN, Math.floor(n)));
+}
+
 /** `myAi.ui.traceAutoRefreshIntervalMs` */
 export const TRACE_AUTO_REFRESH_INTERVAL_MS_MIN = 3000;
 export const TRACE_AUTO_REFRESH_INTERVAL_MS_MAX = 120_000;

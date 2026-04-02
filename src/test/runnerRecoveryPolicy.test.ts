@@ -54,7 +54,11 @@ test("decideStallRecovery: block when autoReplans exhausted", () => {
   );
 });
 
-test("leaseTtlMsFromHeartbeatSeconds matches runner convention", () => {
+test("leaseTtlMsFromHeartbeatSeconds matches runner convention (integer heartbeat seconds)", () => {
   assert.equal(leaseTtlMsFromHeartbeatSeconds(8), 20000);
   assert.equal(leaseTtlMsFromHeartbeatSeconds(3), 7500);
+});
+
+test("leaseTtlMsFromHeartbeatSeconds floors like clampMissionHeartbeatSeconds", () => {
+  assert.equal(leaseTtlMsFromHeartbeatSeconds(8.9), 20000);
 });

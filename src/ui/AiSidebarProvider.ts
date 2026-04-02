@@ -40,7 +40,9 @@ import {
 
 import {
   clampDashboardPollIntervalMs,
-  DASHBOARD_POLL_INTERVAL_MS_DEFAULT,
+  DASHBOARD_POLL_INTERVAL_MS_DEFAULT
+} from "../config/myAiSettingBounds";
+import {
   MCP_ONBOARDING_CACHE_TTL_MS,
   MCP_TOOLS_SESSIONS_TTL_MS,
   MISSION_HOST_TRUTH_COALESCE_MS,
