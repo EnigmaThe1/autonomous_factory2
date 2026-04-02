@@ -78,11 +78,17 @@ export function chatPanelSig(snapshot, chatBuffer, chatHistory, agentStream) {
   const recentToolResults = (focused?.memory || []).filter((item) => item.kind === "tool_result").slice(-4).reverse();
   const historyLen = chatHistory?.entries?.length ?? 0;
   const streamLen = agentStream?.text?.length ?? 0;
+  const pst = progressStatsFingerprint(snapshot?.focusedMissionId, snapshot?.missionProgressStats);
+  const ftitle = focused?.title ?? "";
+  const fstat = focused?.status ?? "";
   return JSON.stringify({
     buf: chatBuffer,
     mid: snapshot?.focusedMissionId,
     hl: historyLen,
     sl: streamLen,
+    pst,
+    ft: ftitle,
+    fs: fstat,
     cards: recentToolResults.map((i) => ({ id: i.id, ts: i.ts, t: i.text }))
   });
 }

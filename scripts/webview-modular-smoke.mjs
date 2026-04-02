@@ -759,6 +759,66 @@ test("missionInspectorSig and missionsListPanelSig: focused lifecycle summary (f
   assert.equal(list.fls, "Running now; implementer is active.");
 });
 
+test("formatDashboardMissionSummaryText", async () => {
+  const { formatDashboardMissionSummaryText } = await import(mediaChatUrl("missionProgressDashboard.js"));
+  assert.equal(formatDashboardMissionSummaryText(null), "0");
+  assert.equal(
+    formatDashboardMissionSummaryText({
+      missions: [],
+      missionList: { totalCount: 5, archivedCount: 0 }
+    }),
+    "5"
+  );
+  assert.equal(
+    formatDashboardMissionSummaryText({
+      missions: [
+        { status: "running" },
+        { status: "running" },
+        { status: "queued" },
+        { status: "awaiting_input" }
+      ],
+      missionList: { totalCount: 10, archivedCount: 0 }
+    }),
+    "10 • 2 running • 1 queued • 1 awaiting"
+  );
+});
+
+test("chatPanelSig includes progress + focused title/status", async () => {
+  const { chatPanelSig } = await import(mediaChatUrl("webviewSignatures.js"));
+  const snap = {
+    focusedMissionId: "m1",
+    focusedMission: {
+      id: "m1",
+      title: "Fix bug",
+      status: "running",
+      memory: []
+    },
+    missionProgressStats: {
+      m1: {
+        total: 2,
+        done: 0,
+        running: 1,
+        todo: 1,
+        blocked: 0,
+        failed: 0,
+        skipped: 0,
+        completionPercent: 0,
+        roundsCompleted: 1,
+        maxAutoRounds: 8,
+        elapsedMs: 1000,
+        avgStepMs: 0,
+        estimatedRemainingMs: 0,
+        dryRun: false
+      }
+    }
+  };
+  const o = JSON.parse(chatPanelSig(snap, "", { entries: [] }, null));
+  assert.equal(o.mid, "m1");
+  assert.equal(o.ft, "Fix bug");
+  assert.equal(o.fs, "running");
+  assert.ok(o.pst.startsWith("0|"));
+});
+
 test("formatMissionProgressStatsLineHtml and progressStatsFingerprint", async () => {
   const { formatMissionProgressStatsLineHtml } = await import(mediaChatUrl("missionProgressDashboard.js"));
   const { progressStatsFingerprint } = await import(mediaChatUrl("webviewSignatures.js"));

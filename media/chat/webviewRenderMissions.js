@@ -280,7 +280,11 @@ export function createMissionRenderer(deps) {
             : "";
         const cache = state.missionReportCache;
         const hasPreview = !!(cache && cache.missionId === m.id && cache.markdown && cache.markdown.length > 0);
-        const reportActions = `<div class="row compact wrap" style="margin:8px 0;"><button type="button" class="ghost" data-action="generateMissionReport" data-mission-id="${m.id}">${hasPreview ? "Regenerate report" : "Generate report"}</button></div>`;
+        const reportActions = `<div class="row compact wrap" style="margin:8px 0;"><button type="button" class="ghost" data-action="generateMissionReport" data-mission-id="${m.id}">${hasPreview ? "Regenerate report" : "Generate report"}</button>${
+          hasPreview
+            ? `<button type="button" class="ghost" data-action="copyMissionReport" data-mission-id="${m.id}" title="Copy markdown to clipboard">Copy report</button>`
+            : ""
+        }</div>`;
         const reportPreviewHtml = hasPreview
           ? `<details class="mission-report-preview" style="margin-bottom:12px;"><summary>Markdown report preview</summary><pre class="small-pre" style="max-height:280px;overflow:auto;white-space:pre-wrap;word-break:break-word;">${escapeHtml(String(cache.markdown).slice(0, 16000))}</pre></details>`
           : "";

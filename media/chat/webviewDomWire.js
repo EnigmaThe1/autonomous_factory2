@@ -100,6 +100,25 @@ document.body.addEventListener('click', e => {
   }
   if (action === 'editMissionDag') return post('editMissionDag', { missionId });
   if (action === 'generateMissionReport' && missionId) return post('generateMissionReport', { missionId });
+  if (action === 'copyMissionReport' && missionId) {
+    const c = state.missionReportCache;
+    const statusEl = globalThis.document?.getElementById?.("missionActionStatus");
+    if (!c || c.missionId !== missionId || !c.markdown) return;
+    const clip = globalThis.navigator?.clipboard;
+    if (!clip?.writeText) {
+      if (statusEl) statusEl.textContent = "Clipboard API unavailable.";
+      return;
+    }
+    void clip.writeText(c.markdown).then(
+      () => {
+        if (statusEl) statusEl.textContent = "Report copied to clipboard.";
+      },
+      () => {
+        if (statusEl) statusEl.textContent = "Could not copy (clipboard blocked).";
+      }
+    );
+    return;
+  }
   if (action === 'approve') return postWithInteractionId('approve', { missionId, approvalId });
   if (action === 'reject') return postWithInteractionId('reject', { missionId, approvalId });
   if (action === 'reviewPendingDiff') return post('reviewPendingDiff', { missionId, approvalId });

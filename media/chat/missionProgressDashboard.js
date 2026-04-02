@@ -1,4 +1,21 @@
 /**
+ * One-line missions summary for the dashboard header (`#summaryMissions`).
+ * @param {object|undefined} snapshot
+ */
+export function formatDashboardMissionSummaryText(snapshot) {
+  const total = snapshot?.missionList?.totalCount ?? snapshot?.missions?.length ?? 0;
+  const ms = snapshot?.missions || [];
+  const running = ms.filter((m) => m.status === "running").length;
+  const queued = ms.filter((m) => m.status === "queued").length;
+  const awaiting = ms.filter((m) => m.status === "awaiting_input").length;
+  const parts = [String(total)];
+  if (running) parts.push(`${running} running`);
+  if (queued) parts.push(`${queued} queued`);
+  if (awaiting) parts.push(`${awaiting} awaiting`);
+  return parts.join(" • ");
+}
+
+/**
  * Renders `SidebarSnapshot.missionProgressStats[id]` for mission cards and inspector.
  * @param {object|undefined} stats
  * @param {(s: string) => string} escapeHtml

@@ -1,5 +1,6 @@
 import { memoryPanelSig } from "./webviewSignatures.js";
 import { formatMissionMemoryTextHtml } from "./missionMemoryLabels.js";
+import { formatDashboardMissionSummaryText } from "./missionProgressDashboard.js";
 
 export function createSnapshotApply(deps) {
   const {
@@ -50,7 +51,7 @@ function applyMissionSectionSnapshot(snapshot, traceContext) {
     sectionSeq: traceContext?.sectionSeq
   }, 'debug');
   state.snapshot = snapshot;
-  els.summaryMissions.textContent = String(snapshot.missionList?.totalCount ?? snapshot.missions.length);
+  els.summaryMissions.textContent = formatDashboardMissionSummaryText(snapshot);
   els.summaryApprovals.textContent = String(snapshot.pendingApprovals.length);
   renderMissions(snapshot, interactionId);
   const activeTab = state.activeTab;
@@ -266,7 +267,7 @@ function renderSnapshot(snapshot, traceContext) {
   state.snapshot = snapshot;
   els.summaryProvider.textContent = snapshot.defaultProvider;
   els.summaryModel.textContent = snapshot.resolvedDefaultModel || snapshot.defaultModel;
-  els.summaryMissions.textContent = String(snapshot.missionList?.totalCount ?? snapshot.missions.length);
+  els.summaryMissions.textContent = formatDashboardMissionSummaryText(snapshot);
   els.summaryApprovals.textContent = String(snapshot.pendingApprovals.length);
   /**
    * Mission list + inspector must run before Chat/Providers and other panels.

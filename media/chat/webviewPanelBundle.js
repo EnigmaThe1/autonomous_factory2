@@ -11,6 +11,7 @@ import { formatMissionEventMessageHtml, formatMissionEventRowHtml } from "./miss
 import { formatMissionMemoryTextHtml } from "./missionMemoryLabels.js";
 import { syncProviderAwareModelPicker } from "./webviewModelPicker.js";
 import { createRoutingRenderer } from "./webviewRenderRouting.js";
+import { formatMissionProgressStatsLineHtml } from "./missionProgressDashboard.js";
 
 function formatHealthAge(ts) {
   const sec = Math.floor((Date.now() - ts) / 1000);
@@ -93,7 +94,14 @@ function renderChat(snapshot, opts = {}) {
     ? '<button type="button" id="btnClearChatHistory" class="ghost compact" style="margin-bottom:8px;" title="Clear conversation">New chat</button>'
     : '';
 
-  els.chatOutput.innerHTML = clearBtn + body + agentStreamHtml + (cards.length ? `<div class="section-title small" style="margin-top:10px;">Recent tool/result cards</div>${cards.join('')}` : '');
+  const focusedStrip = focused
+    ? `<div class="chat-focused-mission" style="margin-bottom:10px;padding:8px 10px;border-radius:8px;border:1px solid var(--vscode-widget-border, rgba(255,255,255,.12));background:var(--vscode-editor-inactiveSelectionBackground, rgba(127,127,127,.1));">
+         <div class="row split"><strong>${escapeHtml(focused.title)}</strong><span class="badge ${escapeHtml(focused.status)}">${escapeHtml(focused.status)}</span></div>
+         ${formatMissionProgressStatsLineHtml(snapshot.missionProgressStats?.[focused.id], escapeHtml)}
+       </div>`
+    : "";
+
+  els.chatOutput.innerHTML = clearBtn + focusedStrip + body + agentStreamHtml + (cards.length ? `<div class="section-title small" style="margin-top:10px;">Recent tool/result cards</div>${cards.join('')}` : '');
 
   const clearEl = document.getElementById('btnClearChatHistory');
   if (clearEl) {
