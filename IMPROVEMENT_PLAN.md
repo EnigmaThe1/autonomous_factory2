@@ -199,3 +199,9 @@ See **`AGENT_CAPABILITIES_PLAN.md`** for the full roadmap (browser via MCP, futu
 - [x] **Phase 14 (agent capabilities)** — `myAi.openAgentCapabilitiesDoc` + `extensionUri`; `registerCommands` / `registerToolCommands` take extension root for doc path
 - [x] **Settings tab docs** — webview `openAgentCapabilitiesDoc` → `dispatchUi_openAgentCapabilitiesDoc` → command (`aiSidebarDispatchHelp.ts`)
 - [x] **Tools tab lazy preset** — webview apply/revert lazy discovery → `dispatchUi_*` → workspace commands
+
+---
+
+## Mission autonomy & upfront planning (blueprint — not yet implemented)
+
+Full phased plan for **agreed-upfront blueprint**, **approval gate**, **queue synthesis**, **blueprint progress UI**, **architect/gap pass**, **researcher+web alignment**, **shared coding defaults**, and optional **plan fidelity**. See **`MISSION_AUTONOMY_AND_PLANNING_BLUEPRINT.md`**.

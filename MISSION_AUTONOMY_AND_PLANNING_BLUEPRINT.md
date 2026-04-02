@@ -1,0 +1,347 @@
+# Mission autonomy & upfront planning — implementation blueprint
+
+This document is the **full engineering plan** for the behaviors discussed in product conversations:
+
+- **Upfront blueprint**: after the user states the mission goal, the system produces a **complete, structured plan** (requirements, architecture intent, ordered work packages) — not only “first step then react.”
+- **Agreement gate**: **questions and plan approval happen early** (right after mission input). After approval, the mission runs **as autonomously as possible** until the blueprint is satisfied or a real blocker appears.
+- **Progress truth**: the UI and store expose **what was planned**, **what is done**, and **what remains** so operators know distance-to-goal.
+- **High-level oversight**: a **non-implementer** role (architect / mission director) can **review the whole** against the agreed blueprint and enqueue follow-up work — without turning the mission into chat-after-chat.
+
+**Related docs**: execution history and shipped tooling live in **`IMPROVEMENT_PLAN.md`**; optional tools and MCP live in **`AGENT_CAPABILITIES_PLAN.md`**. This blueprint **adds mission semantics and UX** on top of those layers.
+
+---
+
+## Guiding principles
+
+1. **Plan is a first-class artifact** — persisted, versioned, referenced by work items; not only free-form memory.
+2. **Parseable outputs** — the model proposes structure; the host **parses and validates** so the UI and orchestrator can rely on it.
+3. **Autonomy by default after approval** — block only on trust/approval policy, explicit `BLOCKER:`, or configurable breakpoints — not on every step.
+4. **Replanning is explicit** — surprises mid-flight produce **amendments** to the blueprint (audit trail), not silent drift.
+5. **Model-swappable** — workflow quality must not depend on a single vendor; prompts and schemas are **host-owned**.
+
+---
+
+## Target outcomes (acceptance at project end)
+
+| # | Outcome |
+|---|--------|
+| O1 | User can start a mission with a **high-level goal**; system generates a **multi-step blueprint** before bulk execution. |
+| O2 | User can **approve, reject, or request revision** of the blueprint **once** (or a bounded number of rounds) from the sidebar. |
+| O3 | After approval, **work items are derived from the blueprint** with stable **traceability** (each queue item maps to a blueprint step or sub-step). |
+| O4 | Sidebar shows **blueprint progress** (e.g. N/M steps done, or weighted completion), not only raw queue counts. |
+| O5 | Optional **architect pass** runs after defined milestones (e.g. validator passed) and can **enqueue gap work** without a conversational loop. |
+| O6 | **Researcher** instructions (and optional blueprint section) use **`webSearch` / `fetchWebPage`** when `myAi.webResearch.enabled` is true. |
+| O7 | **Coding defaults** (modular layout, bounded file size, layering) live in **shared instruction fragments** used by planner + implementer, not repeated in every user mission. |
+| O8 | **Replanning**: new discoveries append **blueprint amendments** + linked work items; operator sees **what changed and why**. |
+
+---
+
+## Conceptual architecture (host-level)
+
+```
+User goal
+   → [Planning phase] full blueprint (requirements + architecture + ordered steps)
+   → [Agreement gate] approve / revise (bounded)
+   → [Synthesis] WorkItem queue + blueprintStepId links
+   → [Execution loop] existing MissionOrchestrator (researcher / implementer / reviewer / validator)
+   → [Optional] Architect / gap pass → new work items + blueprint amendment
+   → Terminal when blueprint complete + validator closure satisfied
+```
+
+**Important**: This does **not** replace `MissionOrchestrator`; it **front-loads planning** and **binds** the queue to a **persisted blueprint**.
+
+---
+
+## Phase 1 — Blueprint data model & persistence
+
+**Goal**: Store a machine-usable plan on the mission.
+
+**Deliverables**
+
+- New types (e.g. in `src/types.ts` or `src/missions/blueprintTypes.ts`):
+  - **`MissionBlueprint`**: `version`, `createdAt`, `approvedAt?`, `status` (`draft` | `awaiting_approval` | `approved` | `superseded`).
+  - **`BlueprintStep`**: `id`, `title`, `summary`, `roleHint` (planner | researcher | implementer | …), `dependsOn?: string[]`, `acceptanceCriteria: string[]`, `status` (`pending` | `in_progress` | `done` | `skipped` | `blocked`), `optional?: boolean`.
+  - **`BlueprintAmendment`**: `at`, `reason`, `addedSteps` / `modifiedStepIds` (minimal schema).
+- **`Mission` extension**: `blueprint?: MissionBlueprint` (and migration: absent → legacy “no blueprint” missions behave as today).
+- **Persistence**: `MissionStore` + disk unwrap/wrap + version bump in persistence tests.
+- **Hydration rules**: old missions load with `blueprint` undefined; orchestrator uses **legacy path** (current planner-first enqueue).
+
+**Acceptance**
+
+- Unit tests: serialize / deserialize mission with blueprint; round-trip disk persistence.
+- No behavior change for missions without blueprint (regression tests pass).
+
+**Key files (expected)**
+
+- `src/types.ts`, `src/missions/MissionStore.ts`, `src/storage/*` (mission persistence), `src/test/persistenceIntegration.test.ts`
+
+---
+
+## Phase 2 — Parseable blueprint generation (planner contract)
+
+**Goal**: One (or two) model calls produce a **validated structured blueprint**, not only `WORK:` lines.
+
+**Deliverables**
+
+- **Output format** (choose one primary; host can accept the other as optional):
+  - **Preferred**: JSON block in model output with schema validated by Zod or hand-rolled validator (strict field limits, max steps, max string lengths).
+  - **Fallback**: strict markdown sections with a deterministic line grammar (harder to validate; use only if JSON reliability is poor on small models).
+- **`BlueprintParser`**: `parseBlueprintModelOutput(text) → { blueprint, errors[] }`.
+- **`BlueprintPlannerAgent`** (or `PlannerAgent` mode): instructions to:
+  - Infer **implicit requirements** from the mission goal (capabilities, constraints, quality bar).
+  - Propose **technical approach** (stack, major modules) at **architecture-summary** level — not line-by-line code.
+  - Emit **ordered steps** with **acceptance criteria** and **dependencies**.
+  - Respect **workspace context** (reuse `EnhancedContextCollector` output in the planning prompt).
+- **Caps**: `myAi.missions.maxBlueprintSteps` (default e.g. 40), max chars per field — reject overflow with planner retry or user-visible error.
+
+**Acceptance**
+
+- Parser unit tests: golden good outputs, malformed recovery.
+- Planner integration test (mocked LLM): blueprint attaches to mission in `draft` / `awaiting_approval`.
+
+**Key files**
+
+- `src/agents/PlannerAgent.ts` or new `src/agents/BlueprintPlannerAgent.ts`
+- `src/missions/blueprintParser.ts`, `src/test/blueprintParser.test.ts`
+
+---
+
+## Phase 3 — Agreement gate & mission lifecycle
+
+**Goal**: After blueprint generation, **pause** until user approves (or revises); no autonomous implementer runs until then (configurable).
+
+**Deliverables**
+
+- **Mission runtime flags** (e.g. on `Mission` or `MissionRuntime`):
+  - `blueprintStatus`, `planRevisionCount`, `maxPlanRevisions` (settings).
+- **Orchestrator behavior**:
+  - Path **A** (blueprint mode ON): `startMission` → enqueue **single** work item `role: planner` with prompt “generate full blueprint” → on success → set `awaiting_approval` → **stop auto-run** until host receives approval.
+  - Path **B** (legacy): existing behavior when setting `myAi.missions.blueprintMode` is false or mission is old.
+- **Commands / protocol**:
+  - `myAi.approveMissionBlueprint` / `myAi.rejectMissionBlueprint` / `myAi.requestMissionPlanRevision` (or webview messages → same).
+- **Revision**: re-enqueue planner with prior blueprint + user comment; increment revision counter; cap revisions.
+
+**Settings (initial)**
+
+- `myAi.missions.blueprintMode` (default `false` until stable — then default `true`).
+- `myAi.missions.requireBlueprintApproval` (default `true` when blueprint mode on).
+- `myAi.missions.maxBlueprintRevisions` (default e.g. 3).
+
+**Acceptance**
+
+- Integration test: blueprint generated → orchestrator idle → approve → queue synthesized (Phase 4) → execution proceeds.
+
+**Key files**
+
+- `src/missions/MissionOrchestrator.ts`, `src/missions/MissionStore.ts`, `package.json` commands, `src/ui/protocol.ts`
+
+---
+
+## Phase 4 — Queue synthesis from blueprint
+
+**Goal**: Deterministic mapping **blueprint steps → `WorkItem[]`** with **stable IDs** for progress and traceability.
+
+**Deliverables**
+
+- **`synthesizeWorkItemsFromBlueprint(blueprint): WorkItem[]`**:
+  - Map each step to one or more work items (policy: default 1:1 for implementer-heavy steps; researcher steps explicit when blueprint says “research”).
+  - Set **`blueprintStepId`** on `WorkItem` (new optional field).
+  - Respect `dependsOn` → `WorkItem.dependsOn` graph (already supported for decomposed items).
+- **Progress aggregation**: pure function `computeBlueprintProgress(mission) → { done, total, percent, blockedStepIds }` for UI.
+- **Completion rule**: mission **cannot** `completed` while blueprint has non-optional steps not `done`/`skipped`, unless operator **supersedes** blueprint (explicit action).
+
+**Acceptance**
+
+- Unit tests: DAG order preserved; circular dependency detection surfaces as planner error or host validation error.
+- Orchestrator: after approval, first enqueue batch matches blueprint order subject to dependencies.
+
+**Key files**
+
+- `src/missions/blueprintSynthesis.ts`, `src/types.ts` (`WorkItem`), `src/ui/missionProgressStats.ts` (extend or parallel)
+
+---
+
+## Phase 5 — Sidebar / webview: blueprint UI
+
+**Goal**: Operator sees **full plan**, **approval controls**, and **progress**.
+
+**Deliverables**
+
+- Snapshot fields: `missionBlueprintSummary` or embedded `blueprint` slice (mind webview payload size — summarize long plans).
+- Missions tab / inspector:
+  - Render steps with status icons; show **Acceptance criteria** collapsed.
+  - Buttons: **Approve plan**, **Request changes** (prompt), **Reject** (fail mission or return to draft).
+- Optional: export blueprint as markdown file into workspace (user-triggered).
+
+**Acceptance**
+
+- Webview smoke tests for new message types (pattern already in `aiSidebarUiDispatchSmoke.test.ts`).
+- Manual: large blueprint truncates with “expand” or file export, not broken render.
+
+**Key files**
+
+- `src/ui/protocol.ts`, `media/chat/*`, `src/ui/AiSidebarProvider.ts`, snapshot builder
+
+---
+
+## Phase 6 — Autonomous execution policy (minimal chat)
+
+**Goal**: After approval, **do not** stop for human unless necessary.
+
+**Deliverables**
+
+- Document and enforce:
+  - **Stop reasons**: approval-gated tools, `BLOCKER:`, optional `myAi.missions.pauseAfterEachValidator` (default false), budget exhaustion, fatal errors.
+- **No mid-mission “chat thread”** required: all clarifications should be **structured** (single revision round during agreement gate, or blocker form).
+- **Dry-run**: blueprint mode respects existing `mission.dryRun` (synthesis can still run; tools muted).
+
+**Acceptance**
+
+- Config matrix tests: autonomous path runs without UI messages when approvals auto-granted in test harness.
+
+**Key files**
+
+- `src/missions/MissionOrchestrator.ts`, settings schema in `package.json`
+
+---
+
+## Phase 7 — Architect / gap-analysis pass (post-validation)
+
+**Goal**: **System-level** review pass (not file editing) after milestones.
+
+**Deliverables**
+
+- New role **`architect`** (or reuse `planner` with distinct work-item title/prompt) **enqueued by orchestrator** when:
+  - Validator marks a **milestone** complete (config: every N implementer tranches, or when blueprint “phase” boundary crossed), **or**
+  - Blueprint has **explicit** “review gates.”
+- **Prompt**: compare **repo summary + mission memory + blueprint**; output only **`WORK:`** / **`BLUEPRINT_AMEND:`** structured lines (new mini-parser) — **no** `applyPatch`.
+- **Amendments**: append to `MissionBlueprint.amendments` and enqueue new items with `blueprintStepId` pointing to new ids.
+
+**Acceptance**
+
+- Test: architect pass adds exactly one approved follow-up when mock output requests gap closure.
+
+**Key files**
+
+- `src/agents/AgentFactory.ts`, new `src/agents/ArchitectAgent.ts`, `src/missions/MissionOrchestrator.ts`, parser extension
+
+---
+
+## Phase 8 — Researcher + external discovery alignment
+
+**Goal**: Implicit discovery uses **workspace + web** when enabled.
+
+**Deliverables**
+
+- Update **`ResearchAgent`** instructions: when `myAi.webResearch.enabled`, **prefer** `webSearch` / `fetchWebPage` for external facts, APIs, versions — still bounded by policy.
+- Optional blueprint template section **“External research checklist”** auto-filled by researcher before blueprint finalization (if two-phase planning: **research → blueprint**).
+
+**Acceptance**
+
+- Mock tool test: researcher emits webSearch tool call when setting on.
+
+**Key files**
+
+- `src/agents/ResearchAgent.ts`, planner prompts if two-phase planning added
+
+---
+
+## Phase 9 — Shared coding standards fragment
+
+**Goal**: Modularity and structure are **default**, not user-repeated.
+
+**Deliverables**
+
+- `src/agents/instructionFragments.ts` (or similar): **`CODING_STANDARDS_FRAGMENT`**, **`ARCHITECTURE_DISCIPLINE_FRAGMENT`** (short, stable).
+- Injected into **Planner** (blueprint), **Implementer**, **Reviewer** system paths in `BaseAgent` or per-agent.
+
+**Acceptance**
+
+- Snapshot test or string test that fragments are included when setting `myAi.agents.enforceDefaultCodingStandards` (default true).
+
+---
+
+## Phase 10 — Plan fidelity & drift (optional hardening)
+
+**Goal**: Surface **unplanned scope** relative to approved blueprint.
+
+**Deliverables**
+
+- **Heuristics v1**: compare **MissionFileTracker** paths + memory tags to blueprint “modules” keywords; if large mismatch, enqueue reviewer work item “justify or amend plan.”
+- **v2 (later)**: structured **module list** in blueprint + path glob expectations.
+
+**Acceptance**
+
+- Unit test: injected file outside expected areas triggers follow-up when setting enabled.
+
+**Key files**
+
+- `src/missions/MissionFileTracker.ts`, `src/missions/missionClosurePolicy.ts` or new policy module
+
+---
+
+## Implementation order (dependencies)
+
+```
+Phase 1  Data model + persistence
+   ↓
+Phase 2  Parser + blueprint planner output
+   ↓
+Phase 3  Agreement gate + orchestrator pause/resume
+   ↓
+Phase 4  Queue synthesis + blueprint progress
+   ↓
+Phase 5  Webview blueprint UI + protocol
+   ↓
+Phase 6  Autonomy policy + settings
+   ↓
+Phase 7  Architect pass (can start after Phase 4 in parallel with Phase 5–6)
+   ↓
+Phase 8  Researcher/web alignment (parallel anytime after Phase 2)
+   ↓
+Phase 9  Instruction fragments (parallel early)
+   ↓
+Phase 10 Plan fidelity (after Phase 4 + file tracker integration)
+```
+
+**Suggested first milestone (shippable slice)**: **Phases 1–4 + minimal Phase 5** (approve + list steps, no polish) + **Phase 9** — gives end-to-end “full plan then run” behind a **settings flag**.
+
+---
+
+## Risks & mitigations
+
+| Risk | Mitigation |
+|------|------------|
+| Models emit invalid JSON | Schema validation + one retry + user-visible “plan failed to parse, simplify goal or switch model.” |
+| Huge plans overflow context | Step caps, summarization pass, “export full plan to file” for UI. |
+| Users want infinite revisions | `maxBlueprintRevisions` + explicit “reset mission.” |
+| Blueprint and queue diverge | Single synthesis function on approve; amendments only via architect pass or explicit replan command. |
+
+---
+
+## Out of scope (for this blueprint)
+
+- Replacing VS Code with a standalone app.
+- Guaranteed correctness of generated plans (always human + validator in the loop for high-stakes work).
+- Full formal methods / theorem proving of architecture.
+
+---
+
+## Checklist summary
+
+Use this as a **burn-down** when implementing:
+
+- [ ] Phase 1 — Types + persistence + migration tests
+- [ ] Phase 2 — Blueprint parser + planner contract
+- [ ] Phase 3 — Agreement gate + lifecycle + commands
+- [ ] Phase 4 — Synthesis + `blueprintStepId` + progress math
+- [ ] Phase 5 — Webview blueprint + approval UX
+- [ ] Phase 6 — Autonomy policy settings
+- [ ] Phase 7 — Architect / gap pass
+- [ ] Phase 8 — Researcher + web tools alignment
+- [ ] Phase 9 — Shared coding-standard fragments
+- [ ] Phase 10 — Plan fidelity / drift (optional)
+
+---
+
+*Document version: 1.0 — created as the concrete implementation blueprint for mission-level autonomy and upfront planning.*
