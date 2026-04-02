@@ -108,6 +108,8 @@
 - [x] **Step 9.1** — `WorkspaceIndex` (`src/memory/WorkspaceIndex.ts`) — indexes exports, classes, functions
 - [x] **Step 9.2** — `findRelevantFiles` tool registered in ToolRegistry
 - [x] **Step 9.3** — Incremental updates via `onDidSaveTextDocument`
+- [x] **Step 9.4** — Performance defaults: `ensureBuilt()` + optional `myAi.index.buildOnActivation`, debounced incremental saves (`myAi.index.incrementalSaveDebounceMs`), `findRelevantFiles` triggers first build when lazy
+- [x] **Step 9.5** — `MYAI_SIDEBAR_SNAPSHOT_SETTINGS_KEYS` single source for snapshot settings + immediate webview refresh on those config changes
 
 ---
 

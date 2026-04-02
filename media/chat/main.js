@@ -38,6 +38,8 @@ const state = {
   dirty: { quickSettings: false, providersForm: false, chatRow: false, routingPanel: false },
   routingDraft: null,
   traceAutoRefreshTimer: null,
+  /** Mirrors host `myAi.ui.traceAutoRefreshIntervalMs` (ms); updated on each full snapshot. */
+  traceAutoRefreshIntervalMs: 10000,
   lastSnapshotPublishSeq: null,
   lastIncludeArchivedApplied: null,
   lastMissionCountApplied: null,
@@ -204,7 +206,9 @@ const snapshotApi = createSnapshotApply({
   renderConsole: panels.renderConsole,
   renderChat: panels.renderChat,
   renderProvidersPanel: panels.renderProvidersPanel,
-  renderSettings: panels.renderSettings
+  renderSettings: panels.renderSettings,
+  stopTraceAutoRefresh,
+  startTraceAutoRefresh
 });
 
 const onWindowMessage = createMessageHandler({

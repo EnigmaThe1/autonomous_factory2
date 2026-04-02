@@ -38,6 +38,8 @@ export interface SidebarSettingsSummary {
   missionPreBlueprintClarification: boolean;
   /** Workspace `myAi.missions.requireBlueprintApproval`. */
   missionRequireBlueprintApproval: boolean;
+  /** Workspace `myAi.ui.traceAutoRefreshIntervalMs` (clamped on host). */
+  traceAutoRefreshIntervalMs: number;
 }
 
 export interface SidebarToolSummary {

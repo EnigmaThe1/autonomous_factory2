@@ -82,7 +82,8 @@ function minimalSidebarSnapshot() {
       autoRevealOnActivation: true,
       missionBlueprintMode: false,
       missionPreBlueprintClarification: false,
-      missionRequireBlueprintApproval: true
+      missionRequireBlueprintApproval: true,
+      traceAutoRefreshIntervalMs: 10000
     },
     pendingApprovals: [],
     approvalBundles: [],
@@ -1599,6 +1600,7 @@ test("createSnapshotApply: renderSnapshot invokes renderMissions before chat (or
       lastSnapshotPublishSeq: null,
       traceSessionId: null,
       activeTab: "chat",
+      traceAutoRefreshIntervalMs: 10000,
       lastAppliedMissionsSectionSeq: 0,
       lastAppliedAuxiliarySectionSeq: 0,
       lastAppliedProviderChromeSectionSeq: 0,

@@ -4,25 +4,61 @@ import { baseUrlSettingKey, defaultBaseUrl } from "../providers/providerCredenti
 import { modelsConfigKeyForProvider, resolveModelForProvider } from "../providers/providerModelResolution";
 import type { SidebarSnapshot } from "./protocol";
 
+/**
+ * VS Code configuration section string for each field in `SidebarSnapshot.settings`.
+ * Single source of truth for `cfg.get(...)` in `readSidebarWorkspaceSettings` — add a property here and wire it in that function.
+ */
+export const MYAI_SIDEBAR_SNAPSHOT_SETTINGS_KEYS = {
+  defaultProvider: "myAi.defaultProvider",
+  defaultModel: "myAi.defaultModel",
+  autoResumeOnStartup: "myAi.missions.autoResumeOnStartup",
+  heartbeatSeconds: "myAi.missions.heartbeatSeconds",
+  allowTerminal: "myAi.tools.allowTerminal",
+  requireWriteApproval: "myAi.tools.requireApprovalForWrite",
+  useNativeChatParticipant: "myAi.useNativeChatParticipant",
+  mcpConfigPath: "myAi.mcp.configPath",
+  autoRevealOnActivation: "myAi.ui.autoRevealOnActivation",
+  defaultTab: "myAi.ui.defaultTab",
+  missionBlueprintMode: "myAi.missions.blueprintMode",
+  missionPreBlueprintClarification: "myAi.missions.preBlueprintClarification",
+  missionRequireBlueprintApproval: "myAi.missions.requireBlueprintApproval",
+  traceAutoRefreshIntervalMs: "myAi.ui.traceAutoRefreshIntervalMs"
+} as const;
+
+/** Flat list for `ConfigurationChangeEvent.affectsConfiguration` checks. */
+export const SIDEBAR_SNAPSHOT_SETTINGS_CONFIG_KEYS: readonly string[] = Object.values(MYAI_SIDEBAR_SNAPSHOT_SETTINGS_KEYS);
+
+export function configurationAffectsSidebarSnapshotSettings(e: vscode.ConfigurationChangeEvent): boolean {
+  return SIDEBAR_SNAPSHOT_SETTINGS_CONFIG_KEYS.some((k) => e.affectsConfiguration(k));
+}
+
+function clampInt(n: unknown, lo: number, hi: number, fallback: number): number {
+  const v = typeof n === "number" ? n : Number(n);
+  if (!Number.isFinite(v)) return fallback;
+  return Math.max(lo, Math.min(hi, Math.floor(v)));
+}
+
 export function readSidebarWorkspaceSettings(): SidebarSnapshot["settings"] & {
   defaultProvider: string;
   defaultModel: string;
 } {
   const cfg = vscode.workspace.getConfiguration();
+  const K = MYAI_SIDEBAR_SNAPSHOT_SETTINGS_KEYS;
   return {
-    defaultProvider: cfg.get<string>("myAi.defaultProvider", "ollama"),
-    defaultModel: cfg.get<string>("myAi.defaultModel", "llama3.1"),
-    autoResumeOnStartup: cfg.get<boolean>("myAi.missions.autoResumeOnStartup", true),
-    heartbeatSeconds: cfg.get<number>("myAi.missions.heartbeatSeconds", 8),
-    allowTerminal: cfg.get<boolean>("myAi.tools.allowTerminal", false),
-    requireWriteApproval: cfg.get<boolean>("myAi.tools.requireApprovalForWrite", true),
-    useNativeChatParticipant: cfg.get<boolean>("myAi.useNativeChatParticipant", false),
-    mcpConfigPath: cfg.get<string>("myAi.mcp.configPath", "examples/mcp.sample.json"),
-    autoRevealOnActivation: cfg.get<boolean>("myAi.ui.autoRevealOnActivation", false),
-    defaultTab: cfg.get<string>("myAi.ui.defaultTab", "chat"),
-    missionBlueprintMode: cfg.get<boolean>("myAi.missions.blueprintMode", false),
-    missionPreBlueprintClarification: cfg.get<boolean>("myAi.missions.preBlueprintClarification", false),
-    missionRequireBlueprintApproval: cfg.get<boolean>("myAi.missions.requireBlueprintApproval", true)
+    defaultProvider: cfg.get<string>(K.defaultProvider, "ollama"),
+    defaultModel: cfg.get<string>(K.defaultModel, "llama3.1"),
+    autoResumeOnStartup: cfg.get<boolean>(K.autoResumeOnStartup, true),
+    heartbeatSeconds: cfg.get<number>(K.heartbeatSeconds, 12),
+    allowTerminal: cfg.get<boolean>(K.allowTerminal, false),
+    requireWriteApproval: cfg.get<boolean>(K.requireWriteApproval, true),
+    useNativeChatParticipant: cfg.get<boolean>(K.useNativeChatParticipant, false),
+    mcpConfigPath: cfg.get<string>(K.mcpConfigPath, "examples/mcp.sample.json"),
+    autoRevealOnActivation: cfg.get<boolean>(K.autoRevealOnActivation, false),
+    defaultTab: cfg.get<string>(K.defaultTab, "chat"),
+    missionBlueprintMode: cfg.get<boolean>(K.missionBlueprintMode, false),
+    missionPreBlueprintClarification: cfg.get<boolean>(K.missionPreBlueprintClarification, false),
+    missionRequireBlueprintApproval: cfg.get<boolean>(K.missionRequireBlueprintApproval, true),
+    traceAutoRefreshIntervalMs: clampInt(cfg.get<number>(K.traceAutoRefreshIntervalMs, 10_000), 3000, 120_000, 10_000)
   };
 }
 

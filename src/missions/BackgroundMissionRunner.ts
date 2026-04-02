@@ -19,7 +19,7 @@ export class BackgroundMissionRunner implements vscode.Disposable {
 
   start(): void {
     this.stop();
-    const seconds = Math.max(3, vscode.workspace.getConfiguration().get<number>("myAi.missions.heartbeatSeconds", 8));
+    const seconds = Math.max(3, vscode.workspace.getConfiguration().get<number>("myAi.missions.heartbeatSeconds", 12));
     this.timer = setInterval(() => void this.tick(), seconds * 1000);
     void this.tick();
   }
@@ -41,7 +41,7 @@ export class BackgroundMissionRunner implements vscode.Disposable {
       const missions = this.store.list().filter((m) => ["queued", "running"].includes(m.status));
       const threshold = Math.max(1, vscode.workspace.getConfiguration().get<number>("myAi.missions.stallHeartbeatThreshold", 10));
       const maxAutoReplans = Math.max(1, vscode.workspace.getConfiguration().get<number>("myAi.missions.maxStallAutoReplans", 2));
-      const seconds = Math.max(3, vscode.workspace.getConfiguration().get<number>("myAi.missions.heartbeatSeconds", 8));
+      const seconds = Math.max(3, vscode.workspace.getConfiguration().get<number>("myAi.missions.heartbeatSeconds", 12));
       const leaseTtlMs = leaseTtlMsFromHeartbeatSeconds(seconds);
 
       for (const mission of missions) {

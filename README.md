@@ -364,7 +364,7 @@ Examples:
 
 - `myAi.missions.autoResumeOnStartup`
 - `myAi.missions.maxStepsPerRun`
-- `myAi.missions.heartbeatSeconds`
+- `myAi.missions.heartbeatSeconds` (background runner tick; default 12s)
 - `myAi.missions.diskStoreFolder`
 - `myAi.missions.policyPreset`
 - `myAi.missions.maxAutoRounds`
@@ -404,11 +404,19 @@ Examples:
 
 Examples:
 
-- `myAi.ui.dashboardPollIntervalMs`
+- `myAi.ui.dashboardPollIntervalMs` — auto-refresh interval while the sidebar is visible (default 25s; lower = more host/MCP load).
+- `myAi.ui.traceAutoRefreshIntervalMs` — Trace tab auto-refresh interval when that checkbox is on (default 10s). Changing any key that feeds the sidebar **Settings** summary (defaults, heartbeat, blueprint toggles, MCP config path, etc.; see `MYAI_SIDEBAR_SNAPSHOT_SETTINGS_KEYS` in `aiSidebarSettingsRead.ts`) triggers an immediate full snapshot refresh while the sidebar is visible so the webview stays in sync without waiting for the poll.
+- `myAi.ui.retainWebviewContextWhenHidden` — keep webview JS state when hidden (default on; off saves memory, full reload when reopening).
 - `myAi.ui.autoRevealOnActivation`
 - `myAi.ui.defaultTab`
 - `myAi.trace.level`
 - `myAi.trace.persistToFile`
+
+#### Workspace index (`findRelevantFiles`)
+
+- `myAi.index.buildOnActivation` — when `true`, scan the workspace at extension startup; when `false` (default), indexing runs on first tool use (faster activate).
+- `myAi.index.incrementalSaveDebounceMs` — coalesce `onDidSave` re-index work (default 2000 ms).
+- Other keys: `myAi.index.maxFiles`, `includeGlobs`, `excludeGlobs` (see `package.json`).
 
 See `package.json` for the full up-to-date configuration surface.
 

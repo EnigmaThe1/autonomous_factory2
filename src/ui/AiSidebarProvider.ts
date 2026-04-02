@@ -58,7 +58,12 @@ import {
 } from "./aiSidebarRefreshOrchestration";
 import { runSidebarPollWarmExecution, type SidebarPollWarmExecutionHost } from "./aiSidebarPollWarmExecution";
 import { missionAllAndVisibleForFingerprint } from "./aiSidebarSnapshotMisc";
-import { readProviderBaseUrls, readProviderSavedModels, readSidebarWorkspaceSettings } from "./aiSidebarSettingsRead";
+import {
+  configurationAffectsSidebarSnapshotSettings,
+  readProviderBaseUrls,
+  readProviderSavedModels,
+  readSidebarWorkspaceSettings
+} from "./aiSidebarSettingsRead";
 import { buildAiSidebarWebviewHtml } from "./aiSidebarWebviewHtml";
 import type { AiSidebarUiDispatchHost } from "./aiSidebarUiDispatchHost";
 import { dispatchUiToExtMessage, type UiToExtDispatchMessage } from "./aiSidebarUiMessageDispatch";
@@ -533,7 +538,7 @@ export class AiSidebarProvider implements vscode.WebviewViewProvider {
     });
 
     const clampPoll = () =>
-      Math.min(120_000, Math.max(2000, vscode.workspace.getConfiguration().get<number>("myAi.ui.dashboardPollIntervalMs", 10_000)));
+      Math.min(120_000, Math.max(2000, vscode.workspace.getConfiguration().get<number>("myAi.ui.dashboardPollIntervalMs", 25_000)));
     const pollTick = () => {
       if (!view.visible) return;
       void this.maybePollDashboardRefresh("interval");
@@ -546,6 +551,9 @@ export class AiSidebarProvider implements vscode.WebviewViewProvider {
       }
       if (e.affectsConfiguration("myAi")) {
         this.bumpProviderChromeSyncGeneration("workspace_configuration_myAi");
+      }
+      if (configurationAffectsSidebarSnapshotSettings(e) && view.visible) {
+        void this.refreshDashboard(undefined, { source: "workspace_settings_sidebar_summary" });
       }
     });
     const visibilitySub = view.onDidChangeVisibility(() => {

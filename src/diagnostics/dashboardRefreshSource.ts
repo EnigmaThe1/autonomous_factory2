@@ -28,4 +28,6 @@ export type DashboardRefreshSource =
   | "blueprint_reject"
   | "blueprint_revise"
   /** Pre-blueprint Q&A answers submitted (command palette). */
-  | "pre_blueprint_submit";
+  | "pre_blueprint_submit"
+  /** Workspace settings that map into `SidebarSnapshot.settings` (e.g. trace auto-refresh interval, heartbeat). */
+  | "workspace_settings_sidebar_summary";

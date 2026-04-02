@@ -210,7 +210,7 @@ document.getElementById('saveQuickSettings')?.addEventListener('click', () => {
   post('saveQuickSettings', {
     defaultProvider: document.getElementById('settingDefaultProvider')?.value || (state.snapshot?.defaultProvider || 'ollama'),
     defaultModel: document.getElementById('settingDefaultModel')?.value || (state.snapshot?.defaultModel || ''),
-    heartbeatSeconds: Number(document.getElementById('settingHeartbeatSeconds')?.value || 8),
+    heartbeatSeconds: Number(document.getElementById('settingHeartbeatSeconds')?.value || 12),
     allowTerminal: !!document.getElementById('settingAllowTerminal')?.checked,
     requireWriteApproval: !!document.getElementById('settingRequireWriteApproval')?.checked,
     autoRevealOnActivation: !!document.getElementById('settingAutoRevealOnActivation')?.checked,

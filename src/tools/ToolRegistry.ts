@@ -640,7 +640,8 @@ export class ToolRegistry {
   }
 
   private async findRelevantFilesTool(missionId: string, query: string): Promise<ToolResult> {
-    if (!this.workspaceIndex) return { ok: false, summary: "Workspace index not initialized. Start a mission to trigger indexing." };
+    if (!this.workspaceIndex) return { ok: false, summary: "Workspace index not available." };
+    await this.workspaceIndex.ensureBuilt();
     const results = this.workspaceIndex.search(query, 10);
     const files = results.map((m) => ({
       file: m.tags?.[0] || "",

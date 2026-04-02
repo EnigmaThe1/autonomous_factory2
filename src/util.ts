@@ -42,3 +42,17 @@ export function isLikelyStreamAbort(err: unknown, signal?: AbortSignal): boolean
   const msg = typeof e.message === "string" ? e.message : "";
   return /abort(ed)?|cancel(l(ed|ation))?/i.test(msg);
 }
+
+/**
+ * Share one in-flight promise among concurrent callers; clear the slot in `finally` so failures can retry.
+ * `slot.current` must only be written by this helper.
+ */
+export function runSingleFlight<T>(slot: { current: Promise<T> | null }, task: () => Promise<T>): Promise<T> {
+  const existing = slot.current;
+  if (existing) return existing;
+  const p = task().finally(() => {
+    if (slot.current === p) slot.current = null;
+  });
+  slot.current = p;
+  return p;
+}

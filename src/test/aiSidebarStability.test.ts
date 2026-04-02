@@ -77,7 +77,8 @@ function emptySnapshot(): SidebarSnapshot {
       defaultTab: "chat",
       missionBlueprintMode: false,
       missionPreBlueprintClarification: false,
-      missionRequireBlueprintApproval: true
+      missionRequireBlueprintApproval: true,
+      traceAutoRefreshIntervalMs: 10000
     },
     pendingApprovals: [],
     approvalBundles: [],

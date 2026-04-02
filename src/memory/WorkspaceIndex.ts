@@ -1,6 +1,6 @@
 import * as vscode from "vscode";
 import { MemoryItem } from "../types";
-import { uid, trimText } from "../util";
+import { runSingleFlight, uid, trimText } from "../util";
 import { EmbeddingMemoryIndex } from "./EmbeddingMemoryIndex";
 import { runCommand } from "../tools/CommandRunner";
 
@@ -20,6 +20,19 @@ export class WorkspaceIndex {
   private items: MemoryItem[] = [];
   private indexed = false;
   private disposable?: vscode.Disposable;
+  private readonly ensureBuiltSlot: { current: Promise<number> | null } = { current: null };
+  private workspaceRoot: string | null = null;
+  private saveDebounceTimer: ReturnType<typeof setTimeout> | null = null;
+  private readonly pendingSaveRels = new Set<string>();
+
+  /**
+   * Ensures a full index build has completed at least once. Concurrent callers share one in-flight build.
+   * Used by tools (e.g. findRelevantFiles) when `myAi.index.buildOnActivation` is false.
+   */
+  async ensureBuilt(): Promise<number> {
+    if (this.indexed) return this.items.length;
+    return runSingleFlight(this.ensureBuiltSlot, () => this.build());
+  }
 
   async build(): Promise<number> {
     const cfg = vscode.workspace.getConfiguration();
@@ -28,7 +41,11 @@ export class WorkspaceIndex {
     const excludeGlobs = cfg.get<string>("myAi.index.excludeGlobs", "**/node_modules/**,**/dist/**,**/.git/**,**/vendor/**,**/__pycache__/**");
 
     const workspaceRoot = vscode.workspace.workspaceFolders?.[0]?.uri.fsPath;
-    if (!workspaceRoot) return 0;
+    if (!workspaceRoot) {
+      this.workspaceRoot = null;
+      return 0;
+    }
+    this.workspaceRoot = workspaceRoot;
 
     const result = await runCommand({
       command: `rg --files -g '${includeGlobs}' ${excludeGlobs.split(",").map((g) => `-g '!${g.trim()}'`).join(" ")} . | head -${maxFiles}`,
@@ -47,6 +64,11 @@ export class WorkspaceIndex {
       );
       this.items = entries.filter(Boolean) as MemoryItem[];
       this.indexed = true;
+      this.disposable?.dispose();
+      this.disposable = vscode.workspace.onDidSaveTextDocument((doc) => {
+        const rel = vscode.workspace.asRelativePath(doc.uri);
+        this.scheduleIncrementalReindex(rel);
+      });
       return this.items.length;
     }
 
@@ -56,17 +78,39 @@ export class WorkspaceIndex {
     this.indexed = true;
 
     this.disposable?.dispose();
-    this.disposable = vscode.workspace.onDidSaveTextDocument(async (doc) => {
+    this.disposable = vscode.workspace.onDidSaveTextDocument((doc) => {
       const rel = vscode.workspace.asRelativePath(doc.uri);
+      this.scheduleIncrementalReindex(rel);
+    });
+
+    return this.items.length;
+  }
+
+  private scheduleIncrementalReindex(relativePath: string): void {
+    const root = this.workspaceRoot;
+    if (!root || !this.indexed) return;
+    this.pendingSaveRels.add(relativePath);
+    const cfg = vscode.workspace.getConfiguration();
+    const raw = cfg.get<number>("myAi.index.incrementalSaveDebounceMs", 2000);
+    const debounceMs = Math.max(200, Math.min(30_000, Number.isFinite(raw) ? raw : 2000));
+    if (this.saveDebounceTimer) clearTimeout(this.saveDebounceTimer);
+    this.saveDebounceTimer = setTimeout(() => {
+      this.saveDebounceTimer = null;
+      void this.flushPendingSaves(root);
+    }, debounceMs);
+  }
+
+  private async flushPendingSaves(workspaceRoot: string): Promise<void> {
+    const rels = [...this.pendingSaveRels];
+    this.pendingSaveRels.clear();
+    for (const rel of rels) {
       const existing = this.items.findIndex((m) => m.tags?.includes(rel));
       const updated = await this.indexFile(workspaceRoot, rel);
       if (updated) {
         if (existing >= 0) this.items[existing] = updated;
         else this.items.push(updated);
       }
-    });
-
-    return this.items.length;
+    }
   }
 
   private async indexFile(workspaceRoot: string, relativePath: string): Promise<MemoryItem | null> {
@@ -128,6 +172,12 @@ export class WorkspaceIndex {
   }
 
   dispose(): void {
+    if (this.saveDebounceTimer) {
+      clearTimeout(this.saveDebounceTimer);
+      this.saveDebounceTimer = null;
+    }
+    this.pendingSaveRels.clear();
     this.disposable?.dispose();
+    this.disposable = undefined;
   }
 }

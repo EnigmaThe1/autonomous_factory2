@@ -473,7 +473,7 @@ function renderSettings(snapshot, opts = {}) {
   const defaultTab = document.getElementById('settingDefaultTab');
   if (!state.dirty.quickSettings) {
     if (modelInput) modelInput.value = coherentModel;
-    if (heartbeatInput) heartbeatInput.value = String(s.heartbeatSeconds || 8);
+    if (heartbeatInput) heartbeatInput.value = String(s.heartbeatSeconds || 12);
     if (allowTerminal) allowTerminal.checked = !!s.allowTerminal;
     if (requireWrite) requireWrite.checked = !!s.requireWriteApproval;
     if (autoReveal) autoReveal.checked = !!s.autoRevealOnActivation;

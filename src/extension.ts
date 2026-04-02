@@ -46,7 +46,12 @@ export async function activate(context: vscode.ExtensionContext) {
   tools.workspaceIndex = wsIndex;
   const fileTracker = new MissionFileTracker(missionStore);
   tools.fileTracker = fileTracker;
-  void wsIndex.build().then((n) => { if (n > 0) console.info(`[my-ai] Workspace index: ${n} files`); });
+  const activationCfg = vscode.workspace.getConfiguration();
+  if (activationCfg.get<boolean>("myAi.index.buildOnActivation", false)) {
+    void wsIndex.build().then((n) => {
+      if (n > 0) console.info(`[my-ai] Workspace index: ${n} files`);
+    });
+  }
   const orchestrator = new MissionOrchestrator(providers, collector, missionStore, tools, globalMemory, undefined, fileTracker);
   orchestrator.onMissionTerminal = (missionId) => {
     fileTracker.flush(missionId);
@@ -84,11 +89,20 @@ export async function activate(context: vscode.ExtensionContext) {
 
   context.subscriptions.push(
     vscode.window.registerWebviewViewProvider("myAi.sidebar", sidebar, {
-      webviewOptions: { retainContextWhenHidden: true }
+      webviewOptions: {
+        retainContextWhenHidden: activationCfg.get<boolean>("myAi.ui.retainWebviewContextWhenHidden", true)
+      }
     }),
+    { dispose: () => wsIndex.dispose() },
     registerCommands(sidebar, orchestrator, missionStore, tools, mcp, globalMemory, traceLogger, secrets, context.extensionUri, templates),
     runner,
-    mcp
+    mcp,
+    vscode.workspace.onDidChangeConfiguration((e) => {
+      if (e.affectsConfiguration("myAi.missions.heartbeatSeconds")) {
+        runner.stop();
+        runner.start();
+      }
+    })
   );
 
   if (vscode.workspace.getConfiguration().get<boolean>("myAi.useNativeChatParticipant", false)) {

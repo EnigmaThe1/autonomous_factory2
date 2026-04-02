@@ -23,7 +23,9 @@ export function createSnapshotApply(deps) {
     renderConsole,
     renderChat,
     renderProvidersPanel,
-    renderSettings
+    renderSettings,
+    stopTraceAutoRefresh = () => {},
+    startTraceAutoRefresh = () => {}
   } = deps;
 
 /**
@@ -265,6 +267,21 @@ function renderSnapshot(snapshot, traceContext) {
     sourceRefreshSeq: srcRef
   }, 'debug');
   state.snapshot = snapshot;
+  {
+    const incoming = snapshot?.settings?.traceAutoRefreshIntervalMs;
+    if (typeof incoming === 'number' && Number.isFinite(incoming)) {
+      const clamped = Math.max(3000, Math.min(120000, Math.floor(incoming)));
+      const prev = state.traceAutoRefreshIntervalMs;
+      state.traceAutoRefreshIntervalMs = clamped;
+      if (typeof prev === 'number' && prev !== clamped) {
+        const ar = document.getElementById('traceAutoRefresh');
+        if (ar?.checked && state.activeTab === 'trace') {
+          stopTraceAutoRefresh();
+          startTraceAutoRefresh();
+        }
+      }
+    }
+  }
   els.summaryProvider.textContent = snapshot.defaultProvider;
   els.summaryModel.textContent = snapshot.resolvedDefaultModel || snapshot.defaultModel;
   els.summaryMissions.textContent = formatDashboardMissionSummaryText(snapshot);

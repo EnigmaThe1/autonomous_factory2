@@ -400,7 +400,7 @@
         },
         "myAi.missions.heartbeatSeconds": {
           "type": "number",
-          "default": 8,
+          "default": 12,
           "description": "Background runner heartbeat interval in seconds."
         },
         "myAi.missions.diskStoreFolder": {
@@ -824,10 +824,22 @@
         },
         "myAi.ui.dashboardPollIntervalMs": {
           "type": "number",
-          "default": 10000,
+          "default": 25000,
           "minimum": 2000,
           "maximum": 120000,
           "description": "Interval for automatic sidebar snapshot refresh while the webview is visible. Lower values increase extension-host CPU, disk, and MCP traffic."
+        },
+        "myAi.ui.traceAutoRefreshIntervalMs": {
+          "type": "number",
+          "default": 10000,
+          "minimum": 3000,
+          "maximum": 120000,
+          "description": "Interval (ms) for Trace tab auto-refresh when enabled. Higher values reduce host/webview traffic."
+        },
+        "myAi.ui.retainWebviewContextWhenHidden": {
+          "type": "boolean",
+          "default": true,
+          "description": "Keep the sidebar webview JavaScript heap when the view is hidden (smoother tab switches; more memory). Set false to reduce memory at the cost of full reload when reopening."
         },
         "myAi.ui.autoRevealOnActivation": {
           "type": "boolean",
@@ -887,6 +899,18 @@
           "type": "string",
           "default": "**/node_modules/**,**/dist/**,**/.git/**,**/vendor/**,**/__pycache__/**",
           "description": "Comma-separated glob patterns to exclude from the workspace index."
+        },
+        "myAi.index.buildOnActivation": {
+          "type": "boolean",
+          "default": false,
+          "description": "When true, scan and index workspace files as soon as the extension activates. When false (default), indexing starts on first use (e.g. findRelevantFiles) to speed up startup."
+        },
+        "myAi.index.incrementalSaveDebounceMs": {
+          "type": "number",
+          "default": 2000,
+          "minimum": 200,
+          "maximum": 30000,
+          "description": "Debounce window (ms) for re-indexing a file after save. Coalesces rapid saves."
         },
         "myAi.trace.level": {
           "type": "string",

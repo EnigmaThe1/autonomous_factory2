@@ -59,11 +59,12 @@ export function createTraceAndPersist(vscode, getState) {
   function startTraceAutoRefresh() {
     const st = getState();
     stopTraceAutoRefresh();
+    const ms = Math.max(3000, Math.min(120000, Number(st.traceAutoRefreshIntervalMs) || 10000));
     st.traceAutoRefreshTimer = setInterval(() => {
       if (st.activeTab === "trace") {
         vscode.postMessage({ type: "requestTraceLog" });
       }
-    }, 3000);
+    }, ms);
   }
 
   function renderTraceLogSnapshot(msg) {
