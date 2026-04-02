@@ -124,6 +124,12 @@ Example command:
 | **Revert preset** | **My AI: Revert Lazy Discovery Preset (Workspace)** (`myAi.revertLazyDiscoveryPreset`) sets those three keys back to extension defaults (**false** / **0** / **false**). Same workspace-folder requirement. |
 | **Activation** | **`onCommand`** activation for **`myAi.openMcpConfig`**, **`myAi.applyLazyDiscoveryPreset`**, and **`myAi.revertLazyDiscoveryPreset`** so these run without opening the sidebar first. |
 
+## Phase 14 — Open roadmap from the extension (shipped)
+
+| Item | Behavior |
+|------|-----------|
+| **Command** | **My AI: Open Agent Capabilities Roadmap** (`myAi.openAgentCapabilitiesDoc`) opens **`AGENT_CAPABILITIES_PLAN.md`** from the installed extension folder (bundled with the VSIX when the file is not excluded). **`onCommand`** activation included. |
+
 ---
 
 ## Safety checklist (every new tool)

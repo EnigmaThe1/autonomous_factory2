@@ -10,9 +10,26 @@ export function registerToolCommands(
   tools: ToolRegistry,
   mcp: McpRegistry,
   globalMemory: GlobalMemoryStore,
-  secrets: SecretStore
+  secrets: SecretStore,
+  extensionUri: vscode.Uri
 ): vscode.Disposable[] {
   const disposables: vscode.Disposable[] = [];
+
+  disposables.push(
+    vscode.commands.registerCommand("myAi.openAgentCapabilitiesDoc", async () => {
+      const uri = vscode.Uri.joinPath(extensionUri, "AGENT_CAPABILITIES_PLAN.md");
+      try {
+        await vscode.workspace.fs.stat(uri);
+      } catch {
+        void vscode.window.showWarningMessage(
+          "AGENT_CAPABILITIES_PLAN.md was not found inside the extension install. If you run from source, ensure the file is next to package.json."
+        );
+        return;
+      }
+      const doc = await vscode.workspace.openTextDocument(uri);
+      await vscode.window.showTextDocument(doc, { preview: false });
+    })
+  );
 
   disposables.push(
     vscode.commands.registerCommand("myAi.listMcpTools", async () => {

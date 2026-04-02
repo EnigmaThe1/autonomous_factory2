@@ -26,7 +26,8 @@
     "onCommand:myAi.setTraceLevel",
     "onCommand:myAi.openMcpConfig",
     "onCommand:myAi.applyLazyDiscoveryPreset",
-    "onCommand:myAi.revertLazyDiscoveryPreset"
+    "onCommand:myAi.revertLazyDiscoveryPreset",
+    "onCommand:myAi.openAgentCapabilitiesDoc"
   ],
   "main": "./dist/extension.js",
   "contributes": {
@@ -90,6 +91,10 @@
       {
         "command": "myAi.revertLazyDiscoveryPreset",
         "title": "My AI: Revert Lazy Discovery Preset (Workspace)"
+      },
+      {
+        "command": "myAi.openAgentCapabilitiesDoc",
+        "title": "My AI: Open Agent Capabilities Roadmap"
       },
       {
         "command": "myAi.setBraveSearchApiKey",
