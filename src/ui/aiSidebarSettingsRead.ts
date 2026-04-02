@@ -19,7 +19,10 @@ export function readSidebarWorkspaceSettings(): SidebarSnapshot["settings"] & {
     useNativeChatParticipant: cfg.get<boolean>("myAi.useNativeChatParticipant", false),
     mcpConfigPath: cfg.get<string>("myAi.mcp.configPath", "examples/mcp.sample.json"),
     autoRevealOnActivation: cfg.get<boolean>("myAi.ui.autoRevealOnActivation", false),
-    defaultTab: cfg.get<string>("myAi.ui.defaultTab", "chat")
+    defaultTab: cfg.get<string>("myAi.ui.defaultTab", "chat"),
+    missionBlueprintMode: cfg.get<boolean>("myAi.missions.blueprintMode", false),
+    missionPreBlueprintClarification: cfg.get<boolean>("myAi.missions.preBlueprintClarification", false),
+    missionRequireBlueprintApproval: cfg.get<boolean>("myAi.missions.requireBlueprintApproval", true)
   };
 }
 

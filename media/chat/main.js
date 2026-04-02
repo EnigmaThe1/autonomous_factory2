@@ -60,6 +60,7 @@ const els = {
   chatOutput: document.getElementById("chatOutput"),
   missionTitle: document.getElementById("missionTitle"),
   missionPrompt: document.getElementById("missionPrompt"),
+  missionStartBlueprintHint: document.getElementById("missionStartBlueprintHint"),
   startMission: document.getElementById("startMission"),
   refreshDashboard: document.getElementById("refreshDashboard"),
   approvalQueue: document.getElementById("approvalQueue"),

@@ -59,6 +59,18 @@ function modelPlaceholderForProvider(snapshot, providerId) {
   return (snapshot.providerSavedModels && snapshot.providerSavedModels[pid]) || (pid === snapshot.defaultProvider ? snapshot.resolvedDefaultModel || '' : '');
 }
 
+/** One-line hint for how the next mission will plan (reads workspace mission settings from snapshot). */
+function missionStartBlueprintHintText(settings) {
+  if (!settings) return "";
+  if (!settings.missionBlueprintMode) {
+    return "Plan: legacy WORK: queue. Enable myAi.missions.blueprintMode for upfront JSON blueprint.";
+  }
+  const bits = ["Plan: JSON blueprint"];
+  bits.push(settings.missionPreBlueprintClarification ? "pre-Q&A on" : "pre-Q&A off");
+  bits.push(settings.missionRequireBlueprintApproval ? "blueprint approval required" : "blueprint auto-approved");
+  return bits.join(" · ");
+}
+
 function renderChat(snapshot, opts = {}) {
   const sig = chatPanelSig(snapshot, state.chatBuffer, state.chatHistory, state.agentStream);
   if (!withSig("lastChatSig", sig, opts.force)) return;
@@ -102,6 +114,10 @@ function renderChat(snapshot, opts = {}) {
     : "";
 
   els.chatOutput.innerHTML = clearBtn + focusedStrip + body + agentStreamHtml + (cards.length ? `<div class="section-title small" style="margin-top:10px;">Recent tool/result cards</div>${cards.join('')}` : '');
+
+  if (els.missionStartBlueprintHint) {
+    els.missionStartBlueprintHint.textContent = missionStartBlueprintHintText(snapshot.settings);
+  }
 
   const clearEl = document.getElementById('btnClearChatHistory');
   if (clearEl) {

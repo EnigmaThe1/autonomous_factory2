@@ -79,7 +79,10 @@ function minimalSidebarSnapshot() {
       requireWriteApproval: false,
       useNativeChatParticipant: false,
       mcpConfigPath: "",
-      autoRevealOnActivation: true
+      autoRevealOnActivation: true,
+      missionBlueprintMode: false,
+      missionPreBlueprintClarification: false,
+      missionRequireBlueprintApproval: true
     },
     pendingApprovals: [],
     approvalBundles: [],

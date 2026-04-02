@@ -32,6 +32,12 @@ export interface SidebarSettingsSummary {
   mcpConfigPath: string;
   autoRevealOnActivation: boolean;
   defaultTab: string;
+  /** Workspace `myAi.missions.blueprintMode` — shown on Chat “Start mission” card. */
+  missionBlueprintMode: boolean;
+  /** Workspace `myAi.missions.preBlueprintClarification`. */
+  missionPreBlueprintClarification: boolean;
+  /** Workspace `myAi.missions.requireBlueprintApproval`. */
+  missionRequireBlueprintApproval: boolean;
 }
 
 export interface SidebarToolSummary {

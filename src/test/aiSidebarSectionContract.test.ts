@@ -70,7 +70,10 @@ function sectionContractBaseSnapshot(): SidebarSnapshot {
       useNativeChatParticipant: false,
       mcpConfigPath: "",
       autoRevealOnActivation: false,
-      defaultTab: "chat"
+      defaultTab: "chat",
+      missionBlueprintMode: false,
+      missionPreBlueprintClarification: false,
+      missionRequireBlueprintApproval: true
     },
     pendingApprovals: [],
     approvalBundles: [],
