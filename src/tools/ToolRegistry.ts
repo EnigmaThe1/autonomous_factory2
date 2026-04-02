@@ -33,6 +33,7 @@ import { SecretStore } from "../storage/SecretStore";
 import { BRAVE_WEB_SEARCH_SECRET_KEY } from "../providers/providerCredentialKeys";
 import { BUILTIN_TOOL_NAMES } from "./builtinToolNames";
 import { buildListToolsHintEntries } from "./listToolsCatalog";
+import { compactMcpToolDescriptors } from "./mcpToolsListCompact";
 
 function buildDiffHunks(beforeText: string, afterText: string) {
   const before = beforeText.split(/\r?\n/);
@@ -223,10 +224,18 @@ export class ToolRegistry {
 
   private async listMcpTools(missionId: string): Promise<ToolResult> {
     const tools = await this.mcp.listTools();
+    const cfg = vscode.workspace.getConfiguration();
+    const summaryMax = cfg.get<number>("myAi.tools.listMcpToolsSummaryMaxChars", 0);
+    const data = compactMcpToolDescriptors(tools, summaryMax);
     if (missionId !== "__system__") {
       await this.missionStore.saveEvent(missionId, { level: "info", source: "tool:listMcpTools", message: `Listed ${tools.length} MCP tools` });
     }
-    return { ok: true, summary: `Listed ${tools.length} MCP tools.`, data: tools };
+    const mode = summaryMax > 0 ? "summary" : "full";
+    return {
+      ok: true,
+      summary: `Listed ${tools.length} MCP tools (${mode}${summaryMax > 0 ? `, budget ${summaryMax} chars` : ""}).`,
+      data
+    };
   }
 
   private async executeMcp(missionId: string, call: ToolCall, approved: boolean): Promise<ToolResult> {

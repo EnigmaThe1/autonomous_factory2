@@ -485,6 +485,13 @@
           "maximum": 200000,
           "description": "Maximum characters for the listTools `hints` array (one-line usage per tool). Set to 0 to omit hints and keep only builtin names + external adapters."
         },
+        "myAi.tools.listMcpToolsSummaryMaxChars": {
+          "type": "number",
+          "default": 0,
+          "minimum": 0,
+          "maximum": 2000000,
+          "description": "When > 0, listMcpTools strips inputSchema and trims descriptions so JSON.stringify(data) stays within this character budget; may drop trailing tools and append a __myAi__.list_budget row. 0 = full MCP descriptors (legacy)."
+        },
         "myAi.missions.requireImplementerBeforeComplete": {
           "type": "boolean",
           "default": true,
