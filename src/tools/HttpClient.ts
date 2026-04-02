@@ -6,6 +6,8 @@ export interface HttpRequestOptions {
   headers?: Record<string, string>;
   body?: string;
   timeoutMs?: number;
+  /** Override default trimmed body size (default 8192 chars). */
+  maxResponseBodyChars?: number;
 }
 
 export interface HttpRequestResult {
@@ -18,7 +20,7 @@ export interface HttpRequestResult {
 }
 
 const DEFAULT_TIMEOUT_MS = 15_000;
-const MAX_BODY_BYTES = 8192;
+const DEFAULT_MAX_BODY_CHARS = 8192;
 
 export async function httpRequest(opts: HttpRequestOptions): Promise<HttpRequestResult> {
   const method = (opts.method || "GET").toUpperCase();
@@ -56,7 +58,7 @@ export async function httpRequest(opts: HttpRequestOptions): Promise<HttpRequest
       status: response.status,
       statusText: response.statusText,
       headers: responseHeaders,
-      body: trimText(bodyText, MAX_BODY_BYTES),
+      body: trimText(bodyText, opts.maxResponseBodyChars ?? DEFAULT_MAX_BODY_CHARS),
     };
   } catch (err) {
     clearTimeout(timer);

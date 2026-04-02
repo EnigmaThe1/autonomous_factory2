@@ -42,6 +42,33 @@ export function registerToolCommands(
   );
 
   disposables.push(
+    vscode.commands.registerCommand("myAi.openWorkspaceSkillsFolder", async () => {
+      const folder = vscode.workspace.workspaceFolders?.[0];
+      if (!folder) {
+        void vscode.window.showWarningMessage("Open a workspace folder first.");
+        return;
+      }
+      const skillsUri = vscode.Uri.joinPath(folder.uri, ".my-ai", "skills");
+      try {
+        await vscode.workspace.fs.createDirectory(skillsUri);
+      } catch {
+        // already exists
+      }
+      const sampleUri = vscode.Uri.joinPath(skillsUri, "README.md");
+      try {
+        await vscode.workspace.fs.stat(sampleUri);
+      } catch {
+        const readme =
+          "# Workspace skills\n\nMarkdown (`.md`) files in this folder are merged into agent system prompts when **myAi.skills.enabled** is true.\n\nKeep files focused; large content is truncated per **myAi.skills.maxCharsPerFile** / **maxTotalChars**.\n\nSee the extension **AGENT_CAPABILITIES_PLAN.md** for the full roadmap.\n";
+        await vscode.workspace.fs.writeFile(sampleUri, Buffer.from(readme, "utf8"));
+      }
+      const doc = await vscode.workspace.openTextDocument(sampleUri);
+      await vscode.window.showTextDocument(doc, { preview: false });
+      void vscode.window.showInformationMessage(`Skills folder: ${skillsUri.fsPath}`);
+    })
+  );
+
+  disposables.push(
     vscode.commands.registerCommand("myAi.searchGlobalMemory", async () => {
       const query = await vscode.window.showInputBox({ prompt: "Search global memory" });
       if (!query) return;

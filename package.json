@@ -77,6 +77,10 @@
         "title": "My AI: List MCP Tools"
       },
       {
+        "command": "myAi.openWorkspaceSkillsFolder",
+        "title": "My AI: Open Workspace Skills Folder"
+      },
+      {
         "command": "myAi.listMcpSessions",
         "title": "My AI: List MCP Sessions"
       },
@@ -342,6 +346,32 @@
           "type": "boolean",
           "default": true,
           "description": "Require approval before runTerminal tool calls."
+        },
+        "myAi.skills.enabled": {
+          "type": "boolean",
+          "default": true,
+          "description": "Load markdown from myAi.skills.globPatterns and inject into agent system prompts (bounded size)."
+        },
+        "myAi.skills.globPatterns": {
+          "type": "array",
+          "default": [".my-ai/skills/**/*.md"],
+          "items": { "type": "string" },
+          "description": "Workspace-relative globs for skill markdown files."
+        },
+        "myAi.skills.maxTotalChars": {
+          "type": "number",
+          "default": 12000,
+          "description": "Maximum total characters injected from all skill files per agent turn."
+        },
+        "myAi.skills.maxCharsPerFile": {
+          "type": "number",
+          "default": 4000,
+          "description": "Maximum characters read from each skill file."
+        },
+        "myAi.webResearch.enabled": {
+          "type": "boolean",
+          "default": false,
+          "description": "Enable webSearch and fetchWebPage tools (HTTP; uses same approval policy as httpRequest)."
         },
         "myAi.memory.maxRecentEvents": {
           "type": "number",

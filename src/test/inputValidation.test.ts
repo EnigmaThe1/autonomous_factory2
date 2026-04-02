@@ -4,6 +4,7 @@ import {
   validateCommand,
   validateContainerName,
   validateDbEngine,
+  validateSearchQuery,
   validateSqlQuery,
   validateUrl,
   validateFilePath,
@@ -118,6 +119,15 @@ test("validateUrl: rejects cloud metadata endpoints", () => {
 
 test("validateUrl: rejects invalid format", () => {
   assert.equal(validateUrl("not a url").valid, false);
+});
+
+test("validateSearchQuery: accepts normal queries", () => {
+  assert.equal(validateSearchQuery("typescript handbook").valid, true);
+});
+
+test("validateSearchQuery: rejects empty and oversize", () => {
+  assert.equal(validateSearchQuery("").valid, false);
+  assert.equal(validateSearchQuery("a".repeat(401)).valid, false);
 });
 
 // File path validation

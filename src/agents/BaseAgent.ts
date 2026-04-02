@@ -5,6 +5,7 @@ import { AgentRunOptions, AgentTurnResult, ChatContext, Mission, WorkItem } from
 import { ProviderRegistry } from "../providers/ProviderRegistry";
 import { trimText } from "../util";
 import { GlobalMemoryStore } from "../memory/GlobalMemoryStore";
+import { loadWorkspaceSkillsForAgents } from "../skills/workspaceSkillsLoader";
 
 export abstract class BaseAgent {
   constructor(
@@ -118,6 +119,8 @@ export abstract class BaseAgent {
       'TOOL:{"tool":"git.stash_pop","args":{}} — restore stashed changes (requires approval)',
       'TOOL:{"tool":"git.commit","args":{"message":"...","paths":["..."]}} — commit changes (requires approval)',
       'TOOL:{"tool":"httpRequest","args":{"method":"GET","url":"http://...","headers":{},"body":""}} — HTTP request (requires approval)',
+      'TOOL:{"tool":"webSearch","args":{"query":"keywords for documentation or facts"}} — instant-answer search (off unless myAi.webResearch.enabled; requires approval if HTTP approval on)',
+      'TOOL:{"tool":"fetchWebPage","args":{"url":"https://..."}} — GET public page text (off unless myAi.webResearch.enabled; requires approval if HTTP approval on)',
       'TOOL:{"tool":"docker.ps","args":{}} — list running containers',
       'TOOL:{"tool":"docker.logs","args":{"container":"name","tail":100}} — container logs',
       'TOOL:{"tool":"docker.exec","args":{"container":"name","command":"..."}} — exec in container (requires approval)',
@@ -142,12 +145,18 @@ export abstract class BaseAgent {
       .filter(Boolean)
       .join("\n\n");
 
+    const skillsBlock = await loadWorkspaceSkillsForAgents();
+    const systemPrompt =
+      skillsBlock.trim().length > 0
+        ? `${instructions}\n\n--- WORKSPACE SKILLS (markdown from repository; apply when relevant) ---\n${skillsBlock}`
+        : instructions;
+
     let out = "";
     for await (const chunk of provider.stream({
       prompt,
       model: item.model || (mission.routing?.modelPerRole?.[item.role]?.trim() || undefined) || mission.activeModel,
       context,
-      system: instructions,
+      system: systemPrompt,
       signal
     })) {
       out += chunk;

@@ -18,7 +18,16 @@ import * as dockerTools from "./DockerTools";
 import type { WorkspaceIndex } from "../memory/WorkspaceIndex";
 import type { MissionFileTracker } from "../missions/MissionFileTracker";
 import { withRetry } from "./toolRetry";
-import { validateCommand, validateContainerName, validateDbEngine, validateSqlQuery, validateUrl, validateFilePath } from "./inputValidation";
+import {
+  validateCommand,
+  validateContainerName,
+  validateDbEngine,
+  validateSearchQuery,
+  validateSqlQuery,
+  validateUrl,
+  validateFilePath
+} from "./inputValidation";
+import { runFetchWebPage, runWebSearch } from "./WebResearchTools";
 
 function buildDiffHunks(beforeText: string, afterText: string) {
   const before = beforeText.split(/\r?\n/);
@@ -70,7 +79,7 @@ export interface ToolResult {
 export const BUILTIN_TOOL_NAMES = [
   "readFile", "writeFile", "applyPatch", "searchFiles", "grepSearch",
   "listFiles", "fileTree", "getDiagnostics", "runTerminal", "runCommand",
-  "runTests", "runLinter", "httpRequest", "findRelevantFiles", "listTools", "listMcpTools"
+  "runTests", "runLinter", "httpRequest", "webSearch", "fetchWebPage", "findRelevantFiles", "listTools", "listMcpTools"
 ] as const;
 
 export class ToolRegistry {
@@ -133,6 +142,8 @@ export class ToolRegistry {
     runTests: (mid, c) => this.runTestsTool(mid, c.args.command ? String(c.args.command) : undefined),
     runLinter: (mid, c) => this.runLinterTool(mid, c.args.command ? String(c.args.command) : undefined),
     httpRequest: (mid, c) => this.httpRequestTool(mid, String(c.args.method || "GET"), String(c.args.url || ""), c.args.headers as Record<string, string> | undefined, c.args.body ? String(c.args.body) : undefined, Boolean(c.args.__approved)),
+    webSearch: (mid, c) => this.webSearchTool(mid, String(c.args.query || ""), Boolean(c.args.__approved)),
+    fetchWebPage: (mid, c) => this.fetchWebPageTool(mid, String(c.args.url || ""), Boolean(c.args.__approved)),
     findRelevantFiles: (mid, c) => this.findRelevantFilesTool(mid, String(c.args.query || "")),
     runTerminal: (mid, c) => this.runTerminal(mid, String(c.args.command || ""), Boolean(c.args.__approved)),
     runCommand: (mid, c) => this.runCommandTool(
@@ -599,6 +610,74 @@ export class ToolRegistry {
     }));
     await this.missionStore.saveEvent(missionId, { level: "info", source: "tool:findRelevantFiles", message: `Found ${files.length} relevant files for: ${query}` });
     return { ok: true, summary: `Found ${files.length} relevant file(s).`, data: files };
+  }
+
+  private async webSearchTool(missionId: string, query: string, approved?: boolean): Promise<ToolResult> {
+    const cfg = vscode.workspace.getConfiguration();
+    if (!cfg.get<boolean>("myAi.webResearch.enabled", false)) {
+      return {
+        ok: false,
+        summary: "webSearch is disabled. Set myAi.webResearch.enabled to true (uses DuckDuckGo instant-answer API; subject to fair use)."
+      };
+    }
+    const qv = validateSearchQuery(query);
+    if (!qv.valid) {
+      return { ok: false, summary: qv.reason || "Invalid search query" };
+    }
+    const decision = this.policyEngine().decide({ action: "http_request" });
+    if (!decision.allowed) return this.policyBlocked(decision.reason);
+    if (decision.requiresApproval && !approved) {
+      return {
+        ok: false,
+        summary: "Approval required before web search.",
+        requiresApproval: {
+          kind: "external_tool",
+          title: "Web search",
+          details: trimText(query, 500)
+        }
+      };
+    }
+    const r = await runWebSearch(query);
+    await this.missionStore.saveEvent(missionId, {
+      level: r.ok ? "info" : "warn",
+      source: "tool:webSearch",
+      message: r.summary
+    });
+    return { ok: r.ok, summary: r.summary, data: r.data };
+  }
+
+  private async fetchWebPageTool(missionId: string, url: string, approved?: boolean): Promise<ToolResult> {
+    const cfg = vscode.workspace.getConfiguration();
+    if (!cfg.get<boolean>("myAi.webResearch.enabled", false)) {
+      return {
+        ok: false,
+        summary: "fetchWebPage is disabled. Set myAi.webResearch.enabled to true."
+      };
+    }
+    const uv = validateUrl(url);
+    if (!uv.valid) {
+      return { ok: false, summary: `fetchWebPage rejected: ${uv.reason}` };
+    }
+    const decision = this.policyEngine().decide({ action: "http_request" });
+    if (!decision.allowed) return this.policyBlocked(decision.reason);
+    if (decision.requiresApproval && !approved) {
+      return {
+        ok: false,
+        summary: `Approval required before fetching ${url}`,
+        requiresApproval: {
+          kind: "external_tool",
+          title: "Fetch web page",
+          details: trimText(url, 800)
+        }
+      };
+    }
+    const r = await runFetchWebPage(url);
+    await this.missionStore.saveEvent(missionId, {
+      level: r.ok ? "info" : "warn",
+      source: "tool:fetchWebPage",
+      message: r.summary
+    });
+    return { ok: r.ok, summary: r.summary, data: r.data };
   }
 
   private async httpRequestTool(missionId: string, method: string, url: string, headers?: Record<string, string>, body?: string, approved?: boolean): Promise<ToolResult> {

@@ -28,9 +28,17 @@ function getConfig(key, defaultValue) {
   return defaultValue;
 }
 
+const RelativePattern = class {
+  constructor(base, pattern) {
+    this.base = base;
+    this.pattern = pattern;
+  }
+};
+
 const workspace = {
   name: undefined,
   workspaceFolders: undefined,
+  findFiles: async () => [],
   getConfiguration(_section) {
     return {
       get(key, defaultValue) {
@@ -70,9 +78,15 @@ const env = {
   sessionId: "test-session"
 };
 
+const pathMod = require("path");
+
 const Uri = {
   file: (p) => ({ fsPath: p, scheme: "file", path: p }),
-  parse: (s) => ({ fsPath: s, scheme: "file", path: s })
+  parse: (s) => ({ fsPath: s, scheme: "file", path: s }),
+  joinPath: (base, ...parts) => {
+    const joined = pathMod.join(base.fsPath || base.path || "", ...parts);
+    return { fsPath: joined, scheme: "file", path: joined };
+  }
 };
 
 const CancellationTokenSource = class {
@@ -85,6 +99,7 @@ const CancellationTokenSource = class {
 
 module.exports = {
   workspace,
+  RelativePattern,
   window,
   languages,
   env,

@@ -76,6 +76,20 @@ export function validateSqlQuery(query: string): ValidationResult {
   return { valid: true };
 }
 
+export function validateSearchQuery(query: string): ValidationResult {
+  const t = query.trim();
+  if (!t) {
+    return { valid: false, reason: "Empty search query" };
+  }
+  if (t.length > 400) {
+    return { valid: false, reason: "Search query exceeds 400 characters" };
+  }
+  if (t.includes("\0")) {
+    return { valid: false, reason: "Invalid search query" };
+  }
+  return { valid: true };
+}
+
 export function validateUrl(url: string): ValidationResult {
   if (!url.trim()) {
     return { valid: false, reason: "Empty URL" };
