@@ -148,7 +148,7 @@ export async function dispatchUiToExtMessage(
     case "openTerminal":
       return await dispatchUi_openTerminal(host);
     case "openSettings":
-      return await dispatchUi_openSettings();
+      return await dispatchUi_openSettings(msg);
     case "listMcpTools":
       return await dispatchUi_listMcpTools(host);
     case "listMcpSessions":

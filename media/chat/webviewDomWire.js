@@ -148,6 +148,10 @@ document.body.addEventListener('click', e => {
   if (action === 'approveBundle') return postWithInteractionId('approveBundle', { bundleId });
   if (action === 'rejectBundle') return postWithInteractionId('rejectBundle', { bundleId });
   if (action === 'createStarterMcpConfig') return post('createStarterMcpConfig');
+  if (action === 'openSettings') {
+    const q = btn.dataset.query;
+    return q ? post('openSettings', { query: q }) : post('openSettings');
+  }
 });
 
 function chatPostPayload() {

@@ -265,7 +265,8 @@ export type UiToExtMessage =
   | { type: "reviewPendingDiff"; missionId: string; approvalId?: string }
   | { type: "reviewPendingHunks"; missionId: string; approvalId?: string }
   | { type: "openTerminal" }
-  | { type: "openSettings" }
+  /** Optional `query` is passed to VS Code Settings UI search (sanitized on host to `myAi…` keys only). */
+  | { type: "openSettings"; query?: string }
   | { type: "listMcpTools" }
   | { type: "listMcpSessions" }
   | { type: "openMcpConfig" }

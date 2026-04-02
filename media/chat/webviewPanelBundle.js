@@ -80,7 +80,8 @@ function missionBlueprintSettingsRowsHtml(settings) {
   return `
     <div class="setting-row"><span>Mission blueprint mode</span><strong>${bm ? "yes" : "no"}</strong></div>
     <div class="setting-row"><span>Pre-blueprint Q&amp;A</span><strong>${pre ? "yes" : "no"}</strong></div>
-    <div class="setting-row"><span>Require blueprint approval</span><strong>${apr ? "yes" : "no"}</strong></div>`;
+    <div class="setting-row"><span>Require blueprint approval</span><strong>${apr ? "yes" : "no"}</strong></div>
+    <div class="setting-row"><span></span><span><button type="button" class="ghost compact" data-action="openSettings" data-query="myAi.missions">Edit mission settings in VS Code…</button></span></div>`;
 }
 
 function renderChat(snapshot, opts = {}) {

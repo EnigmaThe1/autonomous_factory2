@@ -57,7 +57,8 @@ test("router wires representative families to expected dispatch imports", () => 
     ["searchGlobalMemory", /case "searchGlobalMemory":\s*\n\s*return await dispatchUi_searchGlobalMemory/],
     ["generateMissionReport", /case "generateMissionReport":\s*\n\s*return await dispatchUi_generateMissionReport/],
     ["requestTraceLog", /case "requestTraceLog":\s*\n\s*return await dispatchUi_requestTraceLog/],
-    ["refreshDashboard", /case "refreshDashboard":\s*\n\s*return await dispatchUi_refreshDashboard/]
+    ["refreshDashboard", /case "refreshDashboard":\s*\n\s*return await dispatchUi_refreshDashboard/],
+    ["openSettings", /case "openSettings":\s*\n\s*return await dispatchUi_openSettings\(msg\)/]
   ];
   for (const [label, re] of pairs) {
     assert.match(r, re, `router wiring for ${label}`);
