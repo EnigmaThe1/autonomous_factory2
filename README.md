@@ -36,6 +36,8 @@ The extension adds a **My AI** activity bar view with a webview-based sidebar th
 - **Trace**
 - **Settings**
 
+When **Chat & Missions** is active, the view header (title bar) exposes four shortcuts, same as the Command Palette: **Open MCP Config** (JSON icon), **Open Agent Capabilities Roadmap** (map), **Open Mission Autonomy Blueprint** (book), **Open Mission Settings** (gear — VS Code Settings filtered to `myAi.missions`).
+
 ### Multi-provider model support
 
 Supports multiple model providers with per-provider defaults and live model-catalog refresh:
