@@ -169,7 +169,11 @@ export interface WorkItem {
   /** Sub-items decomposed from this work item. Parent completes only when all sub-items complete. */
   subItems?: WorkItem[];
   /** Blueprint mode: planner item that emits structured JSON plan; revision passes. */
-  workItemPurpose?: "blueprint_generate" | "blueprint_revise" | "pre_blueprint_clarify";
+  workItemPurpose?:
+    | "blueprint_generate"
+    | "blueprint_revise"
+    | "pre_blueprint_clarify"
+    | "web_research_consolidate";
   /** After synthesis, ties this row to `MissionBlueprint.steps[].id`. */
   blueprintStepId?: string;
 }

@@ -110,7 +110,8 @@ test("Web research budget: fails without operator approval when limit exceeded",
     secretStore
   );
 
-  const mission = await store.create("Budget", "p", "ollama");
+  // Cloud/default provider so per-mission web cap applies (ollama is treated as local/unlimited by default).
+  const mission = await store.create("Budget", "p", "openai");
   await store.enqueue(mission.id, [{ id: "res0", title: "Research", role: "researcher", status: "todo", prompt: "x" }]);
   await store.updateRuntime(mission.id, { webResearchCalls: 1 });
 
@@ -119,5 +120,7 @@ test("Web research budget: fails without operator approval when limit exceeded",
   assert.equal(res.ok, false);
   assert.ok(!res.requiresApproval, "budget limit should not surface as operator approval");
   assert.match(res.summary, /limit reached|web research limit/i);
+  const after = store.get(mission.id)!;
+  assert.ok(after.queue.some((w) => w.workItemPurpose === "web_research_consolidate"));
 });
 

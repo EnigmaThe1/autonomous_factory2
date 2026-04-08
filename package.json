@@ -492,6 +492,16 @@
           "default": true,
           "description": "When true, webSearch and fetchWebPage bypass the global myAi.tools.requireApprovalForHttp gate (role envelopes and other policy still apply). The generic httpRequest tool is unchanged."
         },
+        "myAi.webResearch.unlimitedBudgetForLocalLlm": {
+          "type": "boolean",
+          "default": true,
+          "description": "When true, myAi.webResearch.maxCallsPerMission is ignored for missions whose activeProviderId is listed in myAi.webResearch.localLlmProviderIds (default includes ollama), since the LLM runs locally."
+        },
+        "myAi.webResearch.localLlmProviderIds": {
+          "type": "string",
+          "default": "ollama",
+          "description": "Comma/space-separated provider ids treated as local LLM for unlimited web research budget (when unlimitedBudgetForLocalLlm is true). Example: ollama"
+        },
         "myAi.webResearch.cacheEnabled": {
           "type": "boolean",
           "default": true,
