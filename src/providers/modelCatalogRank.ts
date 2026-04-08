@@ -122,6 +122,7 @@ function baseScore(providerId: string, id: string, created?: number, listIndex?:
   } else if (providerId === "anthropic") {
     if (/claude-opus-4|claude-4-opus/.test(lower)) s += 130;
     if (/claude-sonnet-4|claude-4-sonnet/.test(lower)) s += 115;
+    if (/claude-haiku-4/.test(lower)) s += 100;
     if (/claude-3-5-opus|claude-3-5-sonnet|claude-3-5-haiku/.test(lower)) s += 90;
     if (/claude-3-opus|claude-3-sonnet|claude-3-haiku/.test(lower)) s += 50;
     if (/claude-2|claude-instant/.test(lower)) s += 10;

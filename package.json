@@ -17,7 +17,7 @@
     "memory",
     "cursor"
   ],
-  "version": "2.0.21",
+  "version": "2.0.22",
   "publisher": "enigma-the",
   "repository": {
     "type": "git",
@@ -348,8 +348,8 @@
         },
         "myAi.models.anthropic": {
           "type": "string",
-          "default": "claude-3-5-sonnet-20240620",
-          "description": "Default Claude model id for the Anthropic provider."
+          "default": "claude-sonnet-4-6",
+          "description": "Default Claude model id for the Anthropic provider (alias ids such as claude-sonnet-4-6 follow Anthropic docs)."
         },
         "myAi.models.gemini": {
           "type": "string",

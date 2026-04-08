@@ -29,6 +29,18 @@ test("formatProviderHttpError: includes status and explanation", () => {
   assert.match(m, /unavailable|maintenance|retry/i);
 });
 
+test("formatProviderHttpError: optional providerDetail from API body", () => {
+  const m = formatProviderHttpError({
+    providerLabel: "Anthropic",
+    operation: "Chat stream",
+    status: 400,
+    endpoint: "https://api.anthropic.com/v1",
+    providerDetail: "model: claude-foo not found"
+  });
+  assert.match(m, /API: model: claude-foo not found/);
+  assert.match(m, /400/);
+});
+
 test("formatModelListHttpHint: suitable for picker fallback strings", () => {
   const m = formatModelListHttpHint("Gemini", 403, "https://example/v1beta/models");
   assert.match(m, /403/);

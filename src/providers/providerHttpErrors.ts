@@ -51,14 +51,21 @@ export interface FormatProviderHttpErrorOpts {
   status: number;
   /** Shown in parentheses — base URL or path hint */
   endpoint: string;
+  /** Parsed provider error text from response body (e.g. JSON `error.message`), when available. */
+  providerDetail?: string;
 }
 
 /**
  * Full message for thrown errors in provider `stream` / `embed` paths.
  */
 export function formatProviderHttpError(opts: FormatProviderHttpErrorOpts): string {
-  const { providerLabel, operation, status, endpoint } = opts;
-  return `${providerLabel} ${operation} failed: HTTP ${status} (${endpoint}). ${explainHttpStatusForProviders(status)}`;
+  const { providerLabel, operation, status, endpoint, providerDetail } = opts;
+  const detail = providerDetail?.trim();
+  const prefix = `${providerLabel} ${operation} failed: HTTP ${status} (${endpoint}).`;
+  if (detail) {
+    return `${prefix} API: ${detail} ${explainHttpStatusForProviders(status)}`;
+  }
+  return `${prefix} ${explainHttpStatusForProviders(status)}`;
 }
 
 /**

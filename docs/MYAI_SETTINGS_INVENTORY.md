@@ -91,7 +91,7 @@ npm run docs:settings-inventory
 | `myAi.missions.trustGates.manyModifiedFilesThreshold` | number | `12` | Mission filesModified count at or above which large patches trigger the trust gate (when enabled). |
 | `myAi.missions.verification.autoRunLinterAfterMutations` | boolean | `true` | When true, balanced/strict mission policy automatically runs the linter after implementer mutations (Verifier Mesh obligation). |
 | `myAi.missions.verification.autoRunTestsAfterMutations` | boolean | `true` | When true, balanced/strict mission policy automatically runs tests after implementer mutations (Verifier Mesh obligation). |
-| `myAi.models.anthropic` | string | `claude-3-5-sonnet-20240620` | Default Claude model id for the Anthropic provider. |
+| `myAi.models.anthropic` | string | `claude-sonnet-4-6` | Default Claude model id for the Anthropic provider. |
 | `myAi.models.gemini` | string | `gemini-1.5-flash` | Default Gemini model id. |
 | `myAi.models.ollama` | string | `llama3.1` | Default model when the Ollama provider is selected. |
 | `myAi.models.openai` | string | `gpt-4.1-mini` | Default model when the OpenAI provider is selected. |

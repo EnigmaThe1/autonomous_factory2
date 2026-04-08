@@ -5,9 +5,9 @@ import { IModelProvider } from "./IModelProvider";
 import { fetchWithPolicy } from "./fetchWithPolicy";
 import { parseAnthropicSseLines } from "./streamParsers";
 import { resolveModelForProvider } from "./providerModelResolution";
-import { renderChatContext } from "./providerContextRender";
 import { readStreamChunks } from "./providerStreamReader";
 import { formatProviderHttpError } from "./providerHttpErrors";
+import { anthropicMessagesFromChatRequest } from "./anthropicMessages";
 
 export class AnthropicProvider implements IModelProvider {
   readonly id = "anthropic";
@@ -41,34 +41,42 @@ export class AnthropicProvider implements IModelProvider {
           max_tokens: 4096,
           stream: true,
           system: req.system || "You are a helpful coding assistant inside VS Code.",
-          messages: buildAnthropicMessages(req)
+          messages: anthropicMessagesFromChatRequest(req)
         })
       },
       { timeoutMs, retries, retryDelayMs, abortSignal: req.signal }
     );
 
-    if (!res.ok)
+    if (!res.ok) {
+      const bodyText = await res.text().catch(() => "");
       throw new Error(
         formatProviderHttpError({
           providerLabel: "Anthropic",
           operation: "Chat stream",
           status: res.status,
-          endpoint: baseUrl
+          endpoint: baseUrl,
+          providerDetail: parseAnthropicErrorDetail(bodyText)
         })
       );
+    }
     if (!res.body) throw new Error(`Anthropic chat stream missing response body (${baseUrl})`);
 
     yield* readStreamChunks(res.body, req.signal, parseAnthropicSseLines);
   }
 }
 
-function buildAnthropicMessages(req: ChatRequest): Array<{ role: string; content: string }> {
-  const msgs: Array<{ role: string; content: string }> = [];
-  if (req.history?.length) {
-    for (const turn of req.history) {
-      msgs.push({ role: turn.role, content: turn.content });
-    }
+function parseAnthropicErrorDetail(bodyText: string): string | undefined {
+  const t = bodyText.trim();
+  if (!t) return undefined;
+  try {
+    const j = JSON.parse(t) as { error?: { message?: string; type?: string } };
+    const msg = j.error?.message?.trim();
+    if (msg) return msg;
+    const typ = j.error?.type?.trim();
+    if (typ) return typ;
+  } catch {
+    /* ignore */
   }
-  msgs.push({ role: "user", content: renderChatContext(req) });
-  return msgs;
+  if (t.length <= 280) return t;
+  return `${t.slice(0, 277)}…`;
 }
