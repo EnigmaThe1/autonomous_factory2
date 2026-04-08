@@ -46,5 +46,10 @@ test("Verifier obligations: after implementer mutation, orchestrator runs runLin
   assert.ok(seen.includes("writeFile"));
   assert.ok(seen.includes("runLinter"));
   assert.ok(seen.includes("runTests"));
+
+  const fin = store.get(m.id)!;
+  assert.ok(typeof fin.runtime?.lastImplementerMutationAt === "number");
+  assert.ok(typeof fin.runtime?.lastVerificationAt === "number");
+  assert.ok((fin.runtime!.lastVerificationAt as number) >= (fin.runtime!.lastImplementerMutationAt as number));
 });
 

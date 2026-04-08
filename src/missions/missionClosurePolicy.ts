@@ -38,8 +38,9 @@ export async function enforceClosurePolicy(
   const needsImplementer = current.policy.requireImplementerBeforeComplete && !hasImplementerDone;
   const needsReviewer = current.policy.requireReviewerBeforeComplete && !current.queue.some((w) => w.role === "reviewer" && w.status === "done");
   const needsValidator = current.policy.requireValidatorBeforeComplete && current.validationState !== "passed";
-  const _hasValidationEvidence = current.events.some((e) => e.source.includes("validator") || e.message.toLowerCase().includes("validation"))
-    || current.memory.some((m) => m.kind === "checkpoint" && /validat/i.test(m.text));
+  const needsVerificationEvidence = Boolean(current.policy.requireValidationEvidence)
+    && typeof current.runtime?.lastImplementerMutationAt === "number"
+    && (typeof current.runtime?.lastVerificationAt !== "number" || (current.runtime.lastVerificationAt < current.runtime.lastImplementerMutationAt));
   const hasPlannerDone = current.queue.some((w) => w.role === "planner" && w.status === "done");
   const coverageMissing = vscode.workspace.getConfiguration().get<boolean>("myAi.missions.requirePlannerCoverage", true)
     && computePlannerCoverageItems(current).length > 0;
@@ -83,6 +84,14 @@ export async function enforceClosurePolicy(
   if (needsValidator) {
     return enqueueIfMissing("validator", "Required validation before completion",
       "Validate whether the mission is truly complete. Emit COMPLETE: only if done, or WORK lines for more follow-ups.");
+  }
+
+  if (needsVerificationEvidence) {
+    return enqueueIfMissing(
+      "implementer",
+      "Verification obligations (lint/tests)",
+      "Run deterministic verification: emit TOOL calls for runLinter and runTests. Summarize results and any failures. Do not make unrelated changes."
+    );
   }
 
   return false;

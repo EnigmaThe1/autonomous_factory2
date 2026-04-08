@@ -15,6 +15,13 @@ import { hasRequiredUnresolvedWork } from "./requiredWork";
 export function shouldCollapseToComplete(mission: Mission): boolean {
   if (!mission.policy.closureRequired) return false;
   if (mission.validationState !== "passed") return false;
+  if (mission.policy.requireValidationEvidence) {
+    const lastMut = mission.runtime?.lastImplementerMutationAt;
+    if (typeof lastMut === "number") {
+      const lastVer = mission.runtime?.lastVerificationAt;
+      if (typeof lastVer !== "number" || lastVer < lastMut) return false;
+    }
+  }
   if (mission.queue.some((w) => w.status === "running")) return false;
   if (mission.queue.some((w) => w.status === "blocked" || w.status === "failed")) return false;
   if (hasRequiredUnresolvedWork(mission)) return false;

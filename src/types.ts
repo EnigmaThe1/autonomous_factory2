@@ -90,6 +90,10 @@ export interface MissionRuntime {
   loopGuardTrips: number;
   runnerOwnerId?: string;
   runnerLeaseExpiresAt?: number;
+  /** Timestamp (ms) of last successful implementer-side mutating tool action (non-noop). */
+  lastImplementerMutationAt?: number;
+  /** Timestamp (ms) of last successful verification run (lint/tests) after mutation. */
+  lastVerificationAt?: number;
 }
 
 export interface MissionEvent {

@@ -113,7 +113,9 @@ export class MissionStore {
       autoReplans: 0,
       loopGuardTrips: 0,
       runnerOwnerId: undefined,
-      runnerLeaseExpiresAt: undefined
+      runnerLeaseExpiresAt: undefined,
+      lastImplementerMutationAt: undefined,
+      lastVerificationAt: undefined
     };
   }
 

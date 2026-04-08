@@ -1419,19 +1419,26 @@ export class MissionOrchestrator {
       const refreshed = this.store.get(mission.id)!;
       const preset = refreshed.policy.policyPreset || "balanced";
       if (preset === "balanced" || preset === "strict") {
+        await this.store.updateRuntime(mission.id, { lastImplementerMutationAt: Date.now() });
         const runLinterObligation = vscode.workspace.getConfiguration().get<boolean>("myAi.missions.verification.autoRunLinterAfterMutations", true);
         const runTestsObligation = vscode.workspace.getConfiguration().get<boolean>("myAi.missions.verification.autoRunTestsAfterMutations", true);
+        let ok = true;
         if (runLinterObligation) {
-          await this.executeAndRecordToolCall(mission.id, {
+          const r = await this.executeAndRecordToolCall(mission.id, {
             tool: "runLinter",
             args: { __workItemId: item.id, __workItemRole: item.role, __verification: true }
           }, ["verification"]);
+          ok = ok && r.ok;
         }
         if (runTestsObligation) {
-          await this.executeAndRecordToolCall(mission.id, {
+          const r = await this.executeAndRecordToolCall(mission.id, {
             tool: "runTests",
             args: { __workItemId: item.id, __workItemRole: item.role, __verification: true }
           }, ["verification"]);
+          ok = ok && r.ok;
+        }
+        if (ok && (runLinterObligation || runTestsObligation)) {
+          await this.store.updateRuntime(mission.id, { lastVerificationAt: Date.now() });
         }
       }
     }
