@@ -115,7 +115,8 @@ export class MissionStore {
       runnerOwnerId: undefined,
       runnerLeaseExpiresAt: undefined,
       lastImplementerMutationAt: undefined,
-      lastVerificationAt: undefined
+      lastVerificationAt: undefined,
+      webResearchCalls: 0
     };
   }
 

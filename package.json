@@ -481,6 +481,23 @@
           "minimum": 0,
           "description": "Minimum milliseconds between webSearch HTTP requests after approval (0 = disabled). Reduces load on the search API."
         },
+        "myAi.webResearch.maxCallsPerMission": {
+          "type": "number",
+          "default": 12,
+          "minimum": 0,
+          "description": "Maximum webSearch/fetchWebPage calls per mission before requiring explicit approval (0 = unlimited)."
+        },
+        "myAi.webResearch.cacheEnabled": {
+          "type": "boolean",
+          "default": true,
+          "description": "Cache successful webSearch/fetchWebPage results within a mission to reduce repeated network calls."
+        },
+        "myAi.webResearch.cacheTtlMs": {
+          "type": "number",
+          "default": 600000,
+          "minimum": 0,
+          "description": "Time-to-live for cached webSearch/fetchWebPage results (ms). When stale, the tool refetches and logs a warning."
+        },
         "myAi.browser.enabled": {
           "type": "boolean",
           "default": false,

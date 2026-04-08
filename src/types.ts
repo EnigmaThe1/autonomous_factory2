@@ -94,6 +94,8 @@ export interface MissionRuntime {
   lastImplementerMutationAt?: number;
   /** Timestamp (ms) of last successful verification run (lint/tests) after mutation. */
   lastVerificationAt?: number;
+  /** Count of web research tool calls (webSearch/fetchWebPage) during this mission. */
+  webResearchCalls?: number;
 }
 
 export interface MissionEvent {

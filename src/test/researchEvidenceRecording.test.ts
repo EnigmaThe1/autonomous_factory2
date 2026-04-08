@@ -2,6 +2,16 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import { uid } from "../util";
 import { awaitMissionRunLoopIdle, createOrchestrator, roleScript } from "./missionOrchestratorTestHarness";
+import * as vscode from "vscode";
+import { ToolRegistry } from "../tools/ToolRegistry";
+import { ExternalToolAdapterRegistry } from "../tools/ExternalToolAdapterRegistry";
+import { McpRegistry } from "../tools/McpRegistry";
+import { MissionStore } from "../missions/MissionStore";
+import { DiskMissionPersistence } from "../storage/DiskMissionPersistence";
+import { WorkspacePaths } from "../storage/WorkspacePaths";
+import { SecretStore } from "../storage/SecretStore";
+import type { ToolCall } from "../types";
+import { memento, type VscodeTestApi } from "./missionOrchestratorTestHarness";
 
 test("Research evidence: webSearch produces a finding memory with freshness tag", async () => {
   const agent = roleScript({
@@ -76,5 +86,38 @@ test("Research evidence: fetchWebPage produces a finding memory with URL include
   const fin = store.get(m.id)!;
   const evidence = fin.memory.find((x) => x.kind === "finding" && (x.tags || []).includes("research_evidence"));
   assert.ok(evidence?.text.includes("https://example.com/docs"));
+});
+
+test("Web research budget: requires approval after max calls exceeded", async () => {
+  (vscode as VscodeTestApi).__clearTestConfig?.();
+  (vscode as VscodeTestApi).__setTestConfig?.("myAi.webResearch.enabled", true);
+  (vscode as VscodeTestApi).__setTestConfig?.("myAi.webResearch.maxCallsPerMission", 1);
+  (vscode as VscodeTestApi).__setTestConfig?.("myAi.tools.requireApprovalForHttp", false);
+  (vscode as VscodeTestApi).__setTestConfig?.("myAi.tools.restrictToWorkspace", false);
+
+  const globalState = memento();
+  const workspaceState = memento();
+  const disk = new DiskMissionPersistence(new WorkspacePaths());
+  const store = new MissionStore(globalState, workspaceState, disk);
+  const secretStore = new SecretStore({} as unknown as vscode.SecretStorage);
+  const paths = new WorkspacePaths();
+  const registry = new ToolRegistry(
+    {} as vscode.ExtensionContext,
+    store,
+    disk,
+    new ExternalToolAdapterRegistry(paths),
+    new McpRegistry(paths, disk),
+    secretStore
+  );
+
+  const mission = await store.create("Budget", "p", "ollama");
+  await store.enqueue(mission.id, [{ id: "res0", title: "Research", role: "researcher", status: "todo", prompt: "x" }]);
+  await store.updateRuntime(mission.id, { webResearchCalls: 1 });
+
+  const call: ToolCall = { tool: "webSearch", args: { query: "q1", __workItemId: "res0" } };
+  const res = await registry.execute(mission.id, call);
+  assert.equal(res.ok, false);
+  assert.ok(res.requiresApproval);
+  assert.match(res.requiresApproval!.title, /budget/i);
 });
 

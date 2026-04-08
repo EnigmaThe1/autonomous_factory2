@@ -92,6 +92,7 @@ export class ToolRegistry {
   fileTracker?: MissionFileTracker;
   /** Last successful webSearch HTTP dispatch (for minIntervalMs cooldown). */
   private webSearchLastAtMs = 0;
+  private readonly webResearchCache = new Map<string, { ts: number; result: ToolResult }>();
 
   constructor(
     private readonly context: vscode.ExtensionContext,
@@ -983,6 +984,48 @@ export class ToolRegistry {
           "webSearch is disabled. Set myAi.webResearch.enabled to true. Configure myAi.webSearch.provider (duckduckgo default; brave needs Secret Storage API key)."
       };
     }
+
+    const maxCalls = Math.max(0, cfg.get<number>("myAi.webResearch.maxCallsPerMission", 12));
+    const mission = this.missionStore.get(missionId);
+    const currentCalls = mission?.runtime?.webResearchCalls ?? 0;
+    if (maxCalls > 0 && currentCalls >= maxCalls && !approved) {
+      return {
+        ok: false,
+        summary: `Approval required: web research budget exceeded (${currentCalls}/${maxCalls}).`,
+        requiresApproval: {
+          kind: "external_tool",
+          title: "Web research (budget exceeded)",
+          details: trimText(`Query:\n${query}\n\nBudget: ${currentCalls}/${maxCalls}`, 800)
+        }
+      };
+    }
+
+    const cacheEnabled = cfg.get<boolean>("myAi.webResearch.cacheEnabled", true);
+    const cacheTtlMs = Math.max(0, cfg.get<number>("myAi.webResearch.cacheTtlMs", 10 * 60_000));
+    const cacheKey = `${missionId}:webSearch:${query.trim().toLowerCase()}`;
+    if (cacheEnabled) {
+      const hit = this.webResearchCache.get(cacheKey);
+      if (hit) {
+        const age = Date.now() - hit.ts;
+        if (age <= cacheTtlMs) {
+          await this.missionStore.saveEvent(missionId, {
+            level: "info",
+            source: "tool:webSearch",
+            message: `webSearch cache hit (${Math.round(age / 1000)}s old)`
+          });
+          return {
+            ...hit.result,
+            summary: `Cache hit: ${hit.result.summary}`,
+            data: { ...(hit.result.data as any), __cache: { hit: true, ageMs: age } }
+          };
+        }
+        await this.missionStore.saveEvent(missionId, {
+          level: "warn",
+          source: "tool:webSearch",
+          message: `webSearch cache stale (${Math.round(age / 1000)}s old); refetching`
+        });
+      }
+    }
     const qv = validateSearchQuery(query);
     if (!qv.valid) {
       return { ok: false, summary: qv.reason || "Invalid search query" };
@@ -1032,6 +1075,10 @@ export class ToolRegistry {
       source: "tool:webSearch",
       message: r.summary
     });
+    await this.missionStore.updateRuntime(missionId, { webResearchCalls: currentCalls + 1 });
+    if (cacheEnabled && r.ok) {
+      this.webResearchCache.set(cacheKey, { ts: Date.now(), result: { ok: r.ok, summary: r.summary, data: r.data } });
+    }
     return { ok: r.ok, summary: r.summary, data: r.data };
   }
 
@@ -1144,6 +1191,48 @@ export class ToolRegistry {
         summary: "fetchWebPage is disabled. Set myAi.webResearch.enabled to true."
       };
     }
+
+    const maxCalls = Math.max(0, cfg.get<number>("myAi.webResearch.maxCallsPerMission", 12));
+    const mission = this.missionStore.get(missionId);
+    const currentCalls = mission?.runtime?.webResearchCalls ?? 0;
+    if (maxCalls > 0 && currentCalls >= maxCalls && !approved) {
+      return {
+        ok: false,
+        summary: `Approval required: web research budget exceeded (${currentCalls}/${maxCalls}).`,
+        requiresApproval: {
+          kind: "external_tool",
+          title: "Fetch web page (budget exceeded)",
+          details: trimText(`URL:\n${url}\n\nBudget: ${currentCalls}/${maxCalls}`, 800)
+        }
+      };
+    }
+
+    const cacheEnabled = cfg.get<boolean>("myAi.webResearch.cacheEnabled", true);
+    const cacheTtlMs = Math.max(0, cfg.get<number>("myAi.webResearch.cacheTtlMs", 10 * 60_000));
+    const cacheKey = `${missionId}:fetchWebPage:${url.trim().toLowerCase()}`;
+    if (cacheEnabled) {
+      const hit = this.webResearchCache.get(cacheKey);
+      if (hit) {
+        const age = Date.now() - hit.ts;
+        if (age <= cacheTtlMs) {
+          await this.missionStore.saveEvent(missionId, {
+            level: "info",
+            source: "tool:fetchWebPage",
+            message: `fetchWebPage cache hit (${Math.round(age / 1000)}s old)`
+          });
+          return {
+            ...hit.result,
+            summary: `Cache hit: ${hit.result.summary}`,
+            data: { ...(hit.result.data as any), __cache: { hit: true, ageMs: age } }
+          };
+        }
+        await this.missionStore.saveEvent(missionId, {
+          level: "warn",
+          source: "tool:fetchWebPage",
+          message: `fetchWebPage cache stale (${Math.round(age / 1000)}s old); refetching`
+        });
+      }
+    }
     const uv = validateUrl(url);
     if (!uv.valid) {
       return { ok: false, summary: `fetchWebPage rejected: ${uv.reason}` };
@@ -1167,6 +1256,10 @@ export class ToolRegistry {
       source: "tool:fetchWebPage",
       message: r.summary
     });
+    await this.missionStore.updateRuntime(missionId, { webResearchCalls: currentCalls + 1 });
+    if (cacheEnabled && r.ok) {
+      this.webResearchCache.set(cacheKey, { ts: Date.now(), result: { ok: r.ok, summary: r.summary, data: r.data } });
+    }
     return { ok: r.ok, summary: r.summary, data: r.data };
   }
 
