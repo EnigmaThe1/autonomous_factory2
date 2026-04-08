@@ -127,11 +127,30 @@ export interface LintResult {
   rawOutput?: string;
 }
 
+/** Result of parsing linter stdout/stderr (see `parseLintOutput`). */
+export type LintParseResult = Partial<LintResult> & {
+  /** ESLint JSON array output vs loose line counting. */
+  source?: "eslint-json" | "heuristic";
+};
+
+/** True when lint should be treated as passing (exit 0, or ESLint JSON reports zero errors and zero warnings). */
+export function lintResultOk(exitCode: number, parsed: LintParseResult): boolean {
+  if (exitCode === 0) return true;
+  if (
+    parsed.source === "eslint-json" &&
+    (parsed.errorCount ?? 0) === 0 &&
+    (parsed.warningCount ?? 0) === 0
+  ) {
+    return true;
+  }
+  return false;
+}
+
 function detectLinter(): string | null {
   return "npx eslint . --format json 2>&1 || npx eslint . 2>&1";
 }
 
-export function parseLintOutput(raw: string): Partial<LintResult> {
+export function parseLintOutput(raw: string): LintParseResult {
   // ESLint JSON format
   try {
     const parsed = JSON.parse(raw);
@@ -154,14 +173,14 @@ export function parseLintOutput(raw: string): Partial<LintResult> {
           }
         }
       }
-      return { errorCount: errors, warningCount: warnings, issues };
+      return { errorCount: errors, warningCount: warnings, issues, source: "eslint-json" };
     }
   } catch { /* not JSON — try line parsing */ }
 
   // Count error/warning lines
   const errorLines = (raw.match(/error/gi) || []).length;
   const warnLines = (raw.match(/warning/gi) || []).length;
-  return { errorCount: errorLines, warningCount: warnLines };
+  return { errorCount: errorLines, warningCount: warnLines, source: "heuristic" };
 }
 
 export async function runLinter(opts?: { command?: string; cwd?: string; timeoutMs?: number }): Promise<LintResult> {
@@ -185,11 +204,20 @@ export async function runLinter(opts?: { command?: string; cwd?: string; timeout
 
   const raw = `${result.stdout}\n${result.stderr}`.trim();
   const parsed = parseLintOutput(raw);
+  const exitCode = result.exitCode ?? -1;
+  const ok = lintResultOk(exitCode, parsed);
 
-  const ok = result.exitCode === 0;
-  const summary = parsed.errorCount !== undefined
-    ? `Lint: ${parsed.errorCount} error(s), ${parsed.warningCount ?? 0} warning(s)`
-    : `Lint command ${ok ? "passed" : "failed"} (exit ${result.exitCode})`;
+  let summary: string;
+  if (parsed.errorCount !== undefined) {
+    summary = `Lint: ${parsed.errorCount} error(s), ${parsed.warningCount ?? 0} warning(s)`;
+    if (!ok) {
+      summary += ` (exit ${exitCode})`;
+    } else if (exitCode !== 0) {
+      summary += ` (process exit ${exitCode}; ESLint JSON reports no issues — treated as pass)`;
+    }
+  } else {
+    summary = `Lint command ${ok ? "passed" : "failed"} (exit ${exitCode})`;
+  }
 
   return {
     ok,

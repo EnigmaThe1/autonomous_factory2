@@ -53,6 +53,21 @@ export function missionBlueprintToMarkdown(
   lines.push("## Architecture summary");
   lines.push(bp.architectureSummary.trim() || "_(empty)_");
   lines.push("");
+  if (bp.goalEndState?.trim()) {
+    lines.push("## End state (goal-first)");
+    lines.push(bp.goalEndState.trim());
+    lines.push("");
+  }
+  if (bp.approachOptions?.length) {
+    lines.push("## Approaches considered");
+    bp.approachOptions.forEach((o, i) => lines.push(`${i + 1}. ${o}`));
+    lines.push("");
+  }
+  if (bp.chosenApproach?.trim()) {
+    lines.push("## Chosen approach");
+    lines.push(bp.chosenApproach.trim());
+    lines.push("");
+  }
   lines.push("## Steps");
   for (const s of bp.steps) {
     const opt = s.optional ? " _(optional)_" : "";

@@ -20,7 +20,7 @@ export function recoverInterruptedQueueItems(queue: WorkItem[]): QueueRecoveryRe
       return {
         ...item,
         status: "blocked" as const,
-        hardStopClass: item.role === "implementer" ? "unknown_hard_stop" as const : item.hardStopClass,
+        hardStopClass: item.role === "implementer" ? ("unknown_hard_stop" as const) : item.hardStopClass,
         output: [
           item.output || "Interrupted during mutating tool execution.",
           `Recovery blocked automatic replay because ${item.activeMutatingToolCall.tool} may have already changed state.`,
@@ -29,7 +29,13 @@ export function recoverInterruptedQueueItems(queue: WorkItem[]): QueueRecoveryRe
       };
     }
     recoveredCount += 1;
-    return { ...item, status: "todo" as const, output: item.output || "Recovered after host interruption. Re-queued for resume." };
+    // Safe recovery: clear any stale mutating marker so a re-queued item is never treated as mid-mutation.
+    return {
+      ...item,
+      status: "todo" as const,
+      activeMutatingToolCall: undefined,
+      output: item.output || "Recovered after host interruption. Re-queued for resume."
+    };
   });
   return { queue: recoveredQueue, recoveredCount, replayRiskCount };
 }

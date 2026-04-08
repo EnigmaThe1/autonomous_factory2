@@ -81,10 +81,21 @@ export function parseBlueprintModelOutput(
   const o = raw as Record<string, unknown>;
   const req = typeof o.requirementsSummary === "string" ? o.requirementsSummary.trim() : "";
   const arch = typeof o.architectureSummary === "string" ? o.architectureSummary.trim() : "";
+  const goalEndStateRaw = typeof o.goalEndState === "string" ? o.goalEndState.trim() : "";
+  const chosenApproachRaw = typeof o.chosenApproach === "string" ? o.chosenApproach.trim() : "";
+  const approachRaw = o.approachOptions;
+  const approachOptionsParsed = Array.isArray(approachRaw)
+    ? approachRaw
+        .filter((x): x is string => typeof x === "string" && x.trim().length > 0)
+        .map((x) => x.trim().slice(0, 2000))
+        .slice(0, 8)
+    : [];
   if (!req) errors.push("Missing requirementsSummary.");
   if (!arch) errors.push("Missing architectureSummary.");
   if (req.length > maxField) errors.push("requirementsSummary exceeds max length.");
   if (arch.length > maxField) errors.push("architectureSummary exceeds max length.");
+  if (goalEndStateRaw.length > maxField) errors.push("goalEndState exceeds max length.");
+  if (chosenApproachRaw.length > maxField) errors.push("chosenApproach exceeds max length.");
 
   const stepsRaw = o.steps;
   if (!Array.isArray(stepsRaw)) {
@@ -160,6 +171,9 @@ export function parseBlueprintModelOutput(
     steps,
     amendments: []
   };
+  if (goalEndStateRaw) blueprint.goalEndState = goalEndStateRaw.slice(0, maxField);
+  if (approachOptionsParsed.length) blueprint.approachOptions = approachOptionsParsed;
+  if (chosenApproachRaw) blueprint.chosenApproach = chosenApproachRaw.slice(0, maxField);
 
   return { blueprint, errors: [] };
 }

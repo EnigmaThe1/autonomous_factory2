@@ -885,14 +885,15 @@ test("missionReportInspectorCacheSig and missionInspectorSig: frs + rmc", async 
       filesModifiedCount: 2,
       errorPatternCount: 1,
       completionPercent: 50,
-      retriedItems: 0
+      retriedItems: 0,
+      deadLetterItems: 0
     },
     missionList: { includeArchived: false, totalCount: 1, archivedCount: 0 },
     defaultModel: "dm"
   };
   const composed = composeMissionsForMissionList(snap.missions, "all");
   const ins0 = JSON.parse(missionInspectorSig(snap, "all", composed, ""));
-  assert.equal(ins0.frs, "50|2|1|0");
+  assert.equal(ins0.frs, "50|2|1|0|0");
   assert.equal(ins0.rmc, "");
   const rmc = missionReportInspectorCacheSig("r", { missionId: "r", markdown: "abc" });
   assert.equal(rmc, "r:3");

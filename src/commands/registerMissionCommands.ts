@@ -5,6 +5,7 @@ import { MissionStore } from "../missions/MissionStore";
 import { resolveModelForProvider } from "../providers/providerModelResolution";
 import { presetRoutingFragment } from "../missions/missionRouting";
 import { generateMissionReport } from "../missions/missionReport";
+import { buildMissionDiagnosticSnapshot } from "../missions/missionSnapshotExport";
 import { AgentRole, MissionAgentRouting, MissionPolicy, WorkItem } from "../types";
 import { presentResumeMissionOutcome, presentStartMissionOutcome } from "../ui/missionActionOutcomePresentation";
 import { presentResumeMissionOutcomeEvent, presentStartMissionOutcomeEvent } from "../missions/missionActionOutcomeEventPresentation";
@@ -481,6 +482,19 @@ export function registerMissionCommands(
       const report = generateMissionReport(mission);
       const doc = await vscode.workspace.openTextDocument({ language: "markdown", content: report.markdown });
       await vscode.window.showTextDocument(doc, { preview: false });
+    })
+  );
+
+  disposables.push(
+    vscode.commands.registerCommand("myAi.exportMissionDiagnosticSnapshot", async () => {
+      const picked = await chooseMission(store, "Select mission for diagnostic snapshot (JSON)");
+      if (!picked) return;
+      const mission = store.get(picked.missionId);
+      if (!mission) return;
+      const snap = buildMissionDiagnosticSnapshot(mission);
+      const json = JSON.stringify(snap, null, 2);
+      await vscode.env.clipboard.writeText(json);
+      void vscode.window.showInformationMessage("Mission diagnostic snapshot copied to clipboard (JSON).");
     })
   );
 

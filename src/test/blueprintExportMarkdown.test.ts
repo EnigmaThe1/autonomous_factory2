@@ -35,6 +35,36 @@ test("missionBlueprintToMarkdown: includes steps and criteria", () => {
   assert.match(md, /awaiting_approval/);
 });
 
+test("missionBlueprintToMarkdown: includes goal-first sections when set", () => {
+  const bp: MissionBlueprint = {
+    version: 1,
+    createdAt: 1,
+    status: "draft",
+    requirementsSummary: "R",
+    architectureSummary: "A",
+    goalEndState: "System stable",
+    approachOptions: ["A1", "A2"],
+    chosenApproach: "A1",
+    steps: [
+      {
+        id: "s1",
+        title: "T",
+        summary: "S",
+        roleHint: "implementer",
+        acceptanceCriteria: ["C"],
+        status: "pending"
+      }
+    ],
+    amendments: []
+  };
+  const md = missionBlueprintToMarkdown("M", bp);
+  assert.match(md, /## End state/);
+  assert.match(md, /System stable/);
+  assert.match(md, /## Approaches considered/);
+  assert.match(md, /A1/);
+  assert.match(md, /## Chosen approach/);
+});
+
 test("missionBlueprintToMarkdown: includes pre-blueprint Q&A when provided", () => {
   const bp: MissionBlueprint = {
     version: 1,

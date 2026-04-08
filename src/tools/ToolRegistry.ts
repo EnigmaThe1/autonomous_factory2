@@ -18,6 +18,7 @@ import * as dockerTools from "./DockerTools";
 import type { WorkspaceIndex } from "../memory/WorkspaceIndex";
 import type { MissionFileTracker } from "../missions/MissionFileTracker";
 import { withRetry } from "./toolRetry";
+import { suggestWorkspacePathsForMissingFile } from "./pathResolveSuggestions";
 import {
   validateCommand,
   validateContainerName,
@@ -33,6 +34,7 @@ import { SecretStore } from "../storage/SecretStore";
 import { BRAVE_WEB_SEARCH_SECRET_KEY } from "../providers/providerCredentialKeys";
 import { BUILTIN_TOOL_NAMES } from "./builtinToolNames";
 import { buildListToolsHintEntries } from "./listToolsCatalog";
+import { evaluateTrustActionGate } from "../missions/trustActionGate";
 import { compactMcpToolDescriptors } from "./mcpToolsListCompact";
 import { toExternalAdapterPublicSummaries } from "./externalAdapterListSanitize";
 import { classifyScopeDriftForPath } from "../missions/scopeDriftPolicy";
@@ -178,6 +180,7 @@ export class ToolRegistry {
       level: "warn",
       source: "scope",
       message: `Non-implementer mutation requires explicit approval: ${call.tool} (role=${attributed.item.role})`,
+      telemetryKind: "approval_requested",
       data: { tool: call.tool, role: attributed.item.role, workItemId: attributed.item.id }
     });
     return {
@@ -223,6 +226,14 @@ export class ToolRegistry {
   private hasWorkItemAttribution(call: ToolCall): boolean {
     const id = (call.args as Record<string, unknown> | undefined)?.__workItemId;
     return typeof id === "string" && id.trim().length > 0;
+  }
+
+  /** Caps searchFiles / grepSearch match budget (workspace setting + optional agent request). */
+  private effectiveSearchFilesMaxResults(agentRequested?: number): number {
+    const cap = vscode.workspace.getConfiguration().get<number>("myAi.tools.searchFilesMaxResults", 50);
+    const configured = Math.min(200, Math.max(5, Math.floor(Number.isFinite(cap) ? cap : 50)));
+    if (agentRequested === undefined || !Number.isFinite(agentRequested)) return configured;
+    return Math.min(configured, Math.max(1, Math.floor(agentRequested)));
   }
 
   private isPotentiallyMutatingToolCall(call: ToolCall): boolean {
@@ -660,10 +671,53 @@ export class ToolRegistry {
     const resolvedPath = this.resolveWorkspacePath(fsPath);
     const decision = this.policyEngine().decide({ action: "read_file", targetPath: resolvedPath });
     if (!decision.allowed) return this.policyBlocked(decision.reason);
-    const bytes = await vscode.workspace.fs.readFile(vscode.Uri.file(resolvedPath));
-    const text = Buffer.from(bytes).toString("utf8");
-    await this.missionStore.saveEvent(missionId, { level: "info", source: "tool:readFile", message: resolvedPath });
-    return { ok: true, summary: `Read ${resolvedPath}`, data: trimText(text, 30000) };
+    try {
+      const bytes = await vscode.workspace.fs.readFile(vscode.Uri.file(resolvedPath));
+      const text = Buffer.from(bytes).toString("utf8");
+      await this.missionStore.saveEvent(missionId, { level: "info", source: "tool:readFile", message: resolvedPath });
+      return { ok: true, summary: `Read ${resolvedPath}`, data: trimText(text, 30000) };
+    } catch (e) {
+      const msg = e instanceof vscode.FileSystemError ? e.message : String(e);
+      const code = e instanceof vscode.FileSystemError ? e.code : "Unknown";
+      const notFound =
+        (e instanceof vscode.FileSystemError &&
+          (code === "FileNotFound" || code === "EntryNotFound")) ||
+        /ENOENT|EntryNotFound|no such file|not found/i.test(msg);
+      const hint = notFound
+        ? " Use listFiles or grepSearch to locate the file (check subfolders and exact filename casing)."
+        : "";
+      let suggestedPaths: string[] = [];
+      if (notFound) {
+        const root = vscode.workspace.workspaceFolders?.[0]?.uri.fsPath;
+        if (root) {
+          try {
+            suggestedPaths = await suggestWorkspacePathsForMissingFile(
+              root,
+              resolvedPath,
+              this.workspaceIndex,
+              12
+            );
+          } catch {
+            suggestedPaths = [];
+          }
+        }
+      }
+      await this.missionStore.saveEvent(missionId, {
+        level: "warn",
+        source: "tool:readFile",
+        message: `Failed: ${resolvedPath}`,
+        data: { code, detail: msg, suggestedPaths }
+      });
+      const suggestNote =
+        suggestedPaths.length > 0
+          ? ` Suggested paths (try readFile on one): ${suggestedPaths.join(", ")}`
+          : "";
+      return {
+        ok: false,
+        summary: `readFile failed: ${msg}${hint}${suggestNote}`,
+        data: { path: resolvedPath, code, suggestedPaths }
+      };
+    }
   }
 
   private async buildFileApprovalResult(
@@ -719,6 +773,7 @@ export class ToolRegistry {
           level: "warn",
           source: "scope",
           message: drift.reason,
+          telemetryKind: "scope_drift",
           data: drift.details
         });
         const details = [
@@ -746,6 +801,7 @@ export class ToolRegistry {
           level: "warn",
           source: "scope",
           message: drift.reason,
+          telemetryKind: "scope_drift",
           data: { tool: call.tool, path: resolvedPath, workItemId: attributed.item.id }
         });
       }
@@ -823,6 +879,7 @@ export class ToolRegistry {
           level: "warn",
           source: "scope",
           message: drift.reason,
+          telemetryKind: "scope_drift",
           data: drift.details
         });
         const details = [
@@ -856,6 +913,7 @@ export class ToolRegistry {
           level: "warn",
           source: "scope",
           message: drift.reason,
+          telemetryKind: "scope_drift",
           data: { tool: call.tool, path: resolvedPath, workItemId: attributed.item.id }
         });
       }
@@ -865,6 +923,19 @@ export class ToolRegistry {
       const patchDetails = ["Path: " + resolvedPath, "", "SEARCH:", trimText(search, 600), "", "REPLACE:", trimText(replace, 600)].join("\n");
       return this.buildFileApprovalResult("apply_patch", `Apply patch to ${resolvedPath}`, resolvedPath, text, updated, patchDetails);
     }
+    const missionSnap = this.missionStore.get(missionId);
+    const trustPatch = evaluateTrustActionGate({
+      cfg: vscode.workspace.getConfiguration(),
+      mission: missionSnap,
+      call,
+      applyPatchSearch: search,
+      applyPatchReplace: replace,
+      approved
+    });
+    if (trustPatch) {
+      const patchDetails = ["Path: " + resolvedPath, "", trustPatch.details, "", "SEARCH:", trimText(search, 600), "", "REPLACE:", trimText(replace, 600)].join("\n");
+      return this.buildFileApprovalResult("apply_patch", trustPatch.title, resolvedPath, text, updated, trimText(patchDetails, 2000));
+    }
     await vscode.workspace.fs.writeFile(uri, Buffer.from(updated, "utf8"));
     this.fileTracker?.trackFile(missionId, resolvedPath);
     await this.missionStore.saveEvent(missionId, { level: "info", source: "tool:applyPatch", message: resolvedPath });
@@ -872,11 +943,12 @@ export class ToolRegistry {
   }
 
   private async searchFiles(missionId: string, glob: string, query: string): Promise<ToolResult> {
+    const maxResults = this.effectiveSearchFilesMaxResults();
     const rgResult = await ripgrepSearch({
       pattern: query,
       glob,
-      maxResults: 50,
-      fixedString: true,
+      maxResults,
+      fixedString: true
     });
 
     if (rgResult.ok) {
@@ -886,21 +958,26 @@ export class ToolRegistry {
         lines.push(m.matchText);
         grouped.set(m.file, lines);
       }
-      const matches = [...grouped.entries()].slice(0, 25).map(([file, lines]) => ({ file, lines: lines.slice(0, 8) }));
+      const fileCap = Math.min(25, maxResults);
+      const lineCap = Math.min(8, Math.max(3, Math.floor(maxResults / 4)));
+      const matches = [...grouped.entries()].slice(0, fileCap).map(([file, lines]) => ({ file, lines: lines.slice(0, lineCap) }));
       await this.missionStore.saveEvent(missionId, { level: "info", source: "tool:searchFiles", message: `glob=${glob} query=${query} (ripgrep)` });
       return { ok: true, summary: `Found ${matches.length} matching files.`, data: matches };
     }
 
-    const files = await vscode.workspace.findFiles(glob, "**/node_modules/**", 200);
+    const scanCap = Math.min(400, Math.max(50, maxResults * 6));
+    const files = await vscode.workspace.findFiles(glob, "**/node_modules/**", scanCap);
     const matches: Array<{ file: string; lines: string[] }> = [];
+    const fileCap = Math.min(25, maxResults);
+    const lineCap = Math.min(8, Math.max(3, Math.floor(maxResults / 4)));
     for (const file of files) {
       const text = Buffer.from(await vscode.workspace.fs.readFile(file)).toString("utf8");
       if (!text.includes(query)) continue;
       matches.push({
         file: file.fsPath,
-        lines: text.split(/\r?\n/).filter((line) => line.includes(query)).slice(0, 8)
+        lines: text.split(/\r?\n/).filter((line) => line.includes(query)).slice(0, lineCap)
       });
-      if (matches.length >= 25) break;
+      if (matches.length >= fileCap) break;
     }
     await this.missionStore.saveEvent(missionId, { level: "info", source: "tool:searchFiles", message: `glob=${glob} query=${query} (vscode fallback)` });
     return { ok: true, summary: `Found ${matches.length} matching files.`, data: matches };
@@ -926,7 +1003,8 @@ export class ToolRegistry {
   }
 
   private async grepSearch(missionId: string, pattern: string, glob?: string, maxResults?: number): Promise<ToolResult> {
-    const result = await ripgrepSearch({ pattern, glob, maxResults, fixedString: false });
+    const capped = this.effectiveSearchFilesMaxResults(maxResults);
+    const result = await ripgrepSearch({ pattern, glob, maxResults: capped, fixedString: false });
     if (!result.ok) {
       return { ok: false, summary: result.error || "grep search failed" };
     }
@@ -1350,6 +1428,19 @@ export class ToolRegistry {
         }
       };
     }
+    if (!approved && !decision.requiresApproval && call) {
+      const m = this.missionStore.get(missionId);
+      const tg = evaluateTrustActionGate({
+        cfg: vscode.workspace.getConfiguration(),
+        mission: m,
+        call,
+        commandText: command,
+        approved: false
+      });
+      if (tg) {
+        return { ok: false, summary: tg.summary, requiresApproval: { kind: "terminal", title: tg.title, details: tg.details } };
+      }
+    }
     const terminal = vscode.window.createTerminal({ name: `Autonomous Factory ${uid("term")}` });
     terminal.show(true);
     terminal.sendText(command, true);
@@ -1390,6 +1481,19 @@ export class ToolRegistry {
           details: cwd ? `[cwd: ${cwd}] ${command}` : command
         }
       };
+    }
+    if (!approved && !decision.requiresApproval && call) {
+      const m = this.missionStore.get(missionId);
+      const tg = evaluateTrustActionGate({
+        cfg: vscode.workspace.getConfiguration(),
+        mission: m,
+        call,
+        commandText: command,
+        approved: false
+      });
+      if (tg) {
+        return { ok: false, summary: tg.summary, requiresApproval: { kind: "terminal", title: tg.title, details: tg.details } };
+      }
     }
 
     const result = await runCommand({ command, cwd, timeoutMs });

@@ -1,4 +1,6 @@
 import * as vscode from "vscode";
+import { EXTENSION_TOOL_USER_PROMPT_BULLETS } from "./extensionToolHardRules";
+import { GOAL_FIRST_USER_PROMPT_BULLETS } from "./goalFirstDiscipline";
 
 /** TOOL: lines and related instructions appended to the user prompt (full catalog). */
 function fullToolLines(): string[] {
@@ -92,9 +94,12 @@ function selfCorrectionLines(lazy: boolean): string[] {
 export function getAgentToolInstructionLines(): string[] {
   const cfg = vscode.workspace.getConfiguration();
   const lazy = cfg.get<boolean>("myAi.agents.lazyToolPrompt", false);
+  const goalFirstOn = cfg.get<boolean>("myAi.agents.goalFirstDiscipline", true);
   const toolLines = lazy ? lazyToolLines() : fullToolLines();
   return [
     "You may emit machine-readable lines only when needed:",
+    ...EXTENSION_TOOL_USER_PROMPT_BULLETS,
+    ...(goalFirstOn ? GOAL_FIRST_USER_PROMPT_BULLETS : []),
     ...toolLines,
     "WORK:ROLE:TITLE - PROMPT",
     "MEMORY:kind:tag1,tag2 - text",

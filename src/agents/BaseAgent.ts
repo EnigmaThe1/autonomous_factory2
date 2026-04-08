@@ -7,6 +7,9 @@ import { trimText } from "../util";
 import { GlobalMemoryStore } from "../memory/GlobalMemoryStore";
 import { loadWorkspaceSkillsForAgents } from "../skills/workspaceSkillsLoader";
 import { getAgentToolInstructionLines } from "./toolPromptCatalog";
+import { CLAIM_STATUS_INSTRUCTIONS } from "../missions/claimTrust";
+import { EXTENSION_TOOL_HARD_RULES_MISSION } from "./extensionToolHardRules";
+import { GOAL_FIRST_DISCIPLINE_SYSTEM } from "./goalFirstDiscipline";
 
 export abstract class BaseAgent {
   constructor(
@@ -59,6 +62,7 @@ export abstract class BaseAgent {
       mission.policy.closureRequired
         ? "CLOSURE REQUIRED: do not assume first-tranche completion. Continue until validation passes or a real blocker exists."
         : "",
+      vscode.workspace.getConfiguration().get<boolean>("myAi.missions.claimDiscipline", true) ? CLAIM_STATUS_INSTRUCTIONS : "",
     ];
 
     // Budget-aware optional sections — ordered by trim priority (last trimmed first)
@@ -107,10 +111,17 @@ export abstract class BaseAgent {
       .join("\n\n");
 
     const skillsBlock = await loadWorkspaceSkillsForAgents();
-    const systemPrompt =
+    const goalFirstOn = cfg.get<boolean>("myAi.agents.goalFirstDiscipline", true);
+    const systemPrompt = [
+      instructions,
+      EXTENSION_TOOL_HARD_RULES_MISSION,
+      goalFirstOn ? GOAL_FIRST_DISCIPLINE_SYSTEM : "",
       skillsBlock.trim().length > 0
-        ? `${instructions}\n\n--- WORKSPACE SKILLS (markdown from repository; apply when relevant) ---\n${skillsBlock}`
-        : instructions;
+        ? `--- WORKSPACE SKILLS (markdown from repository; apply when relevant) ---\n${skillsBlock}`
+        : ""
+    ]
+      .filter(Boolean)
+      .join("\n\n");
 
     let out = "";
     for await (const chunk of provider.stream({

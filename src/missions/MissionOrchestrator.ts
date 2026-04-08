@@ -50,6 +50,7 @@ import { applyBlueprintStepStatusFromWorkItem } from "./blueprintStepSync";
 import { computePlanFidelityDrift } from "./blueprintPlanFidelity";
 import { validateBlueprintReadinessForApproval } from "./blueprintReadinessGate";
 import { findStaleResearchEvidenceMemories, formatResearchEvidenceFinding } from "./researchEvidence";
+import { findDuplicateQueryResearchContradictions } from "./researchContradiction";
 import type { MissionFileTracker } from "./MissionFileTracker";
 import type {
   ResolveApprovalOutcome,
@@ -67,7 +68,8 @@ import {
   type ImplementerHardStopGateResult
 } from "./requiredImplementerHardStopGate";
 import { missionBlockReasonFromDownstreamGate } from "./missionBlockReasonCode";
-import { shouldAutoRetry, createRetryWorkItem } from "./workItemAutoRetry";
+import { shouldAutoRetry, createRetryWorkItem, shouldMarkWorkItemDeadLetter } from "./workItemAutoRetry";
+import { computeEffectiveMaxAutoRounds } from "./adaptiveMissionScaling";
 
 function readinessMessageText(readiness: ReturnType<typeof validateBlueprintReadinessForApproval>): string {
   const errs = readiness.report.errors.length ? `Errors:\n- ${readiness.report.errors.join("\n- ")}` : "";
@@ -672,7 +674,7 @@ export class MissionOrchestrator {
           return this.runPassOutcomeAfterStoreRead(id);
         }
 
-        const effectiveMaxRounds = computeEffectiveMaxRounds(mission);
+        const effectiveMaxRounds = computeEffectiveMaxAutoRounds(mission, vscode.workspace.getConfiguration());
         if ((mission.roundsCompleted || 0) >= effectiveMaxRounds) {
           this.pendingCompletionReason.delete(id);
           await this.store.updateMission(id, {
@@ -720,20 +722,23 @@ export class MissionOrchestrator {
         if (outcome === "awaiting_input" || outcome === "blocked") return this.runPassOutcomeAfterStoreRead(id);
 
         const maxRetries = vscode.workspace.getConfiguration().get<number>("myAi.missions.maxAutoRetries", 2);
-        if (maxRetries > 0) {
-          const freshMission = this.store.get(id)!;
-          const failedItem = freshMission.queue.find((w) => w.id === next.id);
-          if (failedItem?.status === "failed") {
-            const retryDecision = shouldAutoRetry(failedItem, maxRetries);
-            if (retryDecision.shouldRetry) {
-              const retryItem = createRetryWorkItem(failedItem);
-              await this.store.enqueue(id, [retryItem]);
-              await this.store.saveEvent(id, {
-                level: "info",
-                source: "orchestrator",
-                message: `Auto-retry: enqueued "${retryItem.title}" (${retryDecision.reason}) after failure: ${(failedItem.output || "").slice(0, 200)}`
-              });
-            }
+        const markDeadLetterAfterRetries = vscode.workspace
+          .getConfiguration()
+          .get<boolean>("myAi.missions.markDeadLetterAfterRetryExhaustion", true);
+        const freshMission = this.store.get(id)!;
+        const failedItem = freshMission.queue.find((w) => w.id === next.id);
+        if (failedItem?.status === "failed") {
+          const retryDecision = shouldAutoRetry(failedItem, maxRetries);
+          if (retryDecision.shouldRetry) {
+            const retryItem = createRetryWorkItem(failedItem);
+            await this.store.enqueue(id, [retryItem]);
+            await this.store.saveEvent(id, {
+              level: "info",
+              source: "orchestrator",
+              message: `Auto-retry: enqueued "${retryItem.title}" (${retryDecision.reason}) after failure: ${(failedItem.output || "").slice(0, 200)}`
+            });
+          } else if (markDeadLetterAfterRetries && shouldMarkWorkItemDeadLetter(failedItem, retryDecision)) {
+            await this.markDeadLetterAfterRetryExhaustion(id, failedItem, retryDecision.reason);
           }
         }
 
@@ -750,9 +755,33 @@ export class MissionOrchestrator {
       return this.runPassOutcomeAfterStoreRead(id);
     } catch (err) {
       this.pendingCompletionReason.delete(id);
+      const detail = err instanceof Error ? err.stack || err.message : String(err);
+      const blockerShort = err instanceof Error ? err.message : String(err);
+      try {
+        const missionSnap = this.store.get(id);
+        if (missionSnap) {
+          const running = missionSnap.queue.filter((w) => w.status === "running");
+          for (const wi of running) {
+            await this.updateWorkItemWithHardStopInvariant(id, wi, {
+              status: "failed",
+              hardStopClass: "unknown_hard_stop",
+              output: `[orchestrator_uncaught_error] ${detail}`.slice(0, 12_000),
+              activeMutatingToolCall: undefined
+            });
+          }
+        }
+      } catch (reconcileErr) {
+        await this.store.saveEvent(id, {
+          level: "error",
+          source: "orchestrator",
+          message: `Failed to reconcile running work items after uncaught error: ${
+            reconcileErr instanceof Error ? reconcileErr.message : String(reconcileErr)
+          }`
+        });
+      }
       await this.store.updateMission(id, {
         status: "failed",
-        blocker: String(err),
+        blocker: blockerShort,
         validationState: "failed",
         blockReasonCode: undefined,
         failureReasonCode: "orchestrator_uncaught_error"
@@ -760,7 +789,7 @@ export class MissionOrchestrator {
       await this.store.saveEvent(id, {
         level: "error",
         source: "orchestrator",
-        message: err instanceof Error ? err.stack || err.message : String(err)
+        message: detail
       });
       return this.runPassOutcomeAfterStoreRead(id);
     } finally {
@@ -781,12 +810,55 @@ export class MissionOrchestrator {
     return { kind: "ran_pass", missionId, statusAfterPass: m.status };
   }
 
+  private async markDeadLetterAfterRetryExhaustion(
+    missionId: string,
+    item: WorkItem,
+    retryReason: string
+  ): Promise<void> {
+    if (item.deadLetter) return;
+    const note = `\n\n---\nDEAD LETTER: Automatic retry budget exhausted (${retryReason}). Operator next steps: fix the root cause, skip or remove this work item, or reset it to todo after adjusting inputs. No further automatic retries will be enqueued for this failure row.`;
+    await this.updateWorkItemWithHardStopInvariant(missionId, item, {
+      deadLetter: true,
+      deadLetterAt: Date.now(),
+      output: `${item.output || ""}${note}`.trim()
+    });
+    await this.store.saveEvent(missionId, {
+      level: "error",
+      source: "orchestrator",
+      message: `Work item marked dead letter (retries exhausted): "${item.title}" (${item.id})`,
+      data: { workItemId: item.id, role: item.role, reason: retryReason }
+    });
+  }
+
   private async updateWorkItemWithHardStopInvariant(
     missionId: string,
     itemBeforePatch: WorkItem,
     patch: Partial<WorkItem>
   ): Promise<void> {
     await updateWorkItemWithImplementerHardStopInvariant(this.store, missionId, itemBeforePatch, patch);
+  }
+
+  /**
+   * Never throws: a throwing tool impl would otherwise skip `executeWorkItemToolCalls` failure handling
+   * and leave the active work item stuck in `running` while `runMission` marks the mission `failed`.
+   */
+  private async executeToolOrSyntheticFailure(
+    missionId: string,
+    call: ToolCall,
+    workItemId?: string
+  ): Promise<ToolResult> {
+    try {
+      return await this.tools.execute(missionId, call);
+    } catch (toolErr) {
+      const msg = toolErr instanceof Error ? toolErr.message : String(toolErr);
+      await this.store.saveEvent(missionId, {
+        level: "error",
+        source: "orchestrator",
+        message: `Tool ${call.tool} threw (unexpected): ${msg}`,
+        data: { tool: call.tool, workItemId }
+      });
+      return { ok: false, summary: `${call.tool} crashed: ${msg}` };
+    }
   }
 
   /**
@@ -826,7 +898,7 @@ export class MissionOrchestrator {
         continue;
       }
       await this.markMutatingToolExecutionStarted(mission.id, item, callWithMeta);
-      const toolResult = await this.tools.execute(mission.id, callWithMeta);
+      const toolResult = await this.executeToolOrSyntheticFailure(mission.id, callWithMeta, item.id);
 
       if (!toolResult.ok && toolResult.blockedByPolicy) {
         this.pendingCompletionReason.delete(mission.id);
@@ -955,7 +1027,7 @@ export class MissionOrchestrator {
     call: ToolCall,
     extraTags: string[] = []
   ): Promise<ToolResult> {
-    const result = await this.tools.execute(missionId, call);
+    const result = await this.executeToolOrSyntheticFailure(missionId, call);
     await this.recordToolResultMemoryAndEvent(missionId, call, result, extraTags);
     return result;
   }
@@ -995,6 +1067,7 @@ export class MissionOrchestrator {
           sourceMissionId: missionId
         });
         await this.globalMemory.add(mem);
+        await this.maybeEmitResearchContradictionWarnings(missionId);
       } else {
         const d = (result.data || {}) as { url?: string; status?: number; contentType?: string; body?: string };
         const url = d.url || String(call.args?.url || "");
@@ -1023,10 +1096,12 @@ export class MissionOrchestrator {
       call.tool === "runCommand" ||
       call.tool === "runTerminal";
     if (isEvidenceTool || result.data !== undefined) {
+      const verification = Boolean(call.args?.__verification) || extraTags.includes("verification");
       await this.store.saveEvent(missionId, {
         level: result.ok ? "info" : "warn",
         source: `tool:${call.tool}`,
         message: result.summary,
+        telemetryKind: verification ? "verification_recorded" : "tool_called",
         data: {
           ok: result.ok,
           tool: call.tool,
@@ -1035,11 +1110,35 @@ export class MissionOrchestrator {
             workItemRole: call.args?.__workItemRole,
             blueprintStepId: call.args?.__blueprintStepId,
             approved: Boolean(call.args?.__approved),
-            verification: Boolean(call.args?.__verification)
+            verification
           },
           result: result.data
         }
       });
+    }
+  }
+
+  private async maybeEmitResearchContradictionWarnings(missionId: string): Promise<void> {
+    const mission = this.store.get(missionId);
+    if (!mission) return;
+    const hits = findDuplicateQueryResearchContradictions(mission.memory);
+    const warnedKeys = new Set(
+      mission.events
+        .filter((e) => e.telemetryKind === "research_contradiction_warn")
+        .slice(-20)
+        .map((e) => String((e.data as { queryKey?: string } | undefined)?.queryKey || ""))
+        .filter(Boolean)
+    );
+    for (const h of hits) {
+      if (warnedKeys.has(h.queryKey)) continue;
+      await this.store.saveEvent(missionId, {
+        level: "warn",
+        source: "research",
+        message: h.detail,
+        telemetryKind: "research_contradiction_warn",
+        data: { queryKey: h.queryKey }
+      });
+      warnedKeys.add(h.queryKey);
     }
   }
 
@@ -1151,7 +1250,9 @@ export class MissionOrchestrator {
     await this.store.saveEvent(mission.id, {
       level: "info",
       source: `agent:${item.role}`,
-      message: `Starting ${item.title}`
+      message: `Starting ${item.title}`,
+      telemetryKind: "work_started",
+      data: { workItemId: item.id, role: item.role, title: item.title }
     });
 
     const useGitCheckpoint = item.role === "implementer" &&
@@ -1460,6 +1561,9 @@ export class MissionOrchestrator {
             const prior = JSON.stringify({
               requirementsSummary: bp.requirementsSummary,
               architectureSummary: bp.architectureSummary,
+              goalEndState: bp.goalEndState,
+              approachOptions: bp.approachOptions,
+              chosenApproach: bp.chosenApproach,
               steps: bp.steps
             });
             await this.store.enqueue(mission.id, [
@@ -1521,6 +1625,14 @@ export class MissionOrchestrator {
       completionWorkPatch.hardStopClass = item.hardStopClass ?? "unknown_hard_stop";
     }
     await this.updateWorkItemWithHardStopInvariant(mission.id, item, completionWorkPatch);
+    await this.store.saveEvent(mission.id, {
+      level: terminalWorkStatus === "failed" ? "error" : terminalWorkStatus === "blocked" ? "warn" : "info",
+      source: "orchestrator",
+      message: `Finished work item "${item.title}" (${terminalWorkStatus})`,
+      telemetryKind:
+        terminalWorkStatus === "failed" ? "work_failed" : terminalWorkStatus === "blocked" ? "mission_blocked" : "work_completed",
+      data: { workItemId: item.id, role: item.role, status: terminalWorkStatus }
+    });
     const updated = this.store.get(mission.id)!;
     const patch: Partial<Mission> = { currentStep: updated.currentStep + 1, blocker: undefined, blockReasonCode: undefined };
     if (item.role === "validator") {
@@ -2027,6 +2139,9 @@ export class MissionOrchestrator {
       ? JSON.stringify({
           requirementsSummary: m.blueprint.requirementsSummary,
           architectureSummary: m.blueprint.architectureSummary,
+          goalEndState: m.blueprint.goalEndState,
+          approachOptions: m.blueprint.approachOptions,
+          chosenApproach: m.blueprint.chosenApproach,
           steps: m.blueprint.steps
         })
       : "";
@@ -2099,17 +2214,6 @@ function flattenSubItems(items: WorkItem[]): WorkItem[] {
     }
   }
   return result;
-}
-
-function computeEffectiveMaxRounds(mission: Mission): number {
-  const cfg = vscode.workspace.getConfiguration();
-  const mode = cfg.get<string>("myAi.missions.scalingMode", "fixed");
-  if (mode !== "adaptive") return mission.policy.maxAutoRounds;
-
-  const cap = cfg.get<number>("myAi.missions.adaptiveMaxRounds", 200);
-  const base = mission.policy.maxAutoRounds;
-  const workItemCount = mission.queue.length;
-  return Math.min(base + workItemCount * 2, cap);
 }
 
 /** Extract salient keywords from a prompt for relevant-file discovery. */

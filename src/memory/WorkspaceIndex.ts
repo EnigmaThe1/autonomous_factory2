@@ -168,6 +168,26 @@ export class WorkspaceIndex {
     return this.index.query(this.items, query, limit);
   }
 
+  /**
+   * Indexed relative paths whose final path segment equals `filename` (case-insensitive).
+   * Used when readFile fails due to wrong casing or wrong directory guess.
+   */
+  findRelativePathsByFilenameCaseInsensitive(filename: string, limit = 12): string[] {
+    if (!this.indexed || !filename) return [];
+    const want = filename.toLowerCase();
+    const out: string[] = [];
+    for (const m of this.items) {
+      const tag = m.tags?.[0];
+      if (!tag) continue;
+      const seg = tag.split(/[/\\]/).pop();
+      if (seg && seg.toLowerCase() === want) {
+        if (!out.includes(tag)) out.push(tag);
+        if (out.length >= limit) break;
+      }
+    }
+    return out;
+  }
+
   get fileCount(): number {
     return this.items.length;
   }

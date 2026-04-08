@@ -276,7 +276,7 @@ export function createMissionRenderer(deps) {
         const frs = snapshot.focusedMissionReportSummary;
         const reportSummaryHtml =
           frs && typeof frs === "object"
-            ? `<div class="mission-report-summary-bar meta" style="margin:8px 0;padding:8px 10px;border-radius:8px;border:1px solid var(--vscode-widget-border, rgba(255,255,255,.12));background:var(--vscode-editor-inactiveSelectionBackground, rgba(127,127,127,.12));"><div class="section-title small" style="margin-bottom:4px;">Report snapshot</div>${frs.completionPercent}% complete • ${frs.filesModifiedCount} file(s) touched • ${frs.errorPatternCount} error pattern(s) • ${frs.retriedItems} retried item(s)</div>`
+            ? `<div class="mission-report-summary-bar meta" style="margin:8px 0;padding:8px 10px;border-radius:8px;border:1px solid var(--vscode-widget-border, rgba(255,255,255,.12));background:var(--vscode-editor-inactiveSelectionBackground, rgba(127,127,127,.12));"><div class="section-title small" style="margin-bottom:4px;">Report snapshot</div>${frs.completionPercent}% complete • ${frs.filesModifiedCount} file(s) touched • ${frs.errorPatternCount} error pattern(s) • ${frs.retriedItems} retried item(s) • ${frs.deadLetterItems ?? 0} dead-letter item(s)</div>`
             : "";
         const cache = state.missionReportCache;
         const hasPreview = !!(cache && cache.missionId === m.id && cache.markdown && cache.markdown.length > 0);
@@ -311,6 +311,9 @@ export function createMissionRenderer(deps) {
           : "";
         const inspectorLifecycle = snapshot.focusedMissionLifecycleSummary
           ? `<div class="mission-lifecycle-summary" role="status">${escapeHtml(snapshot.focusedMissionLifecycleSummary)}</div>`
+          : "";
+        const inspectorNextHint = snapshot.focusedMissionOperatorNextHint
+          ? `<div class="mission-operator-next-hint meta" style="margin:8px 0;padding:8px 10px;border-radius:8px;border:1px solid var(--vscode-widget-border, rgba(255,255,255,.12));background:var(--vscode-editor-inactiveSelectionBackground, rgba(127,127,127,.12));"><span class="section-title small">Next step</span><div style="margin-top:4px;">${escapeHtml(snapshot.focusedMissionOperatorNextHint)}</div></div>`
           : "";
         const bpProg = snapshot.focusedMissionBlueprintProgress;
         const preBpQs = m.preBlueprintClarification?.questions;
@@ -358,6 +361,7 @@ export function createMissionRenderer(deps) {
       ${filterHintHtml}
       <div class="row split"><strong>${escapeHtml(m.title)}</strong><span class="badge ${m.status}">${escapeHtml(formatMissionStatusBadgeLabel(m))}</span></div>
       ${inspectorLifecycle}
+      ${inspectorNextHint}
       ${
         m.status === "completed" && m.completionReason
           ? `<div class="meta mission-completion-note">${escapeHtml(formatMissionCompletionReason(m.completionReason))}</div>`

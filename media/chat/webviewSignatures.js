@@ -186,7 +186,7 @@ export function missionInspectorSig(snapshot, missionQuickFilter = "all", displa
   const fhl = focusedMissionHiddenFromComposedList(m, ordered);
   const frs = snapshot.focusedMissionReportSummary;
   const frsKey = frs
-    ? `${frs.completionPercent}|${frs.filesModifiedCount}|${frs.errorPatternCount}|${frs.retriedItems}`
+    ? `${frs.completionPercent}|${frs.filesModifiedCount}|${frs.errorPatternCount}|${frs.retriedItems}|${frs.deadLetterItems ?? 0}`
     : "";
   if (!m) {
     return JSON.stringify({

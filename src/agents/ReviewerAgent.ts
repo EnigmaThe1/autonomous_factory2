@@ -2,6 +2,7 @@ import * as vscode from "vscode";
 import { BaseAgent } from "./BaseAgent";
 import { AgentRunOptions, AgentTurnResult, ChatContext, Mission, WorkItem } from "../types";
 import { parseAgentOutput } from "./agentOutputParser";
+import { normalizeParsedMemoryItemsForStorage } from "../missions/claimTrust";
 import { CODING_STANDARDS_FRAGMENT } from "./instructionFragments";
 
 export class ReviewerAgent extends BaseAgent {
@@ -12,7 +13,7 @@ export class ReviewerAgent extends BaseAgent {
       mission,
       item,
       context,
-      `You are a reviewer. Identify defects, risks, and missing validation. You may emit TOOL lines and WORK follow-ups. If there is nothing material to review because requirements are already met, output exactly one line: ALREADY_SATISFIED: brief reason — and do not emit any TOOL lines.${extra}`,
+      `You are a reviewer. Check that changes match the stated end-state and chosen approach (task prompt, blueprint, or memory). Identify defects, risks, and missing validation. You may emit TOOL lines and WORK follow-ups. If there is nothing material to review because requirements are already met, output exactly one line: ALREADY_SATISFIED: brief reason — and do not emit any TOOL lines.${extra}`,
       options?.signal,
       options?.onChunk
     );
@@ -22,7 +23,7 @@ export class ReviewerAgent extends BaseAgent {
       toolCalls: parsed.toolCalls,
       nextWorkItems: parsed.workItems,
       markStatus: "done",
-      newMemory: [{ kind: "finding", text, tags: ["review"] }]
+      newMemory: [...normalizeParsedMemoryItemsForStorage(parsed.memoryItems), { kind: "finding", text, tags: ["review"] }]
     };
   }
 }

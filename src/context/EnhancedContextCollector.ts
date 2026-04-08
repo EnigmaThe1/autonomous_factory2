@@ -11,6 +11,11 @@ import { trimText } from "../util";
  * and keyword-relevant file snippets.
  */
 export class EnhancedContextCollector extends ContextCollector {
+  private relevantSnippetCache?: {
+    key: string;
+    expiresAt: number;
+    snippets: Array<{ file: string; snippet: string }>;
+  };
 
   async collect(): Promise<ChatContext> {
     const base = await super.collect();
@@ -127,11 +132,34 @@ export class EnhancedContextCollector extends ContextCollector {
     const workspaceRoot = vscode.workspace.workspaceFolders?.[0]?.uri.fsPath;
     if (!workspaceRoot || !keywords.length) return [];
 
+    const ttlMs = vscode.workspace.getConfiguration().get<number>("myAi.context.relevantSnippetsCacheTtlMs", 30_000);
+    const cacheKey = `${workspaceRoot}\n${[...keywords].sort().join("\0")}`;
+    const now = Date.now();
+    if (
+      ttlMs > 0 &&
+      this.relevantSnippetCache &&
+      this.relevantSnippetCache.key === cacheKey &&
+      now < this.relevantSnippetCache.expiresAt
+    ) {
+      return this.relevantSnippetCache.snippets;
+    }
+
+    const snippets = await this.collectRelevantSnippetsUncached(keywords, workspaceRoot);
+    if (ttlMs > 0) {
+      this.relevantSnippetCache = { key: cacheKey, expiresAt: now + ttlMs, snippets };
+    }
+    return snippets;
+  }
+
+  private async collectRelevantSnippetsUncached(
+    keywords: string[],
+    workspaceRoot: string
+  ): Promise<Array<{ file: string; snippet: string }>> {
     const combined = keywords.slice(0, 5).join("|");
     const result = await runCommand({
       command: `rg -l -m 1 --max-filesize 500K -g '!node_modules' -g '!dist' -g '!.git' -- ${shellQuoteSafe(combined)} . | head -15`,
       cwd: workspaceRoot,
-      timeoutMs: 8000,
+      timeoutMs: 8000
     });
 
     if (result.exitCode !== 0 && result.exitCode !== 1) return [];

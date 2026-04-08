@@ -5,6 +5,7 @@ import { MissionOrchestrator } from "./MissionOrchestrator";
 import { MissionStore } from "./MissionStore";
 import { tryAcquireRunnerLease } from "./RunnerLease";
 import { decideStallRecovery, leaseTtlMsFromHeartbeatSeconds } from "./runnerRecoveryPolicy";
+import { buildStallRecoveryReplanPrompt } from "./stallRecoveryReplanContext";
 
 export class BackgroundMissionRunner implements vscode.Disposable {
   private timer?: NodeJS.Timeout;
@@ -84,18 +85,31 @@ export class BackgroundMissionRunner implements vscode.Disposable {
           alreadyQueuedRecoveryReplan: alreadyQueued
         });
         if (recovery === "inject_replan") {
+          const nextAttempt = (refreshedRuntime.autoReplans || 0) + 1;
+          const prompt = buildStallRecoveryReplanPrompt(refreshed, {
+            stalledHeartbeats: refreshedRuntime.stalledHeartbeats || 0,
+            threshold,
+            replanAttempt: nextAttempt,
+            maxAutoReplans
+          });
           await this.store.enqueue(mission.id, [{
             id: uid("work"),
             title: "Runner recovery replan",
             role: "planner",
             status: "todo",
-            prompt: "The mission appears stalled. Re-plan from current state, identify the next concrete tranche, and re-seed implementer/reviewer/validator work if needed."
+            prompt
           }]);
           await this.store.updateRuntime(mission.id, {
-            autoReplans: (refreshedRuntime.autoReplans || 0) + 1,
+            autoReplans: nextAttempt,
             stalledHeartbeats: 0
           });
-          await this.store.saveEvent(mission.id, { level: "warn", source: "background-runner", message: "Injected automatic recovery replan after stall detection" });
+          await this.store.saveEvent(mission.id, {
+            level: "warn",
+            source: "background-runner",
+            message: "Injected automatic recovery replan after stall detection",
+            telemetryKind: "stall_recovery_replan",
+            data: { stalledHeartbeats: refreshedRuntime.stalledHeartbeats || 0, threshold, replanAttempt: nextAttempt, maxAutoReplans }
+          });
           significantMissionMutation = true;
         } else if (recovery === "mark_blocked") {
           await this.store.updateMission(mission.id, {
@@ -106,7 +120,12 @@ export class BackgroundMissionRunner implements vscode.Disposable {
           await this.store.updateRuntime(mission.id, {
             loopGuardTrips: (refreshedRuntime.loopGuardTrips || 0) + 1
           });
-          await this.store.saveEvent(mission.id, { level: "warn", source: "background-runner", message: "Mission paused after exceeding automatic recovery attempts" });
+          await this.store.saveEvent(mission.id, {
+            level: "warn",
+            source: "background-runner",
+            message: "Mission paused after exceeding automatic recovery attempts",
+            telemetryKind: "stall_recovery_limit"
+          });
           significantMissionMutation = true;
           continue;
         }

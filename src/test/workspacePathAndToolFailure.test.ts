@@ -19,3 +19,10 @@ test("MissionOrchestrator blocks mission on non-approval tool failure", () => {
   assert.match(src, /Mission halted after tool failure/);
   assert.match(src, /Mission paused: tool call failed/);
 });
+
+test("ToolRegistry readFile wraps fs errors in ok:false tool result (no throw)", () => {
+  const p = path.join(__dirname, "..", "..", "src", "tools", "ToolRegistry.ts");
+  const src = fs.readFileSync(p, "utf8");
+  assert.match(src, /readFile failed:/);
+  assert.match(src, /Use listFiles or grepSearch/);
+});

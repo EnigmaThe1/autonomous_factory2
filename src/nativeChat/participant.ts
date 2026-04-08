@@ -2,6 +2,7 @@ import * as vscode from "vscode";
 import { ContextCollector } from "../context/ContextCollector";
 import { ProviderRegistry } from "../providers/ProviderRegistry";
 import { resolveModelForProvider } from "../providers/providerModelResolution";
+import { EXTENSION_CHAT_WORKSPACE_RULES } from "../agents/extensionToolHardRules";
 
 export function registerNativeParticipant(
   context: vscode.ExtensionContext,
@@ -25,7 +26,10 @@ export function registerNativeParticipant(
         prompt: request.prompt,
         model,
         context: ideContext,
-        system: "You are the Autonomous Factory native participant inside VS Code.",
+        system: [
+          "You are the Autonomous Factory native participant inside VS Code.",
+          EXTENSION_CHAT_WORKSPACE_RULES
+        ].join("\n\n"),
         signal: ac.signal
       })) {
         stream.markdown(chunk);

@@ -43,3 +43,30 @@ test("parseBlueprintModelOutput: rejects missing acceptanceCriteria", () => {
   assert.ok(!blueprint);
   assert.ok(errors.some((e) => e.includes("acceptanceCriteria")));
 });
+
+test("parseBlueprintModelOutput: preserves optional goal-first root fields", () => {
+  const { blueprint, errors } = parseBlueprintModelOutput(
+    JSON.stringify({
+      requirementsSummary: "R",
+      architectureSummary: "A",
+      goalEndState: "App runs with feature X",
+      approachOptions: ["Option A: minimal patch", "Option B: refactor module"],
+      chosenApproach: "Option A for time-to-ship",
+      steps: [
+        {
+          id: "s1",
+          title: "Do",
+          summary: "Work",
+          roleHint: "implementer",
+          acceptanceCriteria: ["Done"]
+        }
+      ]
+    }),
+    { now: 42 }
+  );
+  assert.equal(errors.length, 0);
+  assert.ok(blueprint);
+  assert.equal(blueprint!.goalEndState, "App runs with feature X");
+  assert.deepEqual(blueprint!.approachOptions, ["Option A: minimal patch", "Option B: refactor module"]);
+  assert.equal(blueprint!.chosenApproach, "Option A for time-to-ship");
+});

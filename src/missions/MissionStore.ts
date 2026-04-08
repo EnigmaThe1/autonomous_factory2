@@ -195,7 +195,18 @@ export class MissionStore {
 
   async saveEvent(missionId: string, event: Omit<MissionEvent, "id" | "ts">): Promise<void> {
     const mission = this.requireMission(missionId);
-    mission.events.push({ id: uid("evt"), ts: Date.now(), ...event });
+    const cfg = vscode.workspace.getConfiguration();
+    const spillEnabled = cfg.get<boolean>("myAi.missions.toolResultSpill.enabled", true);
+    const rawMax = cfg.get<number>("myAi.missions.toolResultSpill.maxInlineBytes", 24_000);
+    const maxInline = Math.min(500_000, Math.max(4096, Number.isFinite(rawMax) ? rawMax : 24_000));
+    const { spillMissionEventDataIfLarge } = await import("./toolResultSpill");
+    const prepared = await spillMissionEventDataIfLarge({
+      missionId,
+      event,
+      maxInlineBytes: maxInline,
+      enabled: spillEnabled
+    });
+    mission.events.push({ id: uid("evt"), ts: Date.now(), ...prepared });
 
     const maxEvents = 400;
     if (mission.events.length > maxEvents) {

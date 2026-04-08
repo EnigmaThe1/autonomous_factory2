@@ -16,6 +16,9 @@ afterEach(() => {
 test("getAgentToolInstructionLines: full catalog includes writeFile and git.status", () => {
   const lines = getAgentToolInstructionLines();
   const blob = lines.join("\n");
+  assert.match(blob, /WORKSPACE\/TOOL RULES/);
+  assert.match(blob, /GOAL-FIRST/);
+  assert.match(blob, /suggestedPaths/);
   assert.match(blob, /writeFile/);
   assert.match(blob, /applyPatch/);
   assert.match(blob, /git\.status/);
@@ -35,4 +38,12 @@ test("getAgentToolInstructionLines: lazy mode is shorter and points at listTools
     lazyLines.length < fullLines.length,
     `lazy (${lazyLines.length} lines) should be shorter than full (${fullLines.length})`
   );
+});
+
+test("getAgentToolInstructionLines: goal-first bullets omitted when disabled", () => {
+  const on = getAgentToolInstructionLines().join("\n");
+  assert.match(on, /GOAL-FIRST/);
+  (vscode as VscodeTestApi).__setTestConfig?.("myAi.agents.goalFirstDiscipline", false);
+  const off = getAgentToolInstructionLines().join("\n");
+  assert.doesNotMatch(off, /GOAL-FIRST \(fixed\)/);
 });

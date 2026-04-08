@@ -27,4 +27,9 @@ test("README: pre-release ship gate section and minimum manual/automated coverag
     lower.includes("my_ai_run_http_integration") || lower.includes("test:http-integration"),
     "ship gate should document gated HttpClient / httpbin integration tests"
   );
+
+  assert.ok(
+    readme.includes("exportMissionDiagnosticSnapshot") || readme.includes("Copy Mission Diagnostic Snapshot"),
+    "README should document diagnostic snapshot command for operator/support workflows"
+  );
 });

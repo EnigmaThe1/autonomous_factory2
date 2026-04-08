@@ -47,3 +47,19 @@ test("synthesizeWorkItemsFromBlueprint maps dependsOn to work item ids", () => {
   assert.ok(first);
   assert.equal(second!.dependsOn![0], first!.id);
 });
+
+test("synthesizeWorkItemsFromBlueprint prepends goal-first context to first work item", () => {
+  const bp = sampleBlueprint();
+  bp.goalEndState = "Ship feature";
+  bp.approachOptions = ["Fast patch", "Deep fix"];
+  bp.chosenApproach = "Fast patch";
+  const items = synthesizeWorkItemsFromBlueprint(bp);
+  const first = items.find((w) => w.blueprintStepId === "a");
+  assert.ok(first);
+  assert.match(first!.prompt, /\[Blueprint goal-first context\]/);
+  assert.match(first!.prompt, /Ship feature/);
+  assert.match(first!.prompt, /Fast patch/);
+  const second = items.find((w) => w.blueprintStepId === "b");
+  assert.ok(second);
+  assert.doesNotMatch(second!.prompt, /\[Blueprint goal-first context\]/);
+});

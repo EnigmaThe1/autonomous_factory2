@@ -1,0 +1,36 @@
+/**
+ * Canonical workspace/tool rules injected by the extension into agent prompts.
+ * Operators should not need to repeat path-discovery guidance in mission text.
+ */
+
+/** Full block for mission agents (system prompt, all roles using BaseAgent). */
+export const EXTENSION_TOOL_HARD_RULES_MISSION = [
+  "WORKSPACE & TOOL RULES (extension-enforced defaults — follow even if the mission text omits them):",
+  "",
+  "1) Paths: readFile/writeFile/applyPatch use paths relative to the workspace root, or absolute paths under that workspace. Do not invent paths outside the open workspace.",
+  "",
+  "2) Case sensitivity: On Linux and typical CI, file names are case-sensitive. If readFile fails, obtain exact spelling from fileTree, listFiles, or grepSearch — do not retry the same wrong casing.",
+  "",
+  "3) Discovery before blind reads: When unsure of location, run fileTree, listFiles, or grepSearch (basename, class, or symbol) before readFile.",
+  "",
+  "4) suggestedPaths: When readFile returns ok:false with suggestedPaths in data, your next readFile MUST use one of those workspace-relative paths (or run grepSearch to disambiguate).",
+  "",
+  "5) Project shape: Do not assume pyproject.toml, docker-compose.yml, or other manifests exist. Infer stack from files that exist (package.json, go.mod, Cargo.toml, etc.) via fileTree or listFiles.",
+  "",
+  "6) Tool failures: readFile and other tools return structured ok:false results; the mission may continue. Read the summary and data, then correct your approach — do not treat a missing file as a host crash.",
+  "",
+  "7) runLinter: When output is ESLint JSON with 0 errors and 0 warnings, the extension may treat the run as passing even if the process exit code is non-zero; trust the reported error/warning counts."
+].join("\n");
+
+/** Shorter block for sidebar chat (no TOOL lines; still sets path expectations). */
+export const EXTENSION_CHAT_WORKSPACE_RULES = [
+  "Workspace context: file paths are relative to the open workspace folder; on this OS file names are usually case-sensitive.",
+  "If you need a file path you do not know, ask the user or describe how to find it in the explorer — do not guess absolute paths outside the workspace."
+].join("\n");
+
+/** Repeated in the user-side tool prompt so models that weight user content higher still see the rules. */
+export const EXTENSION_TOOL_USER_PROMPT_BULLETS = [
+  "WORKSPACE/TOOL RULES (fixed): paths are workspace-relative; names are case-sensitive; use fileTree/listFiles/grepSearch before guessing readFile targets.",
+  "If readFile fails, read data.suggestedPaths and retry with one of those paths when present.",
+  "Do not assume pyproject.toml, docker-compose.yml, etc.; detect the stack from files that actually exist."
+];

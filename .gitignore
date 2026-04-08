@@ -31,6 +31,3 @@ dist/
 # === Planning/scratch markdown not part of extension ===
 crawler_plan.md
 dependency_target.md
-
-# === Duplicate/stale license file ===
-LICENSE MIT

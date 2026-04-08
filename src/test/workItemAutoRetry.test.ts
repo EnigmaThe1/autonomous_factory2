@@ -1,6 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { shouldAutoRetry, createRetryWorkItem } from "../missions/workItemAutoRetry";
+import { shouldAutoRetry, createRetryWorkItem, shouldMarkWorkItemDeadLetter } from "../missions/workItemAutoRetry";
 import type { WorkItem } from "../types";
 
 function makeItem(overrides: Partial<WorkItem> = {}): WorkItem {
@@ -81,6 +81,45 @@ test("shouldAutoRetry: rejects with active mutating tool call", () => {
 test("shouldAutoRetry: rejects with 0 max retries", () => {
   const decision = shouldAutoRetry(makeItem(), 0);
   assert.equal(decision.shouldRetry, false);
+});
+
+test("shouldMarkWorkItemDeadLetter: true when max retries reached", () => {
+  const d = shouldAutoRetry(makeItem({ retryCount: 2 }), 2);
+  assert.equal(shouldMarkWorkItemDeadLetter(makeItem({ retryCount: 2 }), d), true);
+});
+
+test("shouldMarkWorkItemDeadLetter: true when max retries is 0", () => {
+  const d = shouldAutoRetry(makeItem(), 0);
+  assert.equal(shouldMarkWorkItemDeadLetter(makeItem(), d), true);
+});
+
+test("shouldMarkWorkItemDeadLetter: false for hard-stop (no retry budget semantics)", () => {
+  const d = shouldAutoRetry(makeItem({ hardStopClass: "approval_pending" }), 2);
+  assert.equal(shouldMarkWorkItemDeadLetter(makeItem({ hardStopClass: "approval_pending" }), d), false);
+});
+
+test("shouldMarkWorkItemDeadLetter: false when still retryable", () => {
+  const d = shouldAutoRetry(makeItem(), 2);
+  assert.equal(shouldMarkWorkItemDeadLetter(makeItem(), d), false);
+});
+
+test("shouldMarkWorkItemDeadLetter: false if already dead letter", () => {
+  const d = shouldAutoRetry(makeItem({ retryCount: 2, deadLetter: true }), 2);
+  assert.equal(shouldMarkWorkItemDeadLetter(makeItem({ retryCount: 2, deadLetter: true }), d), false);
+});
+
+test("shouldMarkWorkItemDeadLetter: false with active mutating tool call", () => {
+  const d = shouldAutoRetry(
+    makeItem({ activeMutatingToolCall: { tool: "writeFile", startedAt: 1 } }),
+    2
+  );
+  assert.equal(
+    shouldMarkWorkItemDeadLetter(
+      makeItem({ activeMutatingToolCall: { tool: "writeFile", startedAt: 1 } }),
+      d
+    ),
+    false
+  );
 });
 
 // createRetryWorkItem tests

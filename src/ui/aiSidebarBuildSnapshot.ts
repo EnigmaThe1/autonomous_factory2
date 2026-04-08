@@ -9,6 +9,7 @@ import {
 } from "../missions/missionOperatorActionEventPresentation";
 import { focusedMissionLifecycleSummaryForSnapshot } from "../missions/missionLifecycleSummaryPresentation";
 import { focusedMissionRequiredWorkHintForSnapshot } from "../missions/missionRequiredWorkPresentation";
+import { operatorNextActionHint } from "./operatorNextActionHint";
 import type { ExtensionTraceLogger } from "../diagnostics/ExtensionTraceLogger";
 import { routingPresetTemplatesForUi } from "../missions/missionRouting";
 import { computeBlueprintProgress } from "../missions/blueprintProgress";
@@ -157,6 +158,7 @@ export async function buildSidebarDashboardSnapshot(host: AiSidebarBuildSnapshot
     focusedMissionHardStopDataQualityHint: focusedMissionHardStopDataQualityHintForSnapshot(focusedMission),
     focusedMissionLatestOperatorActionNote: focusedMissionLatestOperatorActionNoteForSnapshot(focusedMission),
     focusedMissionLifecycleSummary: focusedMissionLifecycleSummaryForSnapshot(focusedMission),
+    focusedMissionOperatorNextHint: operatorNextActionHint(focusedMission),
     focusedMissionOperatorActionHeadlines: operatorActionHeadlinesByEventIdForMission(focusedMission),
     missionDownstreamGatingCardHints: Object.fromEntries(
       missions
@@ -174,6 +176,7 @@ export async function buildSidebarDashboardSnapshot(host: AiSidebarBuildSnapshot
             errorPatternCount: uniqueErrors.size,
             completionPercent: stats.completionPercent,
             retriedItems: focusedMission.queue.filter((w) => (w.retryCount || 0) > 0).length,
+            deadLetterItems: focusedMission.queue.filter((w) => w.deadLetter).length,
           };
         })()
       : undefined,

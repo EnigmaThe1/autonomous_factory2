@@ -4,8 +4,8 @@
  * my-ai-trace-append.jsonl when myAi.trace.persistToFile is on).
  *
  * Usage:
- *   node scripts/summarize-my-ai-trace.mjs /path/to/my-ai-trace-....jsonl
- *   cat trace.jsonl | node scripts/summarize-my-ai-trace.mjs -
+ *   node scripts/summarize-trace.mjs /path/to/trace.jsonl
+ *   cat trace.jsonl | node scripts/summarize-trace.mjs -
  */
 
 import * as fs from "fs";
@@ -16,7 +16,7 @@ const pathArg = argv[0];
 
 if (!pathArg || pathArg === "-h" || pathArg === "--help") {
   console.error(
-    "Usage: node scripts/summarize-my-ai-trace.mjs <file.jsonl | ->\n" +
+    "Usage: node scripts/summarize-trace.mjs <file.jsonl | ->\n" +
       "  Reads JSON lines (TraceRecord) and prints counts + notable events."
   );
   process.exit(pathArg ? 0 : 1);

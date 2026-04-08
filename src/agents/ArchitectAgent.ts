@@ -1,6 +1,7 @@
 import { BaseAgent } from "./BaseAgent";
 import { AgentRunOptions, AgentTurnResult, ChatContext, Mission, WorkItem } from "../types";
 import { parseAgentOutput } from "./agentOutputParser";
+import { normalizeParsedMemoryItemsForStorage } from "../missions/claimTrust";
 import { ARCHITECTURE_DISCIPLINE_FRAGMENT, CODING_STANDARDS_FRAGMENT } from "./instructionFragments";
 
 /** System-level gap review: emits WORK: follow-ups only; no file edits. */
@@ -27,7 +28,10 @@ export class ArchitectAgent extends BaseAgent {
       summary: text || "Architect pass.",
       nextWorkItems: noGap ? [] : nextWorkItems,
       markStatus: "done",
-      newMemory: [{ kind: "summary", text: text || "Architect review.", tags: ["architect"] }]
+      newMemory: [
+        ...normalizeParsedMemoryItemsForStorage(parsed.memoryItems),
+        { kind: "summary", text: text || "Architect review.", tags: ["architect"] }
+      ]
     };
   }
 }

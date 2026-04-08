@@ -1,14 +1,29 @@
 {
   "name": "autonomous-factory",
   "displayName": "Autonomous Factory",
-  "description": "Autonomous Factory — VS Code AI assistant with unified sidebar, in-pane diff review, mission orchestration, approvals, MCP tools, memory, trace, and settings.",
-  "version": "2.0.1",
+  "description": "Single Chat & Missions sidebar: multi-provider chat, blueprint missions, human approvals (writes, terminal, HTTP, MCP, bundles), workspace skills, MCP + external adapters, mission/global memory, templates, trace/console — workspace data under .my-ai-extension by default.",
+  "keywords": [
+    "ai",
+    "chat",
+    "mcp",
+    "automation",
+    "missions",
+    "ollama",
+    "openai",
+    "anthropic",
+    "gemini",
+    "agents",
+    "approval",
+    "memory",
+    "cursor"
+  ],
+  "version": "2.0.7",
   "publisher": "enigma-the",
   "repository": {
     "type": "git",
     "url": "https://github.com/EnigmaThe1/autonomous_factory.git"
   },
-  "license": "SEE LICENSE IN LICENSE",
+  "license": "Apache-2.0",
   "engines": {
     "vscode": ">=1.85.0"
   },
@@ -35,7 +50,8 @@
     "onCommand:myAi.requestMissionBlueprintRevision",
     "onCommand:myAi.submitPreBlueprintClarification",
     "onCommand:myAi.exportMissionBlueprint",
-    "onCommand:myAi.copyMissionBlueprint"
+    "onCommand:myAi.copyMissionBlueprint",
+    "onCommand:myAi.exportMissionDiagnosticSnapshot"
   ],
   "main": "./dist/extension.js",
   "contributes": {
@@ -83,6 +99,10 @@
       {
         "command": "myAi.exportMissionReport",
         "title": "Autonomous Factory: Export Mission Report"
+      },
+      {
+        "command": "myAi.exportMissionDiagnosticSnapshot",
+        "title": "Autonomous Factory: Copy Mission Diagnostic Snapshot (JSON)"
       },
       {
         "command": "myAi.listMcpTools",
@@ -408,6 +428,18 @@
           "default": ".my-ai-extension",
           "description": "Workspace-relative folder for mission files and approval previews."
         },
+        "myAi.missions.toolResultSpill.enabled": {
+          "type": "boolean",
+          "default": true,
+          "description": "When true, large tool result payloads in mission events are written under the disk store folder and referenced inline to keep mission JSON smaller."
+        },
+        "myAi.missions.toolResultSpill.maxInlineBytes": {
+          "type": "number",
+          "default": 24000,
+          "minimum": 4096,
+          "maximum": 500000,
+          "description": "If serialized event data exceeds this UTF-8 byte size, spill to disk (when enabled and a workspace folder exists)."
+        },
         "myAi.tools.showDiffBeforeApproval": {
           "type": "boolean",
           "default": true,
@@ -709,12 +741,69 @@
           "maximum": 5,
           "description": "Maximum automatic retries for failed work items. Set 0 to disable. Retries inject error context so the agent can try a different approach."
         },
+        "myAi.missions.markDeadLetterAfterRetryExhaustion": {
+          "type": "boolean",
+          "default": true,
+          "description": "When automatic retries are exhausted (or max is 0), mark the failed work item as dead letter, append operator guidance to output, and emit an error event."
+        },
+        "myAi.missions.claimDiscipline": {
+          "type": "boolean",
+          "default": true,
+          "description": "Inject claim-discipline instructions so agents can record VERIFIED_* vs ASSUMPTION via MEMORY lines."
+        },
+        "myAi.missions.trustGates.enabled": {
+          "type": "boolean",
+          "default": false,
+          "description": "When true, dependency-style shell commands and very large patches (after many file touches) require operator approval unless a recent verified MEMORY claim exists."
+        },
+        "myAi.missions.trustGates.largePatchMinChars": {
+          "type": "number",
+          "default": 8000,
+          "minimum": 1000,
+          "maximum": 500000,
+          "description": "Minimum search+replace character total to treat an applyPatch as 'large' for trust gating (with many files touched)."
+        },
+        "myAi.missions.trustGates.manyModifiedFilesThreshold": {
+          "type": "number",
+          "default": 12,
+          "minimum": 1,
+          "maximum": 500,
+          "description": "Mission filesModified count at or above which large patches trigger the trust gate (when enabled)."
+        },
         "myAi.missions.adaptiveMaxRounds": {
           "type": "number",
           "default": 200,
           "minimum": 50,
           "maximum": 1000,
           "description": "Hard cap for adaptive scaling mode."
+        },
+        "myAi.missions.adaptiveFailurePenaltyRounds": {
+          "type": "number",
+          "default": 4,
+          "minimum": 0,
+          "maximum": 50,
+          "description": "In adaptive scaling, subtract this many effective rounds per failed or dead-letter queue row."
+        },
+        "myAi.missions.adaptiveLoopGuardPenaltyRounds": {
+          "type": "number",
+          "default": 8,
+          "minimum": 0,
+          "maximum": 100,
+          "description": "In adaptive scaling, subtract this many effective rounds per runtime.loopGuardTrips (stall/max-round trips)."
+        },
+        "myAi.context.relevantSnippetsCacheTtlMs": {
+          "type": "number",
+          "default": 30000,
+          "minimum": 0,
+          "maximum": 600000,
+          "description": "TTL (ms) for caching keyword→relevant-file snippets in EnhancedContextCollector; 0 disables cache."
+        },
+        "myAi.tools.searchFilesMaxResults": {
+          "type": "number",
+          "default": 50,
+          "minimum": 5,
+          "maximum": 200,
+          "description": "Max ripgrep matches per searchFiles / grepSearch tool call (agent requests are capped to this)."
         },
         "myAi.missions.gitCheckpointBeforeImpl": {
           "type": "boolean",
@@ -937,6 +1026,11 @@
           "default": true,
           "description": "Inject shared modularity / structure guidance into planner (non-blueprint), implementer, reviewer, and architect prompts."
         },
+        "myAi.agents.goalFirstDiscipline": {
+          "type": "boolean",
+          "default": true,
+          "description": "Inject goal-first execution discipline into all mission agents (system + user tool prompt): clarify end-state, compare viable approaches before non-trivial implementation, then execute. Operators do not need to repeat this in mission text."
+        },
         "myAi.index.maxFiles": {
           "type": "number",
           "default": 500,
@@ -1002,7 +1096,7 @@
     "test:webview-smoke": "node --test scripts/webview-modular-smoke.mjs",
     "package": "mkdir -p .vsix && npx @vscode/vsce package --out .vsix",
     "ci": "npm run test",
-    "trace:summarize": "node scripts/summarize-my-ai-trace.mjs"
+    "trace:summarize": "node scripts/summarize-trace.mjs"
   },
   "devDependencies": {
     "@types/node": "^20.12.12",

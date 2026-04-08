@@ -13,6 +13,7 @@ import { ProviderModelCatalogCache, isPersistedCatalogProvider } from "../storag
 import { resolveModelForProvider, PROVIDER_MODEL_PRESETS, modelsConfigKeyForProvider } from "../providers/providerModelResolution";
 import { providerNeedsApiKey, secretKeyForProvider } from "../providers/providerCredentialKeys";
 import { formatProviderUserError } from "../providers/providerUiErrors";
+import { EXTENSION_CHAT_WORKSPACE_RULES } from "../agents/extensionToolHardRules";
 import { Mission, ApprovalRequest } from "../types";
 import { buildApprovalBundlesFromMissions, buildAgentLiveFromMission, resolveFocusedMission, buildAgentStatusFromMission } from "./aiSidebarAgentPresentation";
 import { computeMissionDerivedSlicesPure } from "./aiSidebarMissionDerived";
@@ -675,7 +676,7 @@ export class AiSidebarProvider implements vscode.WebviewViewProvider {
         prompt,
         model: explicitModel,
         context,
-        system: "You are a helpful coding assistant in VS Code.",
+        system: ["You are a helpful coding assistant in VS Code.", EXTENSION_CHAT_WORKSPACE_RULES].join("\n\n"),
         history: historySlice.slice(0, -1),
         signal: ac.signal
       })) {

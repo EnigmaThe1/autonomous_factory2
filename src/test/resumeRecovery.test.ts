@@ -16,6 +16,7 @@ test("recoverInterruptedQueueItems requeues stale running items as todo", () => 
   assert.equal(recovered.recoveredCount, 1);
   assert.equal(recovered.replayRiskCount, 0);
   assert.equal(recovered.queue[0].status, "todo");
+  assert.equal(recovered.queue[0].activeMutatingToolCall, undefined);
   assert.match(recovered.queue[0].output || "", /Recovered after host interruption/i);
   assert.equal(recovered.queue[1].status, "todo");
 });

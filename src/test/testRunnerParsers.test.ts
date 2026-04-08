@@ -1,6 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { parseTestOutput, parseLintOutput } from "../tools/TestRunner";
+import { parseTestOutput, parseLintOutput, lintResultOk } from "../tools/TestRunner";
 
 // TAP format tests
 test("parseTestOutput: TAP all passing", () => {
@@ -84,6 +84,7 @@ test("parseLintOutput: ESLint JSON format", () => {
   assert.equal(r.issues!.length, 3);
   assert.equal(r.issues![0].severity, "error");
   assert.equal(r.issues![2].severity, "warning");
+  assert.equal(r.source, "eslint-json");
 });
 
 test("parseLintOutput: plain text fallback", () => {
@@ -91,6 +92,7 @@ test("parseLintOutput: plain text fallback", () => {
   const r = parseLintOutput(raw);
   assert.equal(r.errorCount, 2);
   assert.equal(r.warningCount, 1);
+  assert.equal(r.source, "heuristic");
 });
 
 test("parseLintOutput: empty JSON array means clean", () => {
@@ -98,4 +100,32 @@ test("parseLintOutput: empty JSON array means clean", () => {
   assert.equal(r.errorCount, 0);
   assert.equal(r.warningCount, 0);
   assert.equal(r.issues!.length, 0);
+  assert.equal(r.source, "eslint-json");
+});
+
+test("lintResultOk: exit 1 with ESLint JSON zero issues treated as pass", () => {
+  const parsed = parseLintOutput("[]");
+  assert.equal(lintResultOk(1, parsed), true);
+  assert.equal(lintResultOk(0, parsed), true);
+});
+
+test("lintResultOk: exit 1 with ESLint JSON errors still fails", () => {
+  const parsed = parseLintOutput(
+    JSON.stringify([{ filePath: "/a.ts", errorCount: 1, warningCount: 0, messages: [] }])
+  );
+  assert.equal(lintResultOk(1, parsed), false);
+});
+
+test("lintResultOk: exit 1 with warnings still fails", () => {
+  const parsed = parseLintOutput(
+    JSON.stringify([{ filePath: "/a.ts", errorCount: 0, warningCount: 1, messages: [] }])
+  );
+  assert.equal(lintResultOk(1, parsed), false);
+});
+
+test("lintResultOk: heuristic parse does not ignore non-zero exit", () => {
+  const parsed = parseLintOutput("some text without json");
+  assert.equal(parsed.source, "heuristic");
+  assert.equal(lintResultOk(1, parsed), false);
+  assert.equal(lintResultOk(0, parsed), true);
 });

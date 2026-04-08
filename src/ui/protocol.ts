@@ -183,6 +183,8 @@ export interface SidebarSnapshot {
   focusedMissionLatestOperatorActionNote?: string;
   /** Inspector/focused-card: one-line lifecycle summary (focused mission only; host-derived). */
   focusedMissionLifecycleSummary?: string;
+  /** Inspector: concrete “what to do next” when blocked or awaiting input (host-derived). */
+  focusedMissionOperatorNextHint?: string;
   /** Focused mission: event id → compact operator-action headline (inspector/console; host-derived). */
   focusedMissionOperatorActionHeadlines?: Record<string, string>;
   /** Mission-card hint: per-mission downstream-gating hard-stop summary for list rendering. */
@@ -195,6 +197,8 @@ export interface SidebarSnapshot {
     errorPatternCount: number;
     completionPercent: number;
     retriedItems: number;
+    /** Work items marked dead letter after auto-retry budget exhausted. */
+    deadLetterItems: number;
   };
   /** Per-mission progress stats for dashboard rendering. */
   missionProgressStats?: Record<string, MissionProgressStats>;

@@ -44,6 +44,19 @@ export function shouldAutoRetry(
 }
 
 /**
+ * When auto-retry will not run, decide whether the failure is due to exhausted retry budget (dead letter)
+ * rather than a non-retryable hard-stop or manual-review state.
+ */
+export function shouldMarkWorkItemDeadLetter(item: WorkItem, decision: AutoRetryDecision): boolean {
+  if (decision.shouldRetry) return false;
+  if (item.status !== "failed") return false;
+  if (item.deadLetter) return false;
+  if (item.hardStopClass && NON_RETRYABLE_HARD_STOPS.has(item.hardStopClass)) return false;
+  if (item.activeMutatingToolCall) return false;
+  return decision.reason.startsWith("Max retries reached");
+}
+
+/**
  * Creates a retry clone of a failed work item with error context injected into the prompt.
  */
 export function createRetryWorkItem(failedItem: WorkItem): WorkItem {

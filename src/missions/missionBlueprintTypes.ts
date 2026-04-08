@@ -35,6 +35,12 @@ export interface MissionBlueprint {
   requirementsSummary: string;
   /** Architecture / stack intent at summary level (bounded). */
   architectureSummary: string;
+  /** Optional: what “done” looks like for the deliverable (behavior, artifacts). Parsed from planner JSON when present. */
+  goalEndState?: string;
+  /** Optional: at least two viable approaches the planner compared (goal-first discipline). */
+  approachOptions?: string[];
+  /** Optional: which approach the mission executes and why. */
+  chosenApproach?: string;
   steps: BlueprintStep[];
   amendments: BlueprintAmendment[];
 }

@@ -98,6 +98,24 @@ export interface MissionRuntime {
   webResearchCalls?: number;
 }
 
+/**
+ * Optional structured classification for mission events (telemetry / operator analytics).
+ * Omitted on legacy events; prefer setting on new orchestrator and runner paths.
+ */
+export type MissionTelemetryKind =
+  | "work_started"
+  | "work_completed"
+  | "work_failed"
+  | "tool_called"
+  | "approval_requested"
+  | "scope_drift"
+  | "verification_recorded"
+  | "mission_blocked"
+  | "stall_recovery_replan"
+  | "stall_recovery_limit"
+  | "research_contradiction_warn"
+  | "heartbeat";
+
 export interface MissionEvent {
   id: string;
   ts: number;
@@ -105,6 +123,7 @@ export interface MissionEvent {
   source: string;
   message: string;
   data?: unknown;
+  telemetryKind?: MissionTelemetryKind;
 }
 
 export interface MemoryItem {
@@ -160,6 +179,12 @@ export interface WorkItem {
     target?: string;
     startedAt: number;
   };
+  /**
+   * Set when automatic retries are exhausted for this failure row. Operator must fix, skip, or reset
+   * the item; the runner will not enqueue further auto-retries for this row.
+   */
+  deadLetter?: boolean;
+  deadLetterAt?: number;
   /** Number of times this work item has been retried after failure. */
   retryCount?: number;
   /** Error output from the previous failed attempt (injected on auto-retry). */

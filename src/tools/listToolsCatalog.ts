@@ -5,7 +5,8 @@ const MAX_HINT_LEN = 220;
 
 /** One-line usage hints for built-in tool names (lazy discovery). */
 export const BUILTIN_TOOL_HINTS: Record<string, string> = {
-  readFile: 'args: { "path": "relative-or-abs" }',
+  readFile:
+    'args:{"path"} rel to ws; case-sensitive; grepSearch/fileTree; suggestedPaths if miss',
   writeFile: 'args: { "path", "content" } — often requires approval',
   applyPatch: 'args: { "path", "search", "replace" } — often requires approval',
   searchFiles: 'args: { "glob", "query" }',
