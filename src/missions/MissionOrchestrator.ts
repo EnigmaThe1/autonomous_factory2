@@ -49,6 +49,7 @@ import { blueprintBlocksMissionCompletion, computeBlueprintProgress } from "./bl
 import { applyBlueprintStepStatusFromWorkItem } from "./blueprintStepSync";
 import { computePlanFidelityDrift } from "./blueprintPlanFidelity";
 import { validateBlueprintReadinessForApproval } from "./blueprintReadinessGate";
+import { formatResearchEvidenceFinding } from "./researchEvidence";
 import type { MissionFileTracker } from "./MissionFileTracker";
 import type {
   ResolveApprovalOutcome,
@@ -971,6 +972,48 @@ export class MissionOrchestrator {
       sourceMissionId: missionId
     });
     await this.globalMemory.add(saved);
+
+    // Phase 5 (Research discipline): persist durable research evidence memories for web tools.
+    if (result.ok && (call.tool === "webSearch" || call.tool === "fetchWebPage")) {
+      const ts = Date.now();
+      if (call.tool === "webSearch") {
+        const d = (result.data || {}) as { query?: string; provider?: string; excerpt?: string; attribution?: string; topUrls?: string[] };
+        const finding = formatResearchEvidenceFinding({
+          tool: "webSearch",
+          ts,
+          query: d.query || String(call.args?.query || ""),
+          provider: d.provider,
+          excerpt: d.excerpt ? `${d.excerpt}${d.attribution ? `\n\nAttribution: ${d.attribution}` : ""}` : undefined,
+          topUrls: Array.isArray(d.topUrls) ? d.topUrls : undefined
+        });
+        const mem = await this.store.addMemory(missionId, {
+          kind: "finding",
+          text: finding.text,
+          tags: ["research_evidence", "web", call.tool, `freshness:${finding.freshness}`],
+          sourceMissionId: missionId
+        });
+        await this.globalMemory.add(mem);
+      } else {
+        const d = (result.data || {}) as { url?: string; status?: number; contentType?: string; body?: string };
+        const url = d.url || String(call.args?.url || "");
+        const finding = formatResearchEvidenceFinding({
+          tool: "fetchWebPage",
+          ts,
+          url,
+          status: typeof d.status === "number" ? d.status : undefined,
+          contentType: typeof d.contentType === "string" ? d.contentType : undefined,
+          excerpt: typeof d.body === "string" ? d.body : undefined
+        });
+        const mem = await this.store.addMemory(missionId, {
+          kind: "finding",
+          text: finding.text,
+          tags: ["research_evidence", "web", call.tool, `freshness:${finding.freshness}`],
+          sourceMissionId: missionId
+        });
+        await this.globalMemory.add(mem);
+      }
+    }
+
     const isEvidenceTool =
       extraTags.includes("verification") ||
       call.tool === "runLinter" ||
