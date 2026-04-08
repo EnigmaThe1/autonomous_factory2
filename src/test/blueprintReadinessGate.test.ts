@@ -30,7 +30,7 @@ test("Blueprint readiness: rejects empty acceptance criteria", () => {
   bp.steps[0].acceptanceCriteria = [];
   const v = validateBlueprintReadinessForApproval(bp);
   assert.equal(v.ok, false);
-  assert.ok((v as any).issues.join("\n").includes("missing acceptanceCriteria"));
+  assert.ok(v.report.errors.join("\n").includes("missing acceptanceCriteria"));
 });
 
 test("Blueprint readiness: rejects dependency cycles", () => {
@@ -46,7 +46,7 @@ test("Blueprint readiness: rejects dependency cycles", () => {
   });
   const v = validateBlueprintReadinessForApproval(bp);
   assert.equal(v.ok, false);
-  assert.ok((v as any).issues.some((x: string) => x.includes("depends on itself") || x.includes("dependency")));
+  assert.ok(v.report.errors.some((x: string) => x.includes("depends on itself") || x.includes("dependency")));
 });
 
 test("approveMissionBlueprint refuses approval when blueprint is not ready", async () => {
@@ -75,5 +75,13 @@ test("approveMissionBlueprint refuses approval when blueprint is not ready", asy
   const fin = store.get(m.id)!;
   assert.equal(fin.blueprint?.status, "awaiting_approval");
   assert.ok(fin.events.some((e) => e.source === "blueprint-readiness"));
+});
+
+test("Blueprint readiness: emits warnings when there is no implementer step", () => {
+  const bp = baseBlueprint();
+  bp.steps[0].roleHint = "researcher";
+  const v = validateBlueprintReadinessForApproval(bp);
+  assert.equal(v.ok, true);
+  assert.ok(v.report.warnings.some((w) => w.toLowerCase().includes("no implementer steps")));
 });
 

@@ -68,6 +68,12 @@ import {
 import { missionBlockReasonFromDownstreamGate } from "./missionBlockReasonCode";
 import { shouldAutoRetry, createRetryWorkItem } from "./workItemAutoRetry";
 
+function readinessMessageText(readiness: ReturnType<typeof validateBlueprintReadinessForApproval>): string {
+  const errs = readiness.report.errors.length ? `Errors:\n- ${readiness.report.errors.join("\n- ")}` : "";
+  const warns = readiness.report.warnings.length ? `Warnings:\n- ${readiness.report.warnings.join("\n- ")}` : "";
+  return [errs, warns].filter(Boolean).join("\n");
+}
+
 /** Minimal tool surface used by the orchestrator (real `ToolRegistry` satisfies this). */
 export type MissionToolExecutor = {
   execute(missionId: string, call: ToolCall): Promise<ToolResult>;
@@ -1383,9 +1389,55 @@ export class MissionOrchestrator {
       result = { ...result, nextWorkItems: [] };
 
       if (requireApproval) {
-        bp.status = "awaiting_approval";
-        await this.store.updateMission(mission.id, { blueprint: bp });
-        blueprintAwaitingApproval = true;
+        const readiness = validateBlueprintReadinessForApproval(bp);
+        if (!readiness.ok) {
+          const maxRev = vscode.workspace.getConfiguration().get<number>("myAi.missions.maxBlueprintRevisions", 3);
+          if ((mission.blueprintRevisionCount || 0) >= maxRev) {
+            const msg = `Blueprint readiness errors (revision limit reached):\n${readinessMessageText(readiness)}`;
+            await this.store.updateMission(mission.id, {
+              blueprint: { ...bp, status: "awaiting_approval" },
+              status: "awaiting_input",
+              blocker: "Blueprint has readiness errors and cannot be auto-revised further. Use Request Blueprint Revision or adjust the mission goal.",
+              blockReasonCode: "manual_review_required"
+            });
+            await this.store.saveEvent(mission.id, { level: "warn", source: "blueprint-readiness", message: msg });
+            blueprintAwaitingApproval = true;
+          } else {
+            const msg = `Blueprint readiness errors; scheduling revision.\n${readinessMessageText(readiness)}`;
+            await this.store.saveEvent(mission.id, { level: "warn", source: "blueprint-readiness", message: msg });
+            await this.store.updateMission(mission.id, {
+              blueprint: { ...bp, status: "draft" },
+              blueprintRevisionCount: (mission.blueprintRevisionCount || 0) + 1,
+              status: "queued",
+              blocker: undefined,
+              blockReasonCode: undefined
+            });
+            const prior = JSON.stringify({
+              requirementsSummary: bp.requirementsSummary,
+              architectureSummary: bp.architectureSummary,
+              steps: bp.steps
+            });
+            await this.store.enqueue(mission.id, [
+              {
+                id: uid("work"),
+                title: "Mission blueprint (readiness revision)",
+                role: "planner",
+                status: "todo",
+                workItemPurpose: "blueprint_revise",
+                prompt:
+                  `Revise the full mission blueprint as structured JSON.\n\nReadiness report:\n${readinessMessageText(readiness)}\n\nPrior plan (reference): ${prior.slice(0, 12_000)}`
+              }
+            ]);
+          }
+        } else {
+          const msg = readiness.report.warnings.length
+            ? `Blueprint readiness warnings:\n${readinessMessageText(readiness)}`
+            : "";
+          if (msg) await this.store.saveEvent(mission.id, { level: "warn", source: "blueprint-readiness", message: msg });
+          bp.status = "awaiting_approval";
+          await this.store.updateMission(mission.id, { blueprint: bp });
+          blueprintAwaitingApproval = true;
+        }
       } else {
         bp.status = "approved";
         bp.approvedAt = Date.now();
@@ -1852,7 +1904,7 @@ export class MissionOrchestrator {
     }
     const readiness = validateBlueprintReadinessForApproval(m.blueprint);
     if (!readiness.ok) {
-      const message = `Blueprint not ready for approval:\n- ${readiness.issues.join("\n- ")}`;
+      const message = `Blueprint not ready for approval:\n- ${readiness.report.errors.join("\n- ")}`;
       await this.store.saveEvent(missionId, {
         level: "warn",
         source: "blueprint-readiness",
@@ -1900,12 +1952,16 @@ export class MissionOrchestrator {
     if ((m.blueprintRevisionCount || 0) >= maxRev) {
       return { ok: false, message: `Revision limit reached (${maxRev}).` };
     }
+    const readiness = m.blueprint ? validateBlueprintReadinessForApproval(m.blueprint) : undefined;
     const prior = m.blueprint
       ? JSON.stringify({
           requirementsSummary: m.blueprint.requirementsSummary,
           architectureSummary: m.blueprint.architectureSummary,
           steps: m.blueprint.steps
         })
+      : "";
+    const readinessText = readiness
+      ? `\n\nCurrent readiness report:\n${readinessMessageText(readiness)}`
       : "";
     await this.store.updateMission(missionId, {
       blueprintRevisionCount: (m.blueprintRevisionCount || 0) + 1,
@@ -1921,7 +1977,7 @@ export class MissionOrchestrator {
         role: "planner",
         status: "todo",
         workItemPurpose: "blueprint_revise",
-        prompt: `Revise the full mission blueprint as structured JSON. Prior plan (reference): ${prior.slice(0, 12_000)}\n\nOperator request: ${note}`
+        prompt: `Revise the full mission blueprint as structured JSON. Prior plan (reference): ${prior.slice(0, 12_000)}${readinessText}\n\nOperator request: ${note}`
       }
     ]);
     await this.store.saveEvent(missionId, { level: "info", source: "blueprint", message: "Blueprint revision requested." });
