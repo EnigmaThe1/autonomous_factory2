@@ -149,6 +149,42 @@ export class ToolRegistry {
     return { mission: m, item };
   }
 
+  private async requireApprovalForNonImplementerMutation(
+    missionId: string,
+    call: ToolCall,
+    approved: boolean,
+    title: string,
+    details: string
+  ): Promise<ToolResult | undefined> {
+    const attributed = this.getAttributedWorkItem(missionId, call);
+    if (!attributed) return undefined;
+    if (attributed.item.role === "implementer") return undefined;
+    if (approved) {
+      await this.missionStore.saveEvent(missionId, {
+        level: "warn",
+        source: "scope",
+        message: `Approved non-implementer mutation executed: ${call.tool} (role=${attributed.item.role})`,
+        data: { tool: call.tool, role: attributed.item.role, workItemId: attributed.item.id }
+      });
+      return undefined;
+    }
+    await this.missionStore.saveEvent(missionId, {
+      level: "warn",
+      source: "scope",
+      message: `Non-implementer mutation requires explicit approval: ${call.tool} (role=${attributed.item.role})`,
+      data: { tool: call.tool, role: attributed.item.role, workItemId: attributed.item.id }
+    });
+    return {
+      ok: false,
+      summary: `Approval required before ${call.tool} (non-implementer mutation)`,
+      requiresApproval: {
+        kind: "terminal",
+        title,
+        details: trimText(details, 1600)
+      }
+    };
+  }
+
   private readonly builtinDispatch: Record<string, (missionId: string, call: ToolCall) => Promise<ToolResult>> = {
     readFile: (mid, c) => this.readFile(mid, String(c.args.path || "")),
     writeFile: (mid, c) => this.writeFile(mid, c),
@@ -167,13 +203,14 @@ export class ToolRegistry {
     fetchWebPage: (mid, c) => this.fetchWebPageTool(mid, String(c.args.url || ""), Boolean(c.args.__approved)),
     browserCapture: (mid, c) => this.browserCaptureTool(mid, String(c.args.url || ""), Boolean(c.args.__approved)),
     findRelevantFiles: (mid, c) => this.findRelevantFilesTool(mid, String(c.args.query || "")),
-    runTerminal: (mid, c) => this.runTerminal(mid, String(c.args.command || ""), Boolean(c.args.__approved)),
+    runTerminal: (mid, c) => this.runTerminal(mid, String(c.args.command || ""), Boolean(c.args.__approved), c),
     runCommand: (mid, c) => this.runCommandTool(
       mid,
       String(c.args.command || ""),
       c.args.cwd ? String(c.args.cwd) : undefined,
       c.args.timeoutMs ? Number(c.args.timeoutMs) : undefined,
-      Boolean(c.args.__approved)
+      Boolean(c.args.__approved),
+      c
     )
   };
 
@@ -446,6 +483,16 @@ export class ToolRegistry {
         result = await gitTools.gitCheckoutFile(String(call.args.path || ""));
         break;
       case "git.commit":
+        {
+          const gate = await this.requireApprovalForNonImplementerMutation(
+            missionId,
+            call,
+            approved,
+            `Git: ${call.tool} (non-implementer mutation)`,
+            `Only implementer work items may trigger git.commit without an explicit approval.\n\nArgs:\n${trimText(JSON.stringify(redactSensitiveObject(call.args), null, 2), 1200)}`
+          );
+          if (gate) return gate;
+        }
         result = await gitTools.gitCommit(String(call.args.message || "auto-commit"), call.args.paths as string[] | undefined);
         break;
       case "git.show":
@@ -497,6 +544,14 @@ export class ToolRegistry {
         break;
       }
       case "docker.exec": {
+        const gate = await this.requireApprovalForNonImplementerMutation(
+          missionId,
+          call,
+          approved,
+          `Docker: ${call.tool} (non-implementer mutation)`,
+          `Only implementer work items may trigger docker.exec without an explicit approval.\n\nArgs:\n${trimText(JSON.stringify(redactSensitiveObject(call.args), null, 2), 1200)}`
+        );
+        if (gate) return gate;
         const cv = validateContainerName(String(call.args.container || ""));
         if (!cv.valid) return { ok: false, summary: `docker.exec rejected: ${cv.reason}` };
         const cmdV = validateCommand(String(call.args.command || ""));
@@ -508,6 +563,14 @@ export class ToolRegistry {
         result = await dockerTools.dockerComposeStatus();
         break;
       case "db.query": {
+        const gate = await this.requireApprovalForNonImplementerMutation(
+          missionId,
+          call,
+          approved,
+          `DB: ${call.tool} (non-implementer mutation)`,
+          `Only implementer work items may trigger db.query without an explicit approval.\n\nArgs:\n${trimText(JSON.stringify(redactSensitiveObject(call.args), null, 2), 1200)}`
+        );
+        if (gate) return gate;
         const ev = validateDbEngine(String(call.args.engine || ""));
         if (!ev.valid) return { ok: false, summary: ev.reason! };
         const qv = validateSqlQuery(String(call.args.query || ""));
@@ -1114,7 +1177,17 @@ export class ToolRegistry {
     return { ok: result.ok, summary: result.summary, data: result };
   }
 
-  private async runTerminal(missionId: string, command: string, approved: boolean): Promise<ToolResult> {
+  private async runTerminal(missionId: string, command: string, approved: boolean, call?: ToolCall): Promise<ToolResult> {
+    if (call) {
+      const gate = await this.requireApprovalForNonImplementerMutation(
+        missionId,
+        call,
+        approved,
+        `Run terminal (non-implementer mutation)`,
+        `Only implementer work items may trigger runTerminal without an explicit approval.\n\nCommand:\n${command}`
+      );
+      if (gate) return gate;
+    }
     const decision = this.policyEngine().decide({ action: "run_terminal" });
     if (!decision.allowed) return this.policyBlocked(decision.reason);
     if (decision.requiresApproval && !approved) {
@@ -1140,8 +1213,19 @@ export class ToolRegistry {
     command: string,
     cwd: string | undefined,
     timeoutMs: number | undefined,
-    approved: boolean
+    approved: boolean,
+    call?: ToolCall
   ): Promise<ToolResult> {
+    if (call) {
+      const gate = await this.requireApprovalForNonImplementerMutation(
+        missionId,
+        call,
+        approved,
+        `Run command (non-implementer mutation)`,
+        `Only implementer work items may trigger runCommand without an explicit approval.\n\n${cwd ? `[cwd: ${cwd}]\n` : ""}Command:\n${command}`
+      );
+      if (gate) return gate;
+    }
     const cmdValidation = validateCommand(command);
     if (!cmdValidation.valid) return { ok: false, summary: `Command rejected: ${cmdValidation.reason}` };
 
