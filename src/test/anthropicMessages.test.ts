@@ -1,6 +1,10 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { anthropicMessagesFromChatRequest, normalizeAnthropicMessages } from "../providers/anthropicMessages";
+import {
+  anthropicMessagesFromChatRequest,
+  normalizeAnthropicMessages,
+  parseAnthropicErrorBody
+} from "../providers/anthropicMessages";
 import type { ChatRequest } from "../types";
 
 function baseReq(prompt: string): ChatRequest {
@@ -50,6 +54,11 @@ test("normalizeAnthropicMessages: drops empty turns", () => {
   ]);
   assert.equal(out.length, 1);
   assert.equal(out[0]!.content, "ok");
+});
+
+test("parseAnthropicErrorBody: extracts error.message", () => {
+  const d = parseAnthropicErrorBody(JSON.stringify({ error: { type: "invalid_request_error", message: "bad model" } }));
+  assert.equal(d, "bad model");
 });
 
 test("anthropicMessagesFromChatRequest: history then prompt ends with user context", () => {

@@ -7,7 +7,7 @@ import { parseAnthropicSseLines } from "./streamParsers";
 import { resolveModelForProvider } from "./providerModelResolution";
 import { readStreamChunks } from "./providerStreamReader";
 import { formatProviderHttpError } from "./providerHttpErrors";
-import { anthropicMessagesFromChatRequest } from "./anthropicMessages";
+import { anthropicMessagesFromChatRequest, parseAnthropicErrorBody } from "./anthropicMessages";
 
 export class AnthropicProvider implements IModelProvider {
   readonly id = "anthropic";
@@ -55,7 +55,7 @@ export class AnthropicProvider implements IModelProvider {
           operation: "Chat stream",
           status: res.status,
           endpoint: baseUrl,
-          providerDetail: parseAnthropicErrorDetail(bodyText)
+          providerDetail: parseAnthropicErrorBody(bodyText)
         })
       );
     }
@@ -63,20 +63,4 @@ export class AnthropicProvider implements IModelProvider {
 
     yield* readStreamChunks(res.body, req.signal, parseAnthropicSseLines);
   }
-}
-
-function parseAnthropicErrorDetail(bodyText: string): string | undefined {
-  const t = bodyText.trim();
-  if (!t) return undefined;
-  try {
-    const j = JSON.parse(t) as { error?: { message?: string; type?: string } };
-    const msg = j.error?.message?.trim();
-    if (msg) return msg;
-    const typ = j.error?.type?.trim();
-    if (typ) return typ;
-  } catch {
-    /* ignore */
-  }
-  if (t.length <= 280) return t;
-  return `${t.slice(0, 277)}…`;
 }

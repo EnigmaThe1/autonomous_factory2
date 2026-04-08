@@ -1,9 +1,9 @@
 import * as vscode from "vscode";
 import { SecretStore } from "../storage/SecretStore";
 import { fetchWithPolicy } from "./fetchWithPolicy";
-import { resolveModelForProvider } from "./providerModelResolution";
 import { ProviderRegistry } from "./ProviderRegistry";
 import { formatConnectionTestHttpMessage } from "./providerHttpErrors";
+import { parseAnthropicErrorBody } from "./anthropicMessages";
 
 function policyFromConfig(): { timeoutMs: number; retries: number; retryDelayMs: number } {
   const cfg = vscode.workspace.getConfiguration();
@@ -16,7 +16,7 @@ function policyFromConfig(): { timeoutMs: number; retries: number; retryDelayMs:
 
 /**
  * Lightweight connectivity checks. Does not log secrets.
- * Anthropic path uses a minimal non-streaming Messages call (may incur trivial usage).
+ * Anthropic uses GET /models (same as Refresh models) — avoids POST /messages 400s from tight test payloads on newer models.
  */
 export async function testProviderConnection(secrets: SecretStore, _registry: ProviderRegistry, providerId: string): Promise<{ ok: boolean; message: string }> {
   const cfg = vscode.workspace.getConfiguration();
@@ -70,29 +70,32 @@ export async function testProviderConnection(secrets: SecretStore, _registry: Pr
       const key = await secrets.get("myAi.anthropic.apiKey");
       if (!key?.trim()) return { ok: false, message: "Anthropic API key is not configured. Use the Providers tab." };
       const base = cfg.get<string>("myAi.anthropic.baseUrl", "https://api.anthropic.com/v1").replace(/\/$/, "");
-      const model = resolveModelForProvider("anthropic", undefined, (k, d) => cfg.get(k, d));
       try {
+        const url = new URL(`${base}/models`);
+        url.searchParams.set("limit", "1");
         const res = await fetchWithPolicy(
-          `${base}/messages`,
+          url.toString(),
           {
-            method: "POST",
             headers: {
-              "Content-Type": "application/json",
               "x-api-key": key,
               "anthropic-version": "2023-06-01"
-            },
-            body: JSON.stringify({
-              model,
-              max_tokens: 1,
-              stream: false,
-              messages: [{ role: "user", content: "ping" }]
-            })
+            }
           },
           policy
         );
-        if (!res.ok)
-          return { ok: false, message: formatConnectionTestHttpMessage("Anthropic", res.status, `${base}/messages`) };
-        return { ok: true, message: "Anthropic OK — minimal message accepted." };
+        if (!res.ok) {
+          const bodyText = await res.text().catch(() => "");
+          return {
+            ok: false,
+            message: formatConnectionTestHttpMessage(
+              "Anthropic",
+              res.status,
+              `${base}/models`,
+              parseAnthropicErrorBody(bodyText)
+            )
+          };
+        }
+        return { ok: true, message: "Anthropic OK — credentials accepted (models list reachable)." };
       } catch (e) {
         return { ok: false, message: `Anthropic error: ${e instanceof Error ? e.message : String(e)}` };
       }

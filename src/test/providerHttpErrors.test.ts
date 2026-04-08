@@ -52,3 +52,9 @@ test("formatConnectionTestHttpMessage: providers tab mentioned for 401", () => {
   assert.match(m, /401/);
   assert.match(m, /Providers/i);
 });
+
+test("formatConnectionTestHttpMessage: optional API detail", () => {
+  const m = formatConnectionTestHttpMessage("Anthropic", 403, "https://api.anthropic.com/v1/models", "org not allowed");
+  assert.match(m, /API: org not allowed/);
+  assert.match(m, /403/);
+});

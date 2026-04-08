@@ -78,6 +78,16 @@ export function formatModelListHttpHint(providerLabel: string, status: number, e
 /**
  * Message for testProviderConnection failures.
  */
-export function formatConnectionTestHttpMessage(providerLabel: string, status: number, endpoint: string): string {
-  return `${providerLabel} connection check failed: HTTP ${status} (${endpoint}). ${explainHttpStatusForProviders(status)}`;
+export function formatConnectionTestHttpMessage(
+  providerLabel: string,
+  status: number,
+  endpoint: string,
+  providerDetail?: string
+): string {
+  const detail = providerDetail?.trim();
+  const prefix = `${providerLabel} connection check failed: HTTP ${status} (${endpoint}).`;
+  if (detail) {
+    return `${prefix} API: ${detail} ${explainHttpStatusForProviders(status)}`;
+  }
+  return `${prefix} ${explainHttpStatusForProviders(status)}`;
 }

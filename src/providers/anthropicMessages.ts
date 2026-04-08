@@ -54,3 +54,20 @@ export function anthropicMessagesFromChatRequest(req: ChatRequest): AnthropicMes
   msgs.push({ role: "user", content: renderChatContext(req) });
   return normalizeAnthropicMessages(msgs);
 }
+
+/** Parse `error.message` (or short raw body) from Anthropic JSON error responses. */
+export function parseAnthropicErrorBody(bodyText: string): string | undefined {
+  const t = bodyText.trim();
+  if (!t) return undefined;
+  try {
+    const j = JSON.parse(t) as { error?: { message?: string; type?: string } };
+    const msg = j.error?.message?.trim();
+    if (msg) return msg;
+    const typ = j.error?.type?.trim();
+    if (typ) return typ;
+  } catch {
+    /* ignore */
+  }
+  if (t.length <= 280) return t;
+  return `${t.slice(0, 277)}…`;
+}
