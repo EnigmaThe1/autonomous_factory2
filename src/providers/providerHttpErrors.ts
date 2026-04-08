@@ -3,8 +3,16 @@
  * Used by chat streams, embeddings, model catalog fetches, and connection tests.
  */
 
-/** Short explanation of what the status usually means (no leading/trailing redundancy). */
-export function explainHttpStatusForProviders(status: number): string {
+/**
+ * When the provider body already states the cause, avoid stacking a misleading generic hint
+ * (e.g. HTTP 400 + "invalid model" when Anthropic means insufficient credits).
+ */
+export function explainHttpStatusForProviders(status: number, providerDetail?: string): string {
+  const d = providerDetail?.trim() ?? "";
+  if (status === 400 && providerDetailImpliesInsufficientCreditsOrBilling(d)) {
+    return "Billing/credits — the provider rejected this request for account funding (not a bad model id). Add credits or upgrade in the provider console (Anthropic: Plans & Billing), then retry or Resume the mission.";
+  }
+
   switch (status) {
     case 400:
       return "Bad request — often an invalid model name, malformed JSON, or a parameter the API rejects. Check the model id and provider settings.";
@@ -43,6 +51,20 @@ export function explainHttpStatusForProviders(status: number): string {
   }
 }
 
+function providerDetailImpliesInsufficientCreditsOrBilling(detail: string): boolean {
+  if (!detail) return false;
+  const t = detail.toLowerCase();
+  return (
+    /\bcredit\s+balance\b/.test(t) ||
+    /\btoo\s+low\b.*\b(api|anthropic|access)\b/.test(t) ||
+    /\binsufficient\s+funds\b/.test(t) ||
+    /\bpurchase\s+credits\b/.test(t) ||
+    /\bplans\s*&\s*billing\b/.test(t) ||
+    /\bbilling\b.*\b(upgrade|credit|payment|purchase)\b/.test(t) ||
+    /\bpayment\s+required\b/.test(t)
+  );
+}
+
 export interface FormatProviderHttpErrorOpts {
   /** e.g. "Anthropic", "Gemini", "Ollama", "OpenAI-compatible" */
   providerLabel: string;
@@ -63,7 +85,7 @@ export function formatProviderHttpError(opts: FormatProviderHttpErrorOpts): stri
   const detail = providerDetail?.trim();
   const prefix = `${providerLabel} ${operation} failed: HTTP ${status} (${endpoint}).`;
   if (detail) {
-    return `${prefix} API: ${detail} ${explainHttpStatusForProviders(status)}`;
+    return `${prefix} API: ${detail} ${explainHttpStatusForProviders(status, detail)}`;
   }
   return `${prefix} ${explainHttpStatusForProviders(status)}`;
 }
@@ -87,7 +109,7 @@ export function formatConnectionTestHttpMessage(
   const detail = providerDetail?.trim();
   const prefix = `${providerLabel} connection check failed: HTTP ${status} (${endpoint}).`;
   if (detail) {
-    return `${prefix} API: ${detail} ${explainHttpStatusForProviders(status)}`;
+    return `${prefix} API: ${detail} ${explainHttpStatusForProviders(status, detail)}`;
   }
   return `${prefix} ${explainHttpStatusForProviders(status)}`;
 }
