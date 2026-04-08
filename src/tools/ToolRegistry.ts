@@ -35,6 +35,7 @@ import { BUILTIN_TOOL_NAMES } from "./builtinToolNames";
 import { buildListToolsHintEntries } from "./listToolsCatalog";
 import { compactMcpToolDescriptors } from "./mcpToolsListCompact";
 import { toExternalAdapterPublicSummaries } from "./externalAdapterListSanitize";
+import { classifyScopeDriftForPath } from "../missions/scopeDriftPolicy";
 
 function buildDiffHunks(beforeText: string, afterText: string) {
   const before = beforeText.split(/\r?\n/);
@@ -134,10 +135,24 @@ export class ToolRegistry {
     return root ? path.join(root, inputPath) : path.resolve(inputPath);
   }
 
+  private getAttributedWorkItem(
+    missionId: string,
+    call: ToolCall
+  ): { mission: import("../types").Mission; item: import("../types").WorkItem } | undefined {
+    const m = this.missionStore.get(missionId);
+    if (!m) return undefined;
+    const idRaw = (call.args as Record<string, unknown> | undefined)?.__workItemId;
+    const id = typeof idRaw === "string" ? idRaw : "";
+    if (!id) return undefined;
+    const item = m.queue.find((w) => w.id === id);
+    if (!item) return undefined;
+    return { mission: m, item };
+  }
+
   private readonly builtinDispatch: Record<string, (missionId: string, call: ToolCall) => Promise<ToolResult>> = {
     readFile: (mid, c) => this.readFile(mid, String(c.args.path || "")),
-    writeFile: (mid, c) => this.writeFile(mid, String(c.args.path || ""), String(c.args.content || ""), Boolean(c.args.__approved)),
-    applyPatch: (mid, c) => this.applyPatch(mid, String(c.args.path || ""), String(c.args.search || ""), String(c.args.replace || ""), Boolean(c.args.__approved)),
+    writeFile: (mid, c) => this.writeFile(mid, c),
+    applyPatch: (mid, c) => this.applyPatch(mid, c),
     searchFiles: (mid, c) => this.searchFiles(mid, String(c.args.glob || "**/*"), String(c.args.query || "")),
     listFiles: (mid, c) => this.listFiles(mid, String(c.args.glob || "**/*")),
     getDiagnostics: (mid) => this.getDiagnostics(mid),
@@ -393,6 +408,41 @@ export class ToolRegistry {
         result = await gitTools.gitStashPop();
         break;
       case "git.checkout_file":
+        if (!approved) {
+          const attributed = this.getAttributedWorkItem(missionId, call);
+          if (attributed) {
+            const resolvedPath = this.resolveWorkspacePath(String(call.args.path || ""));
+            const drift = classifyScopeDriftForPath({
+              mission: attributed.mission,
+              item: attributed.item,
+              tool: call.tool,
+              resolvedPath
+            });
+            if (drift.kind === "hard_block") {
+              return this.policyBlocked(drift.reason);
+            }
+            if (drift.kind === "needs_approval") {
+              return {
+                ok: false,
+                summary: `Approval required before ${call.tool} (scope drift)`,
+                requiresApproval: {
+                  kind: "terminal",
+                  title: `Git: ${call.tool} (scope drift)`,
+                  details: trimText(
+                    [
+                      drift.reason,
+                      "",
+                      `Path: ${resolvedPath}`,
+                      "",
+                      `Scope drift details: ${JSON.stringify(drift.details, null, 2)}`
+                    ].join("\n"),
+                    1600
+                  )
+                }
+              };
+            }
+          }
+        }
         result = await gitTools.gitCheckoutFile(String(call.args.path || ""));
         break;
       case "git.commit":
@@ -555,10 +605,62 @@ export class ToolRegistry {
     };
   }
 
-  private async writeFile(missionId: string, fsPath: string, content: string, approved: boolean): Promise<ToolResult> {
+  private async writeFile(missionId: string, call: ToolCall): Promise<ToolResult> {
+    const fsPath = String(call.args.path || "");
+    const content = String(call.args.content || "");
+    const approved = Boolean(call.args.__approved);
     const fpv = validateFilePath(fsPath);
     if (!fpv.valid) return { ok: false, summary: `writeFile rejected: ${fpv.reason}` };
     const resolvedPath = this.resolveWorkspacePath(fsPath);
+
+    const attributed = this.getAttributedWorkItem(missionId, call);
+    if (attributed) {
+      const drift = classifyScopeDriftForPath({
+        mission: attributed.mission,
+        item: attributed.item,
+        tool: call.tool,
+        resolvedPath
+      });
+      if (drift.kind === "hard_block") {
+        return this.policyBlocked(drift.reason);
+      }
+      if (drift.kind === "needs_approval" && !approved) {
+        await this.missionStore.saveEvent(missionId, {
+          level: "warn",
+          source: "scope",
+          message: drift.reason,
+          data: drift.details
+        });
+        const details = [
+          drift.reason,
+          "",
+          `WorkItem: ${attributed.item.role} • ${attributed.item.title} (${attributed.item.id})`,
+          attributed.item.blueprintStepId ? `Blueprint step: ${attributed.item.blueprintStepId}` : "",
+          `Path: ${resolvedPath}`,
+          "",
+          `Scope drift details: ${JSON.stringify(drift.details, null, 2)}`
+        ]
+          .filter(Boolean)
+          .join("\n");
+        return this.buildFileApprovalResult(
+          "write_file",
+          `Scope drift: write file ${resolvedPath}`,
+          resolvedPath,
+          "",
+          content,
+          trimText(details, 1600)
+        );
+      }
+      if (/weak alignment/i.test(drift.reason)) {
+        await this.missionStore.saveEvent(missionId, {
+          level: "warn",
+          source: "scope",
+          message: drift.reason,
+          data: { tool: call.tool, path: resolvedPath, workItemId: attributed.item.id }
+        });
+      }
+    }
+
     const decision = this.policyEngine().decide({ action: "write_file", targetPath: resolvedPath });
     if (!decision.allowed) return this.policyBlocked(decision.reason);
     const uri = vscode.Uri.file(resolvedPath);
@@ -584,8 +686,26 @@ export class ToolRegistry {
     return { ok: true, summary: `Wrote ${resolvedPath}` };
   }
 
-  private async applyPatch(missionId: string, fsPath: string, search: string, replace: string, approved: boolean): Promise<ToolResult> {
+  private async applyPatch(missionId: string, call: ToolCall): Promise<ToolResult> {
+    const fsPath = String(call.args.path || "");
+    const search = String(call.args.search || "");
+    const replace = String(call.args.replace || "");
+    const approved = Boolean(call.args.__approved);
     const resolvedPath = this.resolveWorkspacePath(fsPath);
+
+    const attributed = this.getAttributedWorkItem(missionId, call);
+    if (attributed) {
+      const drift = classifyScopeDriftForPath({
+        mission: attributed.mission,
+        item: attributed.item,
+        tool: call.tool,
+        resolvedPath
+      });
+      if (drift.kind === "hard_block") {
+        return this.policyBlocked(drift.reason);
+      }
+    }
+
     const decision = this.policyEngine().decide({ action: "apply_patch", targetPath: resolvedPath });
     if (!decision.allowed) return this.policyBlocked(decision.reason);
     const uri = vscode.Uri.file(resolvedPath);
@@ -601,6 +721,56 @@ export class ToolRegistry {
       }
       return { ok: false, summary: `Search text not found in ${resolvedPath}` };
     }
+    if (!approved && attributed) {
+      const drift = classifyScopeDriftForPath({
+        mission: attributed.mission,
+        item: attributed.item,
+        tool: call.tool,
+        resolvedPath
+      });
+      if (drift.kind === "needs_approval") {
+        await this.missionStore.saveEvent(missionId, {
+          level: "warn",
+          source: "scope",
+          message: drift.reason,
+          data: drift.details
+        });
+        const details = [
+          drift.reason,
+          "",
+          `WorkItem: ${attributed.item.role} • ${attributed.item.title} (${attributed.item.id})`,
+          attributed.item.blueprintStepId ? `Blueprint step: ${attributed.item.blueprintStepId}` : "",
+          `Path: ${resolvedPath}`,
+          "",
+          `Scope drift details: ${JSON.stringify(drift.details, null, 2)}`,
+          "",
+          "SEARCH:",
+          trimText(search, 600),
+          "",
+          "REPLACE:",
+          trimText(replace, 600)
+        ]
+          .filter(Boolean)
+          .join("\n");
+        return this.buildFileApprovalResult(
+          "apply_patch",
+          `Scope drift: apply patch to ${resolvedPath}`,
+          resolvedPath,
+          text,
+          updated,
+          trimText(details, 1600)
+        );
+      }
+      if (/weak alignment/i.test(drift.reason)) {
+        await this.missionStore.saveEvent(missionId, {
+          level: "warn",
+          source: "scope",
+          message: drift.reason,
+          data: { tool: call.tool, path: resolvedPath, workItemId: attributed.item.id }
+        });
+      }
+    }
+
     if (decision.requiresApproval && !approved) {
       const patchDetails = ["Path: " + resolvedPath, "", "SEARCH:", trimText(search, 600), "", "REPLACE:", trimText(replace, 600)].join("\n");
       return this.buildFileApprovalResult("apply_patch", `Apply patch to ${resolvedPath}`, resolvedPath, text, updated, patchDetails);
