@@ -3,7 +3,8 @@ import assert from "node:assert/strict";
 import * as vscode from "vscode";
 import {
   effectiveWebResearchMaxCallsPerMission,
-  missionUsesLocalLlmForWebBudget
+  effectiveWebSearchMinIntervalMs,
+  missionUsesLocalLlmEconomy
 } from "../missions/webResearchBudgetPolicy";
 import type { Mission } from "../types";
 import type { VscodeTestApi } from "./missionOrchestratorTestHarness";
@@ -54,7 +55,7 @@ test("effectiveWebResearchMaxCallsPerMission: ollama + unlimited local => unlimi
   const cfg = vscode.workspace.getConfiguration();
   const m = baseMission("ollama");
   assert.equal(effectiveWebResearchMaxCallsPerMission(m, cfg), 0);
-  assert.equal(missionUsesLocalLlmForWebBudget(m, cfg), true);
+  assert.equal(missionUsesLocalLlmEconomy(m, cfg), true);
 });
 
 test("effectiveWebResearchMaxCallsPerMission: openai uses configured cap", () => {
@@ -63,7 +64,15 @@ test("effectiveWebResearchMaxCallsPerMission: openai uses configured cap", () =>
   const cfg = vscode.workspace.getConfiguration();
   const m = baseMission("openai");
   assert.equal(effectiveWebResearchMaxCallsPerMission(m, cfg), 7);
-  assert.equal(missionUsesLocalLlmForWebBudget(m, cfg), false);
+  assert.equal(missionUsesLocalLlmEconomy(m, cfg), false);
+});
+
+test("effectiveWebSearchMinIntervalMs: local LLM skips cooldown", () => {
+  (vscode as VscodeTestApi).__setTestConfig?.("myAi.webSearch.minIntervalMs", 5000);
+  (vscode as VscodeTestApi).__setTestConfig?.("myAi.webResearch.unlimitedBudgetForLocalLlm", true);
+  const cfg = vscode.workspace.getConfiguration();
+  assert.equal(effectiveWebSearchMinIntervalMs(baseMission("ollama"), cfg), 0);
+  assert.equal(effectiveWebSearchMinIntervalMs(baseMission("openai"), cfg), 5000);
 });
 
 test("effectiveWebResearchMaxCallsPerMission: ollama respects cap when unlimited flag off", () => {

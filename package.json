@@ -495,12 +495,12 @@
         "myAi.webResearch.unlimitedBudgetForLocalLlm": {
           "type": "boolean",
           "default": true,
-          "description": "When true, myAi.webResearch.maxCallsPerMission is ignored for missions whose activeProviderId is listed in myAi.webResearch.localLlmProviderIds (default includes ollama), since the LLM runs locally."
+          "description": "When true and the mission’s active provider is local (see localLlmProviderIds), the extension does not apply paid-API-style web limits: per-mission webSearch/fetchWebPage call caps are off and webSearch minIntervalMs cooldown is skipped. Planning/code paths are unchanged; this only relaxes web-research throttles we control."
         },
         "myAi.webResearch.localLlmProviderIds": {
           "type": "string",
           "default": "ollama",
-          "description": "Comma/space-separated provider ids treated as local LLM for unlimited web research budget (when unlimitedBudgetForLocalLlm is true). Example: ollama"
+          "description": "Comma/space-separated mission provider ids (activeProviderId when the mission starts) treated as “local LLM” for unlimitedBudgetForLocalLlm. Default: ollama."
         },
         "myAi.webResearch.cacheEnabled": {
           "type": "boolean",

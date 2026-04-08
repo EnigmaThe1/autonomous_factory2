@@ -36,7 +36,10 @@ import { buildListToolsHintEntries } from "./listToolsCatalog";
 import { compactMcpToolDescriptors } from "./mcpToolsListCompact";
 import { toExternalAdapterPublicSummaries } from "./externalAdapterListSanitize";
 import { classifyScopeDriftForPath } from "../missions/scopeDriftPolicy";
-import { effectiveWebResearchMaxCallsPerMission } from "../missions/webResearchBudgetPolicy";
+import {
+  effectiveWebResearchMaxCallsPerMission,
+  effectiveWebSearchMinIntervalMs
+} from "../missions/webResearchBudgetPolicy";
 import { enqueueWebResearchConsolidationIfAbsent } from "../missions/webResearchConsolidationEnqueue";
 
 function buildDiffHunks(beforeText: string, afterText: string) {
@@ -1059,7 +1062,7 @@ export class ToolRegistry {
         };
       }
     }
-    const minIntervalMs = Math.max(0, cfg.get<number>("myAi.webSearch.minIntervalMs", 0));
+    const minIntervalMs = effectiveWebSearchMinIntervalMs(mission, cfg);
     if (minIntervalMs > 0) {
       const now = Date.now();
       const elapsed = now - this.webSearchLastAtMs;
