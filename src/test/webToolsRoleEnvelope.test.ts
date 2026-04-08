@@ -56,3 +56,38 @@ test("B1: webSearch requires approval when called by non-researcher role", async
   assert.match(res.requiresApproval!.title, /non-researcher|non-implementer|mutation/i);
 });
 
+test("webSearch: respects global HTTP approval when skipHttpApproval is false", async () => {
+  (vscode as VscodeTestApi).__setTestConfig?.("myAi.webResearch.enabled", true);
+  (vscode as VscodeTestApi).__setTestConfig?.("myAi.tools.requireApprovalForHttp", true);
+  (vscode as VscodeTestApi).__setTestConfig?.("myAi.webResearch.skipHttpApproval", false);
+  (vscode as VscodeTestApi).__setTestConfig?.("myAi.tools.restrictToWorkspace", false);
+
+  const globalState = memento();
+  const workspaceState = memento();
+  const disk = new DiskMissionPersistence(new WorkspacePaths());
+  const store = new MissionStore(globalState, workspaceState, disk);
+  const secretStore = new SecretStore({} as unknown as vscode.SecretStorage);
+  const paths = new WorkspacePaths();
+  const registry = new ToolRegistry(
+    {} as vscode.ExtensionContext,
+    store,
+    disk,
+    new ExternalToolAdapterRegistry(paths),
+    new McpRegistry(paths, disk),
+    secretStore
+  );
+
+  const mission = await store.create("web-http-strict", "p", "ollama");
+  await store.enqueue(mission.id, [
+    { id: "res2", title: "Research", role: "researcher", status: "todo", prompt: "x" }
+  ]);
+
+  const call: ToolCall = {
+    tool: "webSearch",
+    args: { query: "example query for strict http policy", __workItemId: "res2" }
+  };
+  const res = await registry.execute(mission.id, call);
+  assert.equal(res.ok, false);
+  assert.ok(res.requiresApproval);
+});
+

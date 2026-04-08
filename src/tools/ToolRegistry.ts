@@ -985,19 +985,13 @@ export class ToolRegistry {
       };
     }
 
-    const maxCalls = Math.max(0, cfg.get<number>("myAi.webResearch.maxCallsPerMission", 12));
+    const maxCalls = Math.max(0, cfg.get<number>("myAi.webResearch.maxCallsPerMission", 0));
     const mission = this.missionStore.get(missionId);
     const currentCalls = mission?.runtime?.webResearchCalls ?? 0;
-    if (maxCalls > 0 && currentCalls >= maxCalls && !approved) {
-      return {
-        ok: false,
-        summary: `Approval required: web research budget exceeded (${currentCalls}/${maxCalls}).`,
-        requiresApproval: {
-          kind: "external_tool",
-          title: "Web research (budget exceeded)",
-          details: trimText(`Query:\n${query}\n\nBudget: ${currentCalls}/${maxCalls}`, 800)
-        }
-      };
+    if (maxCalls > 0 && currentCalls >= maxCalls) {
+      const msg = `Web research limit reached for this mission (${currentCalls}/${maxCalls} webSearch/fetchWebPage calls). Reuse prior results from mission memory, repeat an identical query to use cache, or raise myAi.webResearch.maxCallsPerMission.`;
+      await this.missionStore.saveEvent(missionId, { level: "warn", source: "tool:webSearch", message: msg });
+      return { ok: false, summary: msg };
     }
 
     const cacheEnabled = cfg.get<boolean>("myAi.webResearch.cacheEnabled", true);
@@ -1032,7 +1026,8 @@ export class ToolRegistry {
     }
     const decision = this.policyEngine().decide({ action: "http_request" });
     if (!decision.allowed) return this.policyBlocked(decision.reason);
-    if (decision.requiresApproval && !approved) {
+    const skipHttpApproval = cfg.get<boolean>("myAi.webResearch.skipHttpApproval", true);
+    if (decision.requiresApproval && !approved && !skipHttpApproval) {
       return {
         ok: false,
         summary: "Approval required before web search.",
@@ -1192,19 +1187,13 @@ export class ToolRegistry {
       };
     }
 
-    const maxCalls = Math.max(0, cfg.get<number>("myAi.webResearch.maxCallsPerMission", 12));
+    const maxCalls = Math.max(0, cfg.get<number>("myAi.webResearch.maxCallsPerMission", 0));
     const mission = this.missionStore.get(missionId);
     const currentCalls = mission?.runtime?.webResearchCalls ?? 0;
-    if (maxCalls > 0 && currentCalls >= maxCalls && !approved) {
-      return {
-        ok: false,
-        summary: `Approval required: web research budget exceeded (${currentCalls}/${maxCalls}).`,
-        requiresApproval: {
-          kind: "external_tool",
-          title: "Fetch web page (budget exceeded)",
-          details: trimText(`URL:\n${url}\n\nBudget: ${currentCalls}/${maxCalls}`, 800)
-        }
-      };
+    if (maxCalls > 0 && currentCalls >= maxCalls) {
+      const msg = `Web research limit reached for this mission (${currentCalls}/${maxCalls} webSearch/fetchWebPage calls). Reuse prior results from mission memory, repeat the same URL to use cache, or raise myAi.webResearch.maxCallsPerMission.`;
+      await this.missionStore.saveEvent(missionId, { level: "warn", source: "tool:fetchWebPage", message: msg });
+      return { ok: false, summary: msg };
     }
 
     const cacheEnabled = cfg.get<boolean>("myAi.webResearch.cacheEnabled", true);
@@ -1239,7 +1228,8 @@ export class ToolRegistry {
     }
     const decision = this.policyEngine().decide({ action: "http_request" });
     if (!decision.allowed) return this.policyBlocked(decision.reason);
-    if (decision.requiresApproval && !approved) {
+    const skipHttpApprovalFetch = cfg.get<boolean>("myAi.webResearch.skipHttpApproval", true);
+    if (decision.requiresApproval && !approved && !skipHttpApprovalFetch) {
       return {
         ok: false,
         summary: `Approval required before fetching ${url}`,

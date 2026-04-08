@@ -483,9 +483,14 @@
         },
         "myAi.webResearch.maxCallsPerMission": {
           "type": "number",
-          "default": 12,
+          "default": 0,
           "minimum": 0,
-          "description": "Maximum webSearch/fetchWebPage calls per mission before requiring explicit approval (0 = unlimited)."
+          "description": "Maximum successful webSearch/fetchWebPage network calls per mission (0 = unlimited). When exceeded, the tool fails with guidance to reuse memory/cache instead of operator approval."
+        },
+        "myAi.webResearch.skipHttpApproval": {
+          "type": "boolean",
+          "default": true,
+          "description": "When true, webSearch and fetchWebPage bypass the global myAi.tools.requireApprovalForHttp gate (role envelopes and other policy still apply). The generic httpRequest tool is unchanged."
         },
         "myAi.webResearch.cacheEnabled": {
           "type": "boolean",

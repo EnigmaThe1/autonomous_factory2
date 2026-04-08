@@ -88,7 +88,7 @@ test("Research evidence: fetchWebPage produces a finding memory with URL include
   assert.ok(evidence?.text.includes("https://example.com/docs"));
 });
 
-test("Web research budget: requires approval after max calls exceeded", async () => {
+test("Web research budget: fails without operator approval when limit exceeded", async () => {
   (vscode as VscodeTestApi).__clearTestConfig?.();
   (vscode as VscodeTestApi).__setTestConfig?.("myAi.webResearch.enabled", true);
   (vscode as VscodeTestApi).__setTestConfig?.("myAi.webResearch.maxCallsPerMission", 1);
@@ -117,7 +117,7 @@ test("Web research budget: requires approval after max calls exceeded", async ()
   const call: ToolCall = { tool: "webSearch", args: { query: "q1", __workItemId: "res0" } };
   const res = await registry.execute(mission.id, call);
   assert.equal(res.ok, false);
-  assert.ok(res.requiresApproval);
-  assert.match(res.requiresApproval!.title, /budget/i);
+  assert.ok(!res.requiresApproval, "budget limit should not surface as operator approval");
+  assert.match(res.summary, /limit reached|web research limit/i);
 });
 
