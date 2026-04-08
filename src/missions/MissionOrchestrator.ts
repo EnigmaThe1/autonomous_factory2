@@ -48,6 +48,7 @@ import { synthesizeWorkItemsFromBlueprint } from "./blueprintSynthesis";
 import { blueprintBlocksMissionCompletion, computeBlueprintProgress } from "./blueprintProgress";
 import { applyBlueprintStepStatusFromWorkItem } from "./blueprintStepSync";
 import { computePlanFidelityDrift } from "./blueprintPlanFidelity";
+import { validateBlueprintReadinessForApproval } from "./blueprintReadinessGate";
 import type { MissionFileTracker } from "./MissionFileTracker";
 import type {
   ResolveApprovalOutcome,
@@ -1848,6 +1849,16 @@ export class MissionOrchestrator {
     if (!m) return { ok: false, message: "Mission not found." };
     if (!m.blueprint || m.blueprint.status !== "awaiting_approval") {
       return { ok: false, message: "No blueprint awaiting approval." };
+    }
+    const readiness = validateBlueprintReadinessForApproval(m.blueprint);
+    if (!readiness.ok) {
+      const message = `Blueprint not ready for approval:\n- ${readiness.issues.join("\n- ")}`;
+      await this.store.saveEvent(missionId, {
+        level: "warn",
+        source: "blueprint-readiness",
+        message
+      });
+      return { ok: false, message };
     }
     const bp = { ...m.blueprint, status: "approved" as const, approvedAt: Date.now() };
     await this.store.updateMission(missionId, {
