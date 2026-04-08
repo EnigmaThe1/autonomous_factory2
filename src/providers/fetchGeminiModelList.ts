@@ -1,4 +1,5 @@
 import { fetchWithPolicy } from "./fetchWithPolicy";
+import { formatModelListHttpHint } from "./providerHttpErrors";
 import { PROVIDER_MODEL_PRESETS } from "./providerModelResolution";
 import { geminiCatalogIdsFromListModels, type GeminiModelRecord } from "./geminiModelCatalogParse";
 import type { ModelListResult, ModelListSource } from "./fetchProviderModelList";
@@ -33,7 +34,7 @@ export async function fetchGeminiModelListResult(
         "gemini",
         [...(PROVIDER_MODEL_PRESETS.gemini || [])],
         "fallback",
-        `Gemini HTTP ${res.status}; curated list.`
+        `${formatModelListHttpHint("Gemini", res.status, `${root}/v1beta/models`)} Curated list.`
       );
     }
     const j = (await res.json()) as GeminiListModelsResponse;

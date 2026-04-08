@@ -1,4 +1,5 @@
 import { fetchWithPolicy } from "./fetchWithPolicy";
+import { formatModelListHttpHint } from "./providerHttpErrors";
 import type { ModelListResult, ModelListSource } from "./fetchProviderModelList";
 import type { RankCatalogOpts } from "./modelCatalogRank";
 
@@ -37,7 +38,7 @@ export async function fetchAnthropicModelListLive(
     );
 
     if (!res.ok) {
-      return fromPresets(`Anthropic HTTP ${res.status}.`, "fallback");
+      return fromPresets(formatModelListHttpHint("Anthropic", res.status, `${base}/models`), "fallback");
     }
 
     const j = (await res.json()) as AnthropicListModelsResponse;

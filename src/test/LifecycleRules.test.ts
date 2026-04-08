@@ -10,7 +10,9 @@ test("allows valid and rejects invalid mission status transitions", () => {
   assert.equal(isAllowedMissionStatusTransition("queued", "running"), true);
   assert.equal(isAllowedMissionStatusTransition("running", "completed"), true);
   assert.equal(isAllowedMissionStatusTransition("completed", "running"), false);
-  assert.equal(isAllowedMissionStatusTransition("failed", "queued"), false);
+  assert.equal(isAllowedMissionStatusTransition("failed", "queued"), true);
+  assert.equal(isAllowedMissionStatusTransition("failed", "awaiting_input"), true);
+  assert.equal(isAllowedMissionStatusTransition("failed", "completed"), false);
 });
 
 test("completion status resolution is deterministic", () => {

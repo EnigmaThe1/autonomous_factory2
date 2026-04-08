@@ -150,6 +150,22 @@ The webview runtime is centered on `media/chat/main.js`, with extracted modules 
 
 This architecture is intended to keep behavior stable while making future changes safer and easier to review.
 
+### Mission persistence (canonical)
+
+Understanding **where mission data lives** avoids false expectations about git backup, portable folders, and multi-window behavior.
+
+| Layer | What | Details |
+| --- | --- | --- |
+| **Extension globalState** | Canonical mission list | All missions are stored under the VS Code key `myAi.missions` (see `MissionStore`). Survives window reload; is **not** automatically a workspace file. |
+| **WorkspaceState** | Active mission IDs | Key `myAi.activeMissionIds` tracks which missions are considered active for heartbeat/resume heuristics. |
+| **Workspace disk** | Optional JSON mirror + artifacts | Folder from **`myAi.missions.diskStoreFolder`** (default `.my-ai-extension`): `missions/<id>.json`, approval previews, tool-result spills, `memory/global-memory.json`, `mcp/sessions.json`, templates, etc. |
+
+**`myAi.missions.portableJson`:** When **true** (default), every mission upsert also writes `missions/<id>.json` on disk. When **false**, those writes are skipped, but **deleting** a mission still removes an existing JSON file so a stale file cannot reappear on next `hydrateFromDisk`.
+
+**Hydrate on startup:** `MissionStore.hydrateFromDisk()` merges disk files into globalState. For each mission id, if the disk copy has a **newer `updatedAt`** than the in-memory copy, the disk version wins.
+
+**Operators:** Use **Copy Mission Diagnostic Snapshot** for support. For git-trackable mission state, keep `portableJson` on and commit `.my-ai-extension/missions/` only if your team intends to version it (may contain prompts and tool output).
+
 ---
 
 ## Features
@@ -275,6 +291,8 @@ This writes the packaged extension to:
 
 The file name follows **`package.json`** `name` and `version`: **`autonomous-factory-<version>.vsix`** (for example **`autonomous-factory-2.0.3.vsix`** when `version` is `2.0.3`).
 
+**What ships in the VSIX:** `npm run package` runs **`vsce package`**, which triggers **`vscode:prepublish`** → **`npm run bundle:prod`** → **`node esbuild.mjs --production`**, producing **`dist/extension.js`** (the runtime entry: **`package.json`** **`main`** is **`./dist/extension.js`**). **`.vscodeignore`** excludes TypeScript source, `node_modules`, tests, and the full `tsc` tree under `dist/` except that bundle; the package includes **`media/`**, **`package.json`**, **`README`**, shipped markdown docs, and **`examples/`**. To refresh the full `myAi.*` key table from `package.json`, run **`npm run docs:settings-inventory`** (developer-only; generated file under `docs/`).
+
 Then install that `.vsix` in VS Code or Cursor using the Extensions UI (or `code --install-extension`).
 
 ### Development setup
@@ -351,6 +369,12 @@ Summarize trace output:
 npm run trace:summarize
 ```
 
+Regenerate contributed-settings reference table (writes `docs/MYAI_SETTINGS_INVENTORY.md`):
+
+```bash
+npm run docs:settings-inventory
+```
+
 ### Configuration
 
 The extension contributes many settings under the `myAi.*` keys (shown under **Autonomous Factory** in Settings).
@@ -399,7 +423,8 @@ Examples:
 
 | Setting | Purpose |
 | --- | --- |
-| `myAi.missions.diskStoreFolder` | Workspace folder for mission JSON, approval previews, and related artifacts (default `.my-ai-extension`). |
+| `myAi.missions.diskStoreFolder` | Workspace folder for portable mission JSON, approval previews, spills, MCP/memory files (default `.my-ai-extension`). Does not replace globalState mission list — see **Mission persistence** above. |
+| `myAi.missions.portableJson` | When true, writes `missions/<id>.json` on each change; when false, skips writes but still deletes stale files on mission delete. |
 | `myAi.missions.toolResultSpill.enabled` | When true, oversized tool event payloads spill to disk under that folder so mission state stays smaller. |
 | `myAi.missions.toolResultSpill.maxInlineBytes` | UTF-8 size cap for inline `event.data` before spill (default 24000; clamped 4096–500000 at runtime). |
 | `myAi.missions.autoResumeOnStartup` | Resume eligible missions after window reload. |
@@ -533,8 +558,8 @@ The extension still benefits from short manual smoke checks after significant si
 
 **Automated (must be green)**
 
-- `npm run ci` (compile + `dist/test/**` + webview modular smoke).
-- `npm run package` completes and produces a `.vsix` under `.vsix/` (see extension packaging rules).
+- **`npm run ci`** — alias for **`npm run test`**: TypeScript compile, sync tests into **`dist/test/**`**, host test suite, webview modular smoke.
+- **`npm run package`** — must finish and write **`.vsix/autonomous-factory-<version>.vsix`** (runs **`vscode:prepublish`** / production esbuild; see **From VSIX** above).
 - When using GitHub: **`.github/workflows/ci.yml`** runs **`npm run ci`** on push/PR. Use **Actions → CI → Run workflow** to run the optional **`http-integration`** job (live **httpbin.org**, **`npm run test:http-integration`**).
 
 **Optional (real network, not mocked)** — **HttpClient** integration tests call **https://httpbin.org** and DNS; they are **skipped by default** so CI and offline runs stay stable. Before a release that touches `HttpClient` or HTTP tooling, run `npm run test:http-integration` (sets `MY_AI_RUN_HTTP_INTEGRATION=1`) or `MY_AI_RUN_HTTP_INTEGRATION=1 npm test` on a machine with outbound HTTPS.

@@ -87,6 +87,12 @@ test("lifecycle: completed unknown completionReason falls back to generic Comple
 
 test("lifecycle: failed and cancelled", () => {
   assert.equal(focusedMissionLifecycleSummary(miniMission({ status: "failed" })), "Failed; operator attention required.");
+  assert.equal(
+    focusedMissionLifecycleSummary(
+      miniMission({ status: "failed", failureReasonCode: "orchestrator_uncaught_error" })
+    ),
+    "Failed after an internal automation error; check Timeline and Trace. You can try Resume for a salvage pass once the cause is understood."
+  );
   assert.equal(focusedMissionLifecycleSummary(miniMission({ status: "cancelled" })), "Cancelled.");
 });
 

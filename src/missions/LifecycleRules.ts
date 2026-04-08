@@ -6,7 +6,11 @@ const ALLOWED_TRANSITIONS: Record<MissionStatus, ReadonlySet<MissionStatus>> = {
   awaiting_input: new Set(["awaiting_input", "queued", "running", "blocked", "failed", "cancelled"]),
   blocked: new Set(["blocked", "queued", "running", "awaiting_input", "failed", "cancelled"]),
   completed: new Set(["completed"]),
-  failed: new Set(["failed"]),
+  /**
+   * `failed` ends automatic execution, but the operator may salvage the mission after a transient error
+   * (e.g. provider stream abort) or to clear pending approvals. Allow transitions back into the active loop.
+   */
+  failed: new Set(["failed", "queued", "running", "awaiting_input", "blocked"]),
   cancelled: new Set(["cancelled"])
 };
 

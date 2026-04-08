@@ -45,5 +45,9 @@ export function operatorNextActionHint(mission: Mission | undefined): string | u
     return `${pending} approval(s) pending while mission is queued — resolve approvals to unblock execution.`;
   }
 
+  if (status === "failed") {
+    return "Mission failed — review Timeline and Trace. Resume runs a salvage pass (mission re-queued; inspect queue before relying on automation).";
+  }
+
   return undefined;
 }

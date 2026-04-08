@@ -11,7 +11,24 @@ import {
   type VscodeTestApi
 } from "./missionOrchestratorTestHarness";
 
-const orchestratorPath = path.join(__dirname, "..", "..", "src", "missions", "MissionOrchestrator.ts");
+const workItemRunnerPath = path.join(
+  __dirname,
+  "..",
+  "..",
+  "src",
+  "missions",
+  "orchestrator",
+  "missionOrchestratorWorkItemRunner.ts"
+);
+const runLoopPath = path.join(
+  __dirname,
+  "..",
+  "..",
+  "src",
+  "missions",
+  "orchestrator",
+  "missionOrchestratorRunLoop.ts"
+);
 
 beforeEach(() => {
   (vscode as VscodeTestApi).__clearTestConfig?.();
@@ -22,12 +39,12 @@ afterEach(() => {
 });
 
 test("MissionOrchestrator: maxAutoRounds safety block sets blockReasonCode", () => {
-  const src = fs.readFileSync(orchestratorPath, "utf8");
+  const src = fs.readFileSync(runLoopPath, "utf8");
   assert.match(src, /Reached maxAutoRounds safety limit[\s\S]{0,400}blockReasonCode:\s*"max_auto_rounds"/);
 });
 
 test("MissionOrchestrator: operator stream abort mission block sets blockReasonCode", () => {
-  const src = fs.readFileSync(orchestratorPath, "utf8");
+  const src = fs.readFileSync(workItemRunnerPath, "utf8");
   assert.match(
     src,
     /Model stream cancelled \(operator abort\)\. Resume when ready\.[\s\S]{0,120}blockReasonCode:\s*"operator_stream_abort"/
@@ -35,16 +52,16 @@ test("MissionOrchestrator: operator stream abort mission block sets blockReasonC
 });
 
 test("MissionOrchestrator: requiresApproval tool path sets blockReasonCode approval_pending", () => {
-  const src = fs.readFileSync(orchestratorPath, "utf8");
+  const src = fs.readFileSync(workItemRunnerPath, "utf8");
   const idx = src.indexOf("if (toolResult.requiresApproval)");
   assert.ok(idx >= 0);
-  const slice = src.slice(idx, idx + 600);
+  const slice = src.slice(idx, idx + 1200);
   assert.match(slice, /status:\s*"awaiting_input"/);
   assert.match(slice, /blockReasonCode:\s*"approval_pending"/);
 });
 
 test("MissionOrchestrator: tryCollapseMissionToCompleted clears blockReasonCode", () => {
-  const src = fs.readFileSync(orchestratorPath, "utf8");
+  const src = fs.readFileSync(runLoopPath, "utf8");
   assert.match(
     src,
     /status:\s*"completed"[\s\S]{0,200}blocker:\s*undefined[\s\S]{0,80}blockReasonCode:\s*undefined/

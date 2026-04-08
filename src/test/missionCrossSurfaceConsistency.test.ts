@@ -77,7 +77,7 @@ test("cross-surface: operator abort resumable stays resumable across badge, summ
   assert.equal(currentNext.pausedOn.role, "implementer");
 });
 
-test("cross-surface: terminal states remain terminal across badge, summary, action, and notes", () => {
+test("cross-surface: completed/cancelled terminal; failed shows salvage Resume consistent with lifecycle summary", () => {
   const completed = mission({
     status: "completed",
     completionReason: "already_satisfied_no_tool_run",
@@ -92,8 +92,9 @@ test("cross-surface: terminal states remain terminal across badge, summary, acti
   const failed = mission({ status: "failed", blocker: "uncaught error" });
   assert.equal(formatMissionStatusBadgeLabel(failed), "Failed");
   assert.equal(focusedMissionLifecycleSummary(failed), "Failed; operator attention required.");
-  assert.equal(getMissionResumeUiState(failed).enabled, false);
-  assert.equal(getMissionResumeUiState(failed).label, "Failed");
+  assert.equal(getMissionResumeUiState(failed).enabled, true);
+  assert.equal(getMissionResumeUiState(failed).label, "Resume");
+  assert.match(getMissionResumeUiState(failed).title, /salvage pass/i);
 
   const cancelled = mission({ status: "cancelled" });
   assert.equal(formatMissionStatusBadgeLabel(cancelled), "Cancelled");

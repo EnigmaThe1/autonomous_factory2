@@ -7,6 +7,7 @@ import { parseOpenAiSseLines } from "./streamParsers";
 import { resolveModelForProvider } from "./providerModelResolution";
 import { renderChatContext } from "./providerContextRender";
 import { readStreamChunks } from "./providerStreamReader";
+import { formatProviderHttpError } from "./providerHttpErrors";
 
 export interface OpenAiCompatSpec {
   id: string;
@@ -70,7 +71,16 @@ export class OpenAICompatibleProvider implements IModelProvider {
       { timeoutMs, retries, retryDelayMs, abortSignal: req.signal }
     );
 
-    if (!res.ok || !res.body) throw new Error(`OpenAI-compatible request failed: ${res.status} (${baseUrl})`);
+    if (!res.ok)
+      throw new Error(
+        formatProviderHttpError({
+          providerLabel: "OpenAI-compatible",
+          operation: "Chat stream",
+          status: res.status,
+          endpoint: baseUrl
+        })
+      );
+    if (!res.body) throw new Error(`OpenAI-compatible stream missing response body (${baseUrl})`);
 
     yield* readStreamChunks(res.body, req.signal, parseOpenAiSseLines);
   }
@@ -90,7 +100,15 @@ export class OpenAICompatibleProvider implements IModelProvider {
       },
       { timeoutMs: 15000, retries: 1, retryDelayMs: 300 }
     );
-    if (!res.ok) throw new Error(`Embedding request failed (${res.status})`);
+    if (!res.ok)
+      throw new Error(
+        formatProviderHttpError({
+          providerLabel: "OpenAI-compatible",
+          operation: "Embedding request",
+          status: res.status,
+          endpoint: baseUrl
+        })
+      );
     const json = (await res.json()) as { data?: Array<{ embedding: number[] }> };
     return (json.data || []).map((d) => d.embedding);
   }

@@ -6,6 +6,7 @@ import { parseOpenAiStyleModelsWithCreated } from "./providerModelListParsers";
 import { rankFullAndShortlist, type RankCatalogOpts } from "./modelCatalogRank";
 import { fetchGeminiModelListResult } from "./fetchGeminiModelList";
 import { fetchAnthropicModelListLive } from "./fetchAnthropicModelList";
+import { formatModelListHttpHint } from "./providerHttpErrors";
 
 /** `cache` is used only when the host reapplies a persisted snapshot (not returned from `fetchProviderModelList`). */
 export type ModelListSource = "live" | "fallback" | "environment" | "unavailable" | "cache";
@@ -80,7 +81,7 @@ export async function fetchProviderModelList(secrets: SecretStore, providerId: s
             "ollama",
             [...(PROVIDER_MODEL_PRESETS.ollama || [])],
             "fallback",
-            `Ollama HTTP ${res.status} at ${base}/api/tags; curated presets only (secondary).`
+            `${formatModelListHttpHint("Ollama", res.status, `${base}/api/tags`)} Curated presets only (secondary).`
           );
         }
         const j = (await res.json()) as { models?: Array<{ name?: string }> };
@@ -122,7 +123,12 @@ export async function fetchProviderModelList(secrets: SecretStore, providerId: s
       try {
         const res = await fetchWithPolicy(`${base}/models`, { headers: { Authorization: `Bearer ${key}` } }, policy());
         if (!res.ok) {
-          return finalize("openai", gptishPresets(), "fallback", `OpenAI HTTP ${res.status}; curated list.`);
+          return finalize(
+            "openai",
+            gptishPresets(),
+            "fallback",
+            `${formatModelListHttpHint("OpenAI", res.status, `${base}/models`)} Curated list.`
+          );
         }
         const j = (await res.json()) as { data?: Array<{ id?: string; created?: number }> };
         const rows = parseOpenAiStyleModelsWithCreated(j);
@@ -158,7 +164,7 @@ export async function fetchProviderModelList(secrets: SecretStore, providerId: s
             "openai-compat",
             [...(PROVIDER_MODEL_PRESETS["openai-compat"] || [])],
             "fallback",
-            `Endpoint HTTP ${res.status}; curated list.`
+            `${formatModelListHttpHint("OpenAI-compatible", res.status, `${base}/models`)} Curated list.`
           );
         }
         const j = (await res.json()) as { data?: Array<{ id?: string; created?: number }> };

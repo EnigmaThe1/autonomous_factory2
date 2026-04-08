@@ -11,7 +11,7 @@
 .output/**
 .vsix/**
 
-# TypeScript source; runtime uses dist/**/*.js
+# TypeScript source; runtime entry is the esbuild bundle only
 src/**
 tsconfig.json
 
@@ -19,11 +19,26 @@ node_modules/**
 
 *.vsix
 
-# Compiled unit tests — not part of extension activation/runtime
-dist/test/**
+# tsc output under dist/ is not shipped; vscode:prepublish produces dist/extension.js only
+dist/**
+!dist/extension.js
+
+# Build, lint, typecheck, and headless tests — not used at extension runtime
+scripts/**
+esbuild.mjs
+eslint.config.mjs
+tsconfig.webview.json
+
+# Repo / packaging noise
+.gitignore
+**/*.map
+License
 
 # Not required inside the VSIX for runtime
 package-lock.json
+
+# Developer docs (generated settings table, etc.) — not needed at runtime
+docs/**
 
 # Local scratch / planning markdown (not extension assets)
 crawler_plan.md

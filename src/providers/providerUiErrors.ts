@@ -1,3 +1,17 @@
+import { explainHttpStatusForProviders } from "./providerHttpErrors";
+
+/** If `message` contains a single `HTTP NNN` and no embedded explanation yet, append a short hint (legacy errors). */
+function appendHttpExplainIfMissing(message: string): string {
+  const matches = [...message.matchAll(/\bHTTP (\d{3})\b/g)];
+  if (matches.length !== 1) return message;
+  const status = Number(matches[0]![1]);
+  if (!Number.isFinite(status)) return message;
+  const hint = explainHttpStatusForProviders(status);
+  const hintPrefix = hint.slice(0, Math.min(48, hint.length));
+  if (message.includes(hintPrefix)) return message;
+  return `${message}\n\n**What this usually means:** ${hint}`;
+}
+
 export function formatProviderUserError(err: unknown, providerId: string): string {
   const raw = err instanceof Error ? err.message : String(err);
   const lower = raw.toLowerCase();
@@ -17,7 +31,9 @@ export function formatProviderUserError(err: unknown, providerId: string): strin
     lower.includes("fetch") ||
     lower.includes("econnrefused");
   if (transportHint) {
-    return `${raw}\n\nIf this persists, use the **Providers** tab to verify base URL, model id, and credentials.`;
+    return appendHttpExplainIfMissing(
+      `${raw}\n\nIf this persists, use the **Providers** tab to verify base URL, model id, and credentials.`
+    );
   }
-  return raw;
+  return appendHttpExplainIfMissing(raw);
 }

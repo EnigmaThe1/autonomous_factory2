@@ -6,6 +6,7 @@ import { parseOllamaNdjsonLines } from "./streamParsers";
 import { resolveModelForProvider } from "./providerModelResolution";
 import { renderChatContext } from "./providerContextRender";
 import { readStreamChunks } from "./providerStreamReader";
+import { formatProviderHttpError } from "./providerHttpErrors";
 
 export class OllamaProvider implements IModelProvider {
   readonly id = "ollama";
@@ -45,7 +46,16 @@ export class OllamaProvider implements IModelProvider {
       { timeoutMs, retries, retryDelayMs, abortSignal: req.signal }
     );
 
-    if (!res.ok || !res.body) throw new Error(`Ollama request failed: ${res.status} (${baseUrl})`);
+    if (!res.ok)
+      throw new Error(
+        formatProviderHttpError({
+          providerLabel: "Ollama",
+          operation: "Chat stream",
+          status: res.status,
+          endpoint: baseUrl
+        })
+      );
+    if (!res.body) throw new Error(`Ollama chat stream missing response body (${baseUrl})`);
 
     yield* readStreamChunks(res.body, req.signal, parseOllamaNdjsonLines);
   }
@@ -65,7 +75,15 @@ export class OllamaProvider implements IModelProvider {
         },
         { timeoutMs: 15000, retries: 1, retryDelayMs: 300 }
       );
-      if (!res.ok) throw new Error(`Ollama embedding failed (${res.status})`);
+      if (!res.ok)
+        throw new Error(
+          formatProviderHttpError({
+            providerLabel: "Ollama",
+            operation: "Embedding request",
+            status: res.status,
+            endpoint: baseUrl
+          })
+        );
       const json = (await res.json()) as { embeddings?: number[][] };
       results.push(json.embeddings?.[0] || []);
     }

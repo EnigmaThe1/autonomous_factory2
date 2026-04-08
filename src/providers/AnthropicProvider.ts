@@ -7,6 +7,7 @@ import { parseAnthropicSseLines } from "./streamParsers";
 import { resolveModelForProvider } from "./providerModelResolution";
 import { renderChatContext } from "./providerContextRender";
 import { readStreamChunks } from "./providerStreamReader";
+import { formatProviderHttpError } from "./providerHttpErrors";
 
 export class AnthropicProvider implements IModelProvider {
   readonly id = "anthropic";
@@ -46,7 +47,16 @@ export class AnthropicProvider implements IModelProvider {
       { timeoutMs, retries, retryDelayMs, abortSignal: req.signal }
     );
 
-    if (!res.ok || !res.body) throw new Error(`Anthropic request failed: ${res.status} (${baseUrl})`);
+    if (!res.ok)
+      throw new Error(
+        formatProviderHttpError({
+          providerLabel: "Anthropic",
+          operation: "Chat stream",
+          status: res.status,
+          endpoint: baseUrl
+        })
+      );
+    if (!res.body) throw new Error(`Anthropic chat stream missing response body (${baseUrl})`);
 
     yield* readStreamChunks(res.body, req.signal, parseAnthropicSseLines);
   }

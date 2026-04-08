@@ -13,7 +13,7 @@ test("ToolRegistry resolves relative file paths from workspace root", () => {
 });
 
 test("MissionOrchestrator blocks mission on non-approval tool failure", () => {
-  const p = path.join(__dirname, "..", "..", "src", "missions", "MissionOrchestrator.ts");
+  const p = path.join(__dirname, "..", "..", "src", "missions", "orchestrator", "missionOrchestratorWorkItemRunner.ts");
   const src = fs.readFileSync(p, "utf8");
   assert.match(src, /if \(!toolResult\.ok && !toolResult\.requiresApproval\)/);
   assert.match(src, /Mission halted after tool failure/);

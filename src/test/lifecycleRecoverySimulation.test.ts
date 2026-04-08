@@ -28,7 +28,7 @@ test("restart simulation keeps lease ownership deterministic", () => {
 
 test("transition simulation rejects invalid restart-from-terminal transitions", () => {
   assert.equal(isAllowedMissionStatusTransition("completed", "queued"), false);
-  assert.equal(isAllowedMissionStatusTransition("failed", "running"), false);
+  assert.equal(isAllowedMissionStatusTransition("failed", "running"), true);
   assert.equal(isAllowedMissionStatusTransition("blocked", "queued"), true);
 });
 

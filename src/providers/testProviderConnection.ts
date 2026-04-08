@@ -3,6 +3,7 @@ import { SecretStore } from "../storage/SecretStore";
 import { fetchWithPolicy } from "./fetchWithPolicy";
 import { resolveModelForProvider } from "./providerModelResolution";
 import { ProviderRegistry } from "./ProviderRegistry";
+import { formatConnectionTestHttpMessage } from "./providerHttpErrors";
 
 function policyFromConfig(): { timeoutMs: number; retries: number; retryDelayMs: number } {
   const cfg = vscode.workspace.getConfiguration();
@@ -26,7 +27,8 @@ export async function testProviderConnection(secrets: SecretStore, _registry: Pr
       const base = cfg.get<string>("myAi.ollama.baseUrl", "http://127.0.0.1:11434").replace(/\/$/, "");
       try {
         const res = await fetchWithPolicy(`${base}/api/tags`, { method: "GET" }, policy);
-        if (!res.ok) return { ok: false, message: `Ollama unreachable (HTTP ${res.status}). Check base URL in Providers.` };
+        if (!res.ok)
+          return { ok: false, message: formatConnectionTestHttpMessage("Ollama", res.status, `${base}/api/tags`) };
         const j = (await res.json().catch(() => ({}))) as { models?: unknown[] };
         const n = Array.isArray(j.models) ? j.models.length : 0;
         return { ok: true, message: `Ollama OK — ${n} model tag(s) at ${base}.` };
@@ -40,7 +42,8 @@ export async function testProviderConnection(secrets: SecretStore, _registry: Pr
       const base = cfg.get<string>("myAi.openai.baseUrl", "https://api.openai.com/v1").replace(/\/$/, "");
       try {
         const res = await fetchWithPolicy(`${base}/models`, { headers: { Authorization: `Bearer ${key}` } }, policy);
-        if (!res.ok) return { ok: false, message: `OpenAI check failed: HTTP ${res.status}. Verify key and base URL.` };
+        if (!res.ok)
+          return { ok: false, message: formatConnectionTestHttpMessage("OpenAI", res.status, `${base}/models`) };
         return { ok: true, message: "OpenAI OK — credentials accepted." };
       } catch (e) {
         return { ok: false, message: `OpenAI error: ${e instanceof Error ? e.message : String(e)}` };
@@ -53,7 +56,11 @@ export async function testProviderConnection(secrets: SecretStore, _registry: Pr
       if (key?.trim()) headers.Authorization = `Bearer ${key}`;
       try {
         const res = await fetchWithPolicy(`${base}/models`, { headers }, policy);
-        if (!res.ok) return { ok: false, message: `OpenAI-compatible endpoint check failed: HTTP ${res.status}.` };
+        if (!res.ok)
+          return {
+            ok: false,
+            message: formatConnectionTestHttpMessage("OpenAI-compatible", res.status, `${base}/models`)
+          };
         return { ok: true, message: `OpenAI-compatible OK — ${base}/models reachable.` };
       } catch (e) {
         return { ok: false, message: `OpenAI-compatible error: ${e instanceof Error ? e.message : String(e)}` };
@@ -83,7 +90,8 @@ export async function testProviderConnection(secrets: SecretStore, _registry: Pr
           },
           policy
         );
-        if (!res.ok) return { ok: false, message: `Anthropic check failed: HTTP ${res.status}. Verify model id and key.` };
+        if (!res.ok)
+          return { ok: false, message: formatConnectionTestHttpMessage("Anthropic", res.status, `${base}/messages`) };
         return { ok: true, message: "Anthropic OK — minimal message accepted." };
       } catch (e) {
         return { ok: false, message: `Anthropic error: ${e instanceof Error ? e.message : String(e)}` };
@@ -99,7 +107,8 @@ export async function testProviderConnection(secrets: SecretStore, _registry: Pr
           { headers: { "x-goog-api-key": key } },
           policy
         );
-        if (!res.ok) return { ok: false, message: `Gemini check failed: HTTP ${res.status}. Verify API key.` };
+        if (!res.ok)
+          return { ok: false, message: formatConnectionTestHttpMessage("Gemini", res.status, `${root}/v1beta/models`) };
         return { ok: true, message: "Gemini OK — models listing accepted." };
       } catch (e) {
         return { ok: false, message: `Gemini error: ${e instanceof Error ? e.message : String(e)}` };

@@ -11,7 +11,15 @@ import {
   type VscodeTestApi
 } from "./missionOrchestratorTestHarness";
 
-const orchestratorPath = path.join(__dirname, "..", "..", "src", "missions", "MissionOrchestrator.ts");
+const runLoopPath = path.join(
+  __dirname,
+  "..",
+  "..",
+  "src",
+  "missions",
+  "orchestrator",
+  "missionOrchestratorRunLoop.ts"
+);
 
 beforeEach(() => {
   (vscode as VscodeTestApi).__clearTestConfig?.();
@@ -22,7 +30,7 @@ afterEach(() => {
 });
 
 test("MissionOrchestrator catch path sets failureReasonCode and keeps blockReasonCode off failed", () => {
-  const src = fs.readFileSync(orchestratorPath, "utf8");
+  const src = fs.readFileSync(runLoopPath, "utf8");
   assert.match(src, /status:\s*"failed"[\s\S]{0,220}blockReasonCode:\s*undefined[\s\S]{0,80}failureReasonCode:\s*"orchestrator_uncaught_error"/);
 });
 

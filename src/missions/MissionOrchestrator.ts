@@ -1,56 +1,20 @@
 import * as vscode from "vscode";
 import { ContextCollector } from "../context/ContextCollector";
 import { EnhancedContextCollector } from "../context/EnhancedContextCollector";
-import { gitStashPush, gitStashPop, gitStatus } from "../tools/GitToolProvider";
 import { ProviderRegistry } from "../providers/ProviderRegistry";
-import type { ToolResult } from "../tools/ToolRegistry";
 import { MissionStore } from "./MissionStore";
 import { AgentFactory } from "../agents/AgentFactory";
-import {
-  AgentRole,
-  AgentRunOptions,
-  AgentTurnResult,
-  ChatContext,
-  Mission,
-  ToolCall,
-  WorkItem
-} from "../types";
-import { isLikelyStreamAbort, uid } from "../util";
+import { Mission, WorkItem } from "../types";
+import { uid } from "../util";
 import { ApprovalManager } from "../approvals/ApprovalManager";
 import { GlobalMemoryStore } from "../memory/GlobalMemoryStore";
-import { isMissionTerminalLifecycleStatus, resolveCompletionStatus } from "./LifecycleRules";
+import { isMissionTerminalLifecycleStatus } from "./LifecycleRules";
 import {
   countOperatorStreamAbortRequeues,
   recoverInterruptedQueueItems,
   requeueOperatorStreamAbortedWorkItems
 } from "./resumeRecovery";
-import { applyToolDrivenValidatorCompletion } from "./toolDrivenValidatorCompletion";
-import { shouldSkipRedundantValidatorWork } from "./redundantValidatorSkip";
-import { shouldCollapseToComplete } from "./missionCompletionCollapse";
-import {
-  dependencyEdgeSatisfied,
-  hasRequiredUnresolvedWork,
-  obsolescentTodoSkipReason,
-  supersededReviewerTerminalSkipReason,
-  supersededValidatorTerminalSkipReason
-} from "./requiredWork";
-import { staleImplementerToolFailureRecoveryDecision } from "./staleEditRecovery";
-import { workCompletionKindFromSuccessfulToolSteps } from "../tools/applyPatchNoOpPolicy";
-import {
-  resolveCompletionReasonForCompletedMission,
-  shouldHonorAlreadySatisfiedNoToolRun
-} from "./alreadySatisfiedWorkItem";
-import { shouldEnqueueReviewerAutoRemediation } from "./reviewerRemediationPolicy";
-import { computePlannerCoverageItems, enforceClosurePolicy } from "./missionClosurePolicy";
-import { parseBlueprintModelOutput } from "./blueprintParser";
-import { parsePreBlueprintClarificationOutput } from "./preBlueprintClarificationParser";
-import { synthesizeWorkItemsFromBlueprint } from "./blueprintSynthesis";
-import { blueprintBlocksMissionCompletion, computeBlueprintProgress } from "./blueprintProgress";
-import { applyBlueprintStepStatusFromWorkItem } from "./blueprintStepSync";
-import { computePlanFidelityDrift } from "./blueprintPlanFidelity";
-import { validateBlueprintReadinessForApproval } from "./blueprintReadinessGate";
-import { findStaleResearchEvidenceMemories, formatResearchEvidenceFinding } from "./researchEvidence";
-import { findDuplicateQueryResearchContradictions } from "./researchContradiction";
+import { enforceClosurePolicy } from "./missionClosurePolicy";
 import type { MissionFileTracker } from "./MissionFileTracker";
 import type {
   ResolveApprovalOutcome,
@@ -58,64 +22,20 @@ import type {
   RunMissionPassOutcome,
   StartMissionResult
 } from "./missionActionResult";
-import { isKnownImplementerHardStopClassValue } from "./implementerHardStopClassInvariant";
+import { updateWorkItemWithImplementerHardStopInvariant } from "./implementerHardStopWorkItemWrite";
+import { extractKeywords } from "./orchestrator/orchestratorLeafHelpers";
 import {
-  isRequiredImplementerWorkItem,
-  updateWorkItemWithImplementerHardStopInvariant
-} from "./implementerHardStopWorkItemWrite";
-import {
-  classifyImplementerHardStopDownstreamGate,
-  type ImplementerHardStopGateResult
-} from "./requiredImplementerHardStopGate";
-import { missionBlockReasonFromDownstreamGate } from "./missionBlockReasonCode";
-import { shouldAutoRetry, createRetryWorkItem, shouldMarkWorkItemDeadLetter } from "./workItemAutoRetry";
-import { computeEffectiveMaxAutoRounds } from "./adaptiveMissionScaling";
+  MissionOrchestratorWorkItemRunner,
+  type WorkItemRunnerHost
+} from "./orchestrator/missionOrchestratorWorkItemRunner";
+import { MissionOrchestratorRunLoop } from "./orchestrator/missionOrchestratorRunLoop";
+import { MissionOrchestratorApprovalResolver } from "./orchestrator/missionOrchestratorApprovalResolver";
+import { MissionOrchestratorBlueprintFlow } from "./orchestrator/missionOrchestratorBlueprintFlow";
+import { MissionOrchestratorHardStopTelemetry } from "./orchestrator/missionOrchestratorHardStopTelemetry";
+import { waitForMissionTerminalLifecycleWhileIdle } from "./orchestrator/missionOrchestratorLifecycleWaits";
 
-function readinessMessageText(readiness: ReturnType<typeof validateBlueprintReadinessForApproval>): string {
-  const errs = readiness.report.errors.length ? `Errors:\n- ${readiness.report.errors.join("\n- ")}` : "";
-  const warns = readiness.report.warnings.length ? `Warnings:\n- ${readiness.report.warnings.join("\n- ")}` : "";
-  return [errs, warns].filter(Boolean).join("\n");
-}
-
-/** Minimal tool surface used by the orchestrator (real `ToolRegistry` satisfies this). */
-export type MissionToolExecutor = {
-  execute(missionId: string, call: ToolCall): Promise<ToolResult>;
-};
-
-/** Optional test override: bypass real LLM agents while exercising orchestration. */
-export type MissionAgentRunForTest = (
-  mission: Mission,
-  item: WorkItem,
-  context: ChatContext,
-  opts: AgentRunOptions
-) => Promise<AgentTurnResult>;
-
-function isPotentiallyMutatingToolCall(call: ToolCall): boolean {
-  const readOnlyBuiltins = new Set(["readFile", "searchFiles", "listFiles", "getDiagnostics", "listTools", "listMcpTools"]);
-  if (readOnlyBuiltins.has(call.tool)) return false;
-  if (call.tool === "write_file" || call.tool === "apply_patch" || call.tool === "run_terminal") return true;
-  if (call.tool.startsWith("ext.") || call.tool.startsWith("mcp.")) return true;
-  return true;
-}
-
-function mutatingToolTarget(call: ToolCall): string | undefined {
-  const args = (call.args || {}) as Record<string, unknown>;
-  const p = args.path;
-  return typeof p === "string" && p.trim() ? p : undefined;
-}
-
-function checkpointSummaryForTerminalWorkItem(item: WorkItem, terminalStatus: WorkItem["status"]): string {
-  switch (terminalStatus) {
-    case "blocked":
-      return `${item.role} blocked: ${item.title}`;
-    case "failed":
-      return `${item.role} failed: ${item.title}`;
-    case "skipped":
-      return `${item.role} skipped: ${item.title}`;
-    default:
-      return `${item.role} completed: ${item.title}`;
-  }
-}
+import type { MissionAgentRunForTest, MissionToolExecutor } from "./missionOrchestratorContracts";
+export type { MissionAgentRunForTest, MissionToolExecutor } from "./missionOrchestratorContracts";
 
 export type {
   ResolveApprovalOutcome,
@@ -124,6 +44,21 @@ export type {
   StartMissionResult
 } from "./missionActionResult";
 
+/**
+ * Architecture map: regions and invariants for this large coordinator live in
+ * `.dev/ARCHITECTURE_ORCHESTRATOR.md` (P3-T-001). Quick index:
+ * - Public entry: `startMission`, `resumeMission`, `runMission`, `resolveApproval`, blueprint APIs.
+ * - Approval resolution: `resolveApproval` in `./orchestrator/missionOrchestratorApprovalResolver.ts`.
+ * - Run loop: `runMission` in `./orchestrator/missionOrchestratorRunLoop.ts` (maxSteps, collapse, gate, next item, retries).
+ * - Work item + tool follow-up: `runWorkItem`, `executeWorkItemToolCalls`, mutating markers.
+ * - Empty queue / terminal: `handleEmptyQueue`, `tryCollapseMissionToCompleted`.
+ * - Concurrency: `running`, `inFlightRunPass`, `joinInFlightRunLoopPass`.
+ * - Pure helpers: `./orchestrator/orchestratorLeafHelpers.ts`.
+ * - Work item + tools slice: `./orchestrator/missionOrchestratorWorkItemRunner.ts`.
+ * - Blueprint operator flow: `./orchestrator/missionOrchestratorBlueprintFlow.ts`.
+ * - Hard-stop contract telemetry: `./orchestrator/missionOrchestratorHardStopTelemetry.ts`.
+ * - Terminal lifecycle wait (store subscription): `./orchestrator/missionOrchestratorLifecycleWaits.ts`.
+ */
 export class MissionOrchestrator {
   private readonly agents: AgentFactory;
   private readonly approvals = new ApprovalManager();
@@ -139,10 +74,13 @@ export class MissionOrchestrator {
   private readonly missionWorkAbort = new Map<string, AbortController>();
   /** Track the reason why a mission work item was aborted. */
   private readonly missionAbortReason = new Map<string, "operator" | "system" | "timeout" | "unknown">();
-  /** Dedupe `saveEvent` when implementer hardStopClass contract is violated (signature includes offending queue rows). */
-  private readonly lastMalformedHardStopEventSig = new Map<string, string>();
   /** Dedupe stale-research warnings when the same evidence rows remain stale across multiple mutations. */
   private readonly lastStaleEvidenceWarnSigByMission = new Map<string, string>();
+  private readonly hardStopTelemetry: MissionOrchestratorHardStopTelemetry;
+  private readonly blueprintFlow: MissionOrchestratorBlueprintFlow;
+  private readonly workItemRunner: MissionOrchestratorWorkItemRunner;
+  private readonly runLoop: MissionOrchestratorRunLoop;
+  private readonly approvalResolver: MissionOrchestratorApprovalResolver;
   /** External callback for streaming LLM tokens to UI during agent runs. */
   onAgentStreamChunk?: (missionId: string, workItemId: string, role: string, text: string) => void;
   /** External callback when an agent's LLM stream finishes for a work item. */
@@ -160,6 +98,47 @@ export class MissionOrchestrator {
     private readonly fileTracker?: MissionFileTracker
   ) {
     this.agents = new AgentFactory(providers, globalMemory, collector);
+    this.hardStopTelemetry = new MissionOrchestratorHardStopTelemetry(this.store);
+    const o = this;
+    let runLoopRef!: MissionOrchestratorRunLoop;
+    this.blueprintFlow = new MissionOrchestratorBlueprintFlow({
+      store: o.store,
+      globalMemory: o.globalMemory,
+      fileTracker: o.fileTracker,
+      scheduleRunMission: (missionId) => void runLoopRef.runMission(missionId)
+    });
+    this.workItemRunner = new MissionOrchestratorWorkItemRunner(this.createWorkItemRunnerHost());
+    this.runLoop = runLoopRef = new MissionOrchestratorRunLoop(this.createRunLoopHost());
+    this.approvalResolver = new MissionOrchestratorApprovalResolver(this.createApprovalResolverHost());
+  }
+
+  private createWorkItemRunnerHost(): WorkItemRunnerHost {
+    const o = this;
+    return {
+      store: o.store,
+      tools: o.tools,
+      globalMemory: o.globalMemory,
+      collector: o.collector,
+      agents: o.agents,
+      agentRunForTest: o.agentRunForTest,
+      approvals: o.approvals,
+      pendingCompletionReason: o.pendingCompletionReason,
+      missionWorkAbort: o.missionWorkAbort,
+      missionAbortReason: o.missionAbortReason,
+      lastStaleEvidenceWarnSigByMission: o.lastStaleEvidenceWarnSigByMission,
+      get onAgentStreamChunk() {
+        return o.onAgentStreamChunk;
+      },
+      get onAgentStreamDone() {
+        return o.onAgentStreamDone;
+      },
+      updateWorkItemWithHardStopInvariant: (missionId, itemBeforePatch, patch) =>
+        o.updateWorkItemWithHardStopInvariant(missionId, itemBeforePatch, patch),
+      enqueueSynthesizedBlueprintWork: (missionId) => o.blueprintFlow.enqueueSynthesizedBlueprintWork(missionId),
+      addBlueprintMemoryMirror: (missionId) => o.blueprintFlow.addBlueprintMemoryMirror(missionId),
+      maybeEnqueuePlanFidelityReview: (missionId, implementerItem) =>
+        o.blueprintFlow.maybeEnqueuePlanFidelityReview(missionId, implementerItem)
+    };
   }
 
   /**
@@ -231,8 +210,22 @@ export class MissionOrchestrator {
     }
     const mission = this.store.get(id);
     if (!mission) throw new Error(`Mission not found: ${id}`);
-    if (["completed", "cancelled", "failed"].includes(mission.status)) {
+    if (["completed", "cancelled"].includes(mission.status)) {
       return { kind: "noop_terminal", missionId: id, status: mission.status };
+    }
+    if (mission.status === "failed") {
+      await this.store.updateMission(id, {
+        status: "queued",
+        blocker: undefined,
+        blockReasonCode: undefined,
+        failureReasonCode: undefined
+      });
+      await this.store.saveEvent(id, {
+        level: "info",
+        source: "orchestrator",
+        message:
+          "Operator resumed after mission failure; status reset to queued for a salvage pass. Review recent events and queue before relying on automatic execution."
+      });
     }
     if (
       mission.status === "awaiting_input" &&
@@ -360,11 +353,47 @@ export class MissionOrchestrator {
       await new Promise<void>((r) => setImmediate(r));
     }
   }
+  private createRunLoopHost(): import("./orchestrator/missionOrchestratorRunLoop").RunLoopHost {
+    const o = this;
+    return {
+      store: o.store,
+      running: o.running,
+      inFlightRunPass: o.inFlightRunPass,
+      pendingCompletionReason: o.pendingCompletionReason,
+      workItemRunner: o.workItemRunner,
+      get onMissionTerminal() {
+        return o.onMissionTerminal;
+      },
+      updateWorkItemWithHardStopInvariant: (missionId, itemBeforePatch, patch) =>
+        o.updateWorkItemWithHardStopInvariant(missionId, itemBeforePatch, patch),
+      noteMalformedImplementerHardStopEvent: (missionId, mission, gate) =>
+        o.hardStopTelemetry.noteMalformedImplementerHardStopEvent(missionId, mission, gate),
+      ensureClosurePolicy: (mission) => o.ensureClosurePolicy(mission),
+      abortMissionWork: (missionId) => o.abortMissionWork(missionId)
+    };
+  }
+
+  private createApprovalResolverHost(): import("./orchestrator/missionOrchestratorApprovalResolver").ApprovalResolverHost {
+    const o = this;
+    return {
+      store: o.store,
+      workItemRunner: o.workItemRunner,
+      pendingCompletionReason: o.pendingCompletionReason,
+      updateWorkItemWithHardStopInvariant: (missionId, itemBeforePatch, patch) =>
+        o.updateWorkItemWithHardStopInvariant(missionId, itemBeforePatch, patch),
+      scheduleRunMission: (missionId) => void o.runMission(missionId)
+    };
+  }
 
   /** Await the current `runMission` pass for `id`, if any; otherwise resolve immediately. */
   private joinInFlightRunLoopPass(id: string): Promise<void> {
-    return this.inFlightRunPass.get(id)?.done ?? Promise.resolve();
+    return this.runLoop.joinInFlightRunLoopPass(id);
   }
+
+  async runMission(id: string): Promise<RunMissionPassOutcome> {
+    return this.runLoop.runMission(id);
+  }
+
 
   /**
    * Waits until `store.get(missionId).status` satisfies `isMissionTerminalLifecycleStatus` (`completed`,
@@ -405,154 +434,12 @@ export class MissionOrchestrator {
       if (this.running.has(missionId)) {
         await this.whenMissionRunLoopIdle(missionId, { timeoutMs: remaining });
       } else {
-        await this.waitForMissionTerminalLifecycleWhileIdle(missionId, deadline, timeoutMs);
+        await waitForMissionTerminalLifecycleWhileIdle(this.store, missionId, deadline, timeoutMs);
         return;
       }
     }
   }
 
-  /**
-   * While the run loop is idle, wait for `store` to show a terminal lifecycle status, driven by
-   * `MissionStore.subscribeMissionMutation` (no fixed-interval polling).
-   */
-  private waitForMissionTerminalLifecycleWhileIdle(
-    missionId: string,
-    deadline: number,
-    originalTimeoutMs: number
-  ): Promise<void> {
-    return new Promise((resolve, reject) => {
-      let unsub: (() => void) | undefined;
-      let timeoutId: ReturnType<typeof setTimeout> | undefined;
-
-      const cleanup = (): void => {
-        unsub?.();
-        unsub = undefined;
-        if (timeoutId !== undefined) {
-          clearTimeout(timeoutId);
-          timeoutId = undefined;
-        }
-      };
-
-      const tryFinish = (): boolean => {
-        const m = this.store.get(missionId);
-        if (!m) {
-          cleanup();
-          reject(new Error(`Mission not found: ${missionId}`));
-          return true;
-        }
-        if (isMissionTerminalLifecycleStatus(m.status)) {
-          cleanup();
-          resolve();
-          return true;
-        }
-        return false;
-      };
-
-      if (tryFinish()) return;
-
-      unsub = this.store.subscribeMissionMutation(missionId, () => {
-        tryFinish();
-      });
-
-      if (tryFinish()) return;
-
-      const rem = deadline - Date.now();
-      if (rem <= 0) {
-        cleanup();
-        const m = this.store.get(missionId);
-        reject(
-          new Error(
-            `whenMissionReachesTerminalLifecycleStatus: timeout after ${originalTimeoutMs}ms for mission ${missionId} (status=${m?.status})`
-          )
-        );
-        return;
-      }
-      timeoutId = setTimeout(() => {
-        cleanup();
-        const m = this.store.get(missionId);
-        reject(
-          new Error(
-            `whenMissionReachesTerminalLifecycleStatus: timeout after ${originalTimeoutMs}ms for mission ${missionId} (status=${m?.status})`
-          )
-        );
-      }, rem);
-    });
-  }
-
-  /**
-   * When `shouldCollapseToComplete` holds, persist terminal `completed`. Used at loop start and
-   * immediately after `runWorkItem` so the last allowed iteration can finish without requiring a
-   * follow-up loop header (avoids hitting `maxStepsPerRun` then `queued` + heartbeat recovery).
-   */
-  /** Prefer explicit pending reason (e.g. stale patch); else note no-tool already_satisfied work items. */
-  private resolveCompletionReasonForCompleted(id: string, queue: WorkItem[]): Mission["completionReason"] | undefined {
-    const pending = this.pendingCompletionReason.get(id);
-    if (pending) this.pendingCompletionReason.delete(id);
-    return resolveCompletionReasonForCompletedMission(pending, queue);
-  }
-
-  private async tryCollapseMissionToCompleted(id: string): Promise<boolean> {
-    await this.autoDemoteObsolescentQueueItems(id);
-    await this.autoDemoteSupersededTerminalItems(id);
-    const m = this.store.get(id);
-    if (!m || !shouldCollapseToComplete(m)) return false;
-    if (blueprintBlocksMissionCompletion(m)) return false;
-    const completionReason = this.resolveCompletionReasonForCompleted(id, m.queue);
-    await this.store.updateMission(id, {
-      status: "completed",
-      blocker: undefined,
-      blockReasonCode: undefined,
-      result: m.memory
-        .slice(-8)
-        .map((mem) => `- ${mem.text}`)
-        .join("\n"),
-      ...(completionReason ? { completionReason } : {})
-    });
-    return true;
-  }
-
-  /** Mark known-redundant todo items as `skipped` so completion rules can distinguish them from required work. */
-  private async autoDemoteObsolescentQueueItems(missionId: string): Promise<void> {
-    for (;;) {
-      const mission = this.store.get(missionId);
-      if (!mission) return;
-      const todo = mission.queue.find((w) => w.status === "todo" && obsolescentTodoSkipReason(mission, w));
-      if (!todo) return;
-      const reason = obsolescentTodoSkipReason(mission, todo)!;
-      await this.updateWorkItemWithHardStopInvariant(missionId, todo, { status: "skipped", output: reason });
-      await this.store.saveEvent(missionId, {
-        level: "info",
-        source: "orchestrator",
-        message: reason
-      });
-      await this.store.noteProgress(missionId);
-    }
-  }
-
-  /**
-   * Demotes stale reviewer/validator rows left `blocked`/`failed` after a later same-role pass completed
-   * and `validationState` is `passed`, so collapse and terminal reconciliation do not treat them as
-   * active failures.
-   */
-  private async autoDemoteSupersededTerminalItems(missionId: string): Promise<void> {
-    for (;;) {
-      const mission = this.store.get(missionId);
-      if (!mission) return;
-      const row = mission.queue.find(
-        (w) => supersededValidatorTerminalSkipReason(mission, w) || supersededReviewerTerminalSkipReason(mission, w)
-      );
-      if (!row) return;
-      const reason =
-        supersededValidatorTerminalSkipReason(mission, row) || supersededReviewerTerminalSkipReason(mission, row)!;
-      await this.updateWorkItemWithHardStopInvariant(missionId, row, { status: "skipped", output: reason });
-      await this.store.saveEvent(missionId, {
-        level: "info",
-        source: "orchestrator",
-        message: reason
-      });
-      await this.store.noteProgress(missionId);
-    }
-  }
 
   /**
    * Records the decision and applies it (including executing the approved tool once). Schedules mission
@@ -567,268 +454,9 @@ export class MissionOrchestrator {
     approved: boolean,
     note?: string
   ): Promise<ResolveApprovalOutcome> {
-    const approval = await this.store.resolveApproval(missionId, approvalId, approved ? "approved" : "rejected", note);
-    if (!approval) {
-      return { kind: "noop_unknown_approval", missionId, approvalId };
-    }
-
-    await this.store.saveEvent(missionId, {
-      level: approved ? "info" : "warn",
-      source: "approval",
-      message: `${approved ? "Approved" : "Rejected"}: ${approval.title}`,
-      data: approval
-    });
-
-    if (approved) {
-      const approvedCall: ToolCall = {
-        ...approval.toolCall,
-        args: {
-          ...approval.toolCall.args,
-          __approved: true,
-          ...(approval.workItemId && !approval.toolCall.args?.__workItemId ? { __workItemId: approval.workItemId } : {})
-        }
-      };
-      if (approval.workItemId) {
-        const m = this.store.get(missionId);
-        const wi = m?.queue.find((w) => w.id === approval.workItemId);
-        if (wi) {
-          await this.updateWorkItemWithHardStopInvariant(missionId, wi, {
-            status: "running",
-            hardStopClass: undefined,
-            output: `${wi.output || ""}\n\nApproved execution in progress.`.trim()
-          });
-          await this.markMutatingToolExecutionStarted(missionId, wi, approvedCall);
-        }
-      }
-      await this.store.updateMission(missionId, { status: "queued", blocker: undefined, blockReasonCode: undefined });
-      const result = await this.executeAndRecordToolCall(missionId, approvedCall, ["approval", approval.kind]);
-      if (approval.workItemId) {
-        const m = this.store.get(missionId);
-        const wi = m?.queue.find((w) => w.id === approval.workItemId);
-        if (wi) {
-          await this.updateWorkItemWithHardStopInvariant(missionId, wi, {
-            status: "done",
-            hardStopClass: undefined,
-            activeMutatingToolCall: undefined,
-            output: `${wi.output || ""}\n\nApproved and executed: ${result.summary}`.trim()
-          });
-        }
-      }
-      await this.store.noteProgress(missionId);
-      await this.store.updateMission(missionId, { status: "queued", blockReasonCode: undefined });
-      void this.runMission(missionId);
-      return { kind: "approved_continuation_scheduled", missionId };
-    }
-    this.pendingCompletionReason.delete(missionId);
-    if (approval.workItemId) {
-      const m = this.store.get(missionId);
-      const wi = m?.queue.find((w) => w.id === approval.workItemId);
-      if (wi) {
-        await this.updateWorkItemWithHardStopInvariant(missionId, wi, {
-          hardStopClass: "approval_rejected"
-        });
-      }
-    }
-    await this.store.updateMission(missionId, {
-      status: "blocked",
-      blocker: approval.resolutionNote || "Tool request rejected",
-      validationState: "failed",
-      blockReasonCode: "approval_rejected"
-    });
-    return { kind: "rejected_mission_blocked", missionId, statusAfter: "blocked" };
+    return this.approvalResolver.resolveApproval(missionId, approvalId, approved, note);
   }
 
-  /**
-   * Runs at most one pass per mission at a time. If a pass is already active, awaits that pass
-   * (join) and returns without starting another. Returned `statusAfterPass` is observational only.
-   */
-  async runMission(id: string): Promise<RunMissionPassOutcome> {
-    if (this.running.has(id)) {
-      await this.joinInFlightRunLoopPass(id);
-      return { kind: "joined_in_flight_pass", missionId: id };
-    }
-    let finishPass!: () => void;
-    const passDone = new Promise<void>((resolve) => {
-      finishPass = resolve;
-    });
-    this.inFlightRunPass.set(id, { done: passDone, finish: finishPass });
-    this.running.add(id);
-    this.pendingCompletionReason.delete(id);
-
-    try {
-      let mission = this.store.get(id);
-      if (!mission) return this.runPassOutcomeAfterStoreRead(id);
-      await this.store.updateMission(id, { status: "running", blockReasonCode: undefined });
-      const maxSteps = Math.max(1, vscode.workspace.getConfiguration().get<number>("myAi.missions.maxStepsPerRun", 16));
-
-      for (let step = 0; step < maxSteps; step++) {
-        mission = this.store.get(id);
-        if (!mission) return this.runPassOutcomeAfterStoreRead(id);
-
-        if (mission.status === "cancelled") {
-          this.abortMissionWork(id);
-          return this.runPassOutcomeAfterStoreRead(id);
-        }
-
-        if (mission.status === "awaiting_input") {
-          return this.runPassOutcomeAfterStoreRead(id);
-        }
-
-        const effectiveMaxRounds = computeEffectiveMaxAutoRounds(mission, vscode.workspace.getConfiguration());
-        if ((mission.roundsCompleted || 0) >= effectiveMaxRounds) {
-          this.pendingCompletionReason.delete(id);
-          await this.store.updateMission(id, {
-            status: "blocked",
-            blocker: "Reached maxAutoRounds safety limit",
-            validationState: "failed",
-            blockReasonCode: "max_auto_rounds"
-          });
-          await this.store.updateRuntime(id, { loopGuardTrips: (mission.runtime?.loopGuardTrips || 0) + 1 });
-          return this.runPassOutcomeAfterStoreRead(id);
-        }
-
-        if (await this.tryCollapseMissionToCompleted(id)) return this.runPassOutcomeAfterStoreRead(id);
-
-        const pendingApproval = mission.approvals.find((a) => a.status === "pending");
-        if (pendingApproval) {
-          await this.store.updateMission(id, {
-            status: "awaiting_input",
-            blocker: pendingApproval.title,
-            blockReasonCode: "approval_pending"
-          });
-          return this.runPassOutcomeAfterStoreRead(id);
-        }
-
-        const gate = classifyImplementerHardStopDownstreamGate(mission);
-        await this.noteMalformedImplementerHardStopEvent(id, mission, gate);
-        const allowRoleWhileGated = (role: WorkItem["role"]): boolean =>
-          role === "implementer" || role === "planner" || role === "architect";
-        const next = mission.queue.find(
-          (w) =>
-            w.status === "todo" &&
-            this.dependenciesMet(mission!, w) &&
-            (!gate.gate || allowRoleWhileGated(w.role))
-        );
-
-        if (!next) {
-          const emptyQueueResult = await this.handleEmptyQueue(id, mission, gate);
-          if (emptyQueueResult === "continue") continue;
-          return this.runPassOutcomeAfterStoreRead(id);
-        }
-
-        const outcome = await this.runWorkItem(mission, next);
-        const latest = this.store.get(id)!;
-        await this.store.updateMission(id, { roundsCompleted: (latest.roundsCompleted || 0) + 1 });
-        if (outcome === "awaiting_input" || outcome === "blocked") return this.runPassOutcomeAfterStoreRead(id);
-
-        const maxRetries = vscode.workspace.getConfiguration().get<number>("myAi.missions.maxAutoRetries", 2);
-        const markDeadLetterAfterRetries = vscode.workspace
-          .getConfiguration()
-          .get<boolean>("myAi.missions.markDeadLetterAfterRetryExhaustion", true);
-        const freshMission = this.store.get(id)!;
-        const failedItem = freshMission.queue.find((w) => w.id === next.id);
-        if (failedItem?.status === "failed") {
-          const retryDecision = shouldAutoRetry(failedItem, maxRetries);
-          if (retryDecision.shouldRetry) {
-            const retryItem = createRetryWorkItem(failedItem);
-            await this.store.enqueue(id, [retryItem]);
-            await this.store.saveEvent(id, {
-              level: "info",
-              source: "orchestrator",
-              message: `Auto-retry: enqueued "${retryItem.title}" (${retryDecision.reason}) after failure: ${(failedItem.output || "").slice(0, 200)}`
-            });
-          } else if (markDeadLetterAfterRetries && shouldMarkWorkItemDeadLetter(failedItem, retryDecision)) {
-            await this.markDeadLetterAfterRetryExhaustion(id, failedItem, retryDecision.reason);
-          }
-        }
-
-        if (await this.tryCollapseMissionToCompleted(id)) return this.runPassOutcomeAfterStoreRead(id);
-      }
-
-      await this.store.saveEvent(id, {
-        level: "warn",
-        source: "orchestrator",
-        message: "Run reached maxStepsPerRun. Mission remains resumable."
-      });
-      this.pendingCompletionReason.delete(id);
-      await this.store.updateMission(id, { status: "queued", blockReasonCode: undefined });
-      return this.runPassOutcomeAfterStoreRead(id);
-    } catch (err) {
-      this.pendingCompletionReason.delete(id);
-      const detail = err instanceof Error ? err.stack || err.message : String(err);
-      const blockerShort = err instanceof Error ? err.message : String(err);
-      try {
-        const missionSnap = this.store.get(id);
-        if (missionSnap) {
-          const running = missionSnap.queue.filter((w) => w.status === "running");
-          for (const wi of running) {
-            await this.updateWorkItemWithHardStopInvariant(id, wi, {
-              status: "failed",
-              hardStopClass: "unknown_hard_stop",
-              output: `[orchestrator_uncaught_error] ${detail}`.slice(0, 12_000),
-              activeMutatingToolCall: undefined
-            });
-          }
-        }
-      } catch (reconcileErr) {
-        await this.store.saveEvent(id, {
-          level: "error",
-          source: "orchestrator",
-          message: `Failed to reconcile running work items after uncaught error: ${
-            reconcileErr instanceof Error ? reconcileErr.message : String(reconcileErr)
-          }`
-        });
-      }
-      await this.store.updateMission(id, {
-        status: "failed",
-        blocker: blockerShort,
-        validationState: "failed",
-        blockReasonCode: undefined,
-        failureReasonCode: "orchestrator_uncaught_error"
-      });
-      await this.store.saveEvent(id, {
-        level: "error",
-        source: "orchestrator",
-        message: detail
-      });
-      return this.runPassOutcomeAfterStoreRead(id);
-    } finally {
-      const pass = this.inFlightRunPass.get(id);
-      this.running.delete(id);
-      if (pass) {
-        this.inFlightRunPass.delete(id);
-        pass.finish();
-      } else {
-        finishPass();
-      }
-    }
-  }
-
-  private runPassOutcomeAfterStoreRead(missionId: string): RunMissionPassOutcome {
-    const m = this.store.get(missionId);
-    if (!m) return { kind: "noop_missing_mission", missionId };
-    return { kind: "ran_pass", missionId, statusAfterPass: m.status };
-  }
-
-  private async markDeadLetterAfterRetryExhaustion(
-    missionId: string,
-    item: WorkItem,
-    retryReason: string
-  ): Promise<void> {
-    if (item.deadLetter) return;
-    const note = `\n\n---\nDEAD LETTER: Automatic retry budget exhausted (${retryReason}). Operator next steps: fix the root cause, skip or remove this work item, or reset it to todo after adjusting inputs. No further automatic retries will be enqueued for this failure row.`;
-    await this.updateWorkItemWithHardStopInvariant(missionId, item, {
-      deadLetter: true,
-      deadLetterAt: Date.now(),
-      output: `${item.output || ""}${note}`.trim()
-    });
-    await this.store.saveEvent(missionId, {
-      level: "error",
-      source: "orchestrator",
-      message: `Work item marked dead letter (retries exhausted): "${item.title}" (${item.id})`,
-      data: { workItemId: item.id, role: item.role, reason: retryReason }
-    });
-  }
 
   private async updateWorkItemWithHardStopInvariant(
     missionId: string,
@@ -838,1392 +466,32 @@ export class MissionOrchestrator {
     await updateWorkItemWithImplementerHardStopInvariant(this.store, missionId, itemBeforePatch, patch);
   }
 
-  /**
-   * Never throws: a throwing tool impl would otherwise skip `executeWorkItemToolCalls` failure handling
-   * and leave the active work item stuck in `running` while `runMission` marks the mission `failed`.
-   */
-  private async executeToolOrSyntheticFailure(
-    missionId: string,
-    call: ToolCall,
-    workItemId?: string
-  ): Promise<ToolResult> {
-    try {
-      return await this.tools.execute(missionId, call);
-    } catch (toolErr) {
-      const msg = toolErr instanceof Error ? toolErr.message : String(toolErr);
-      await this.store.saveEvent(missionId, {
-        level: "error",
-        source: "orchestrator",
-        message: `Tool ${call.tool} threw (unexpected): ${msg}`,
-        data: { tool: call.tool, workItemId }
-      });
-      return { ok: false, summary: `${call.tool} crashed: ${msg}` };
-    }
-  }
-
-  /**
-   * Executes tool calls from an agent turn result. Returns early if the mission must pause
-   * (approval, policy block, tool failure), otherwise returns the successful tool steps
-   * for completion kind derivation.
-   */
-  private async executeWorkItemToolCalls(
-    mission: Mission,
-    item: WorkItem,
-    result: AgentTurnResult
-  ): Promise<{
-    earlyReturn?: "awaiting_input" | "blocked";
-    derivedCompletionKind?: WorkItem["completionKind"];
-    toolResultSummaries?: string[];
-    hadMutatingSideEffect?: boolean;
-  }> {
-    if (!result.toolCalls?.length) return {};
-
-    const MUTATING_TOOLS = new Set(["writeFile", "applyPatch", "runTerminal", "runCommand", "git.commit", "git.checkout_file", "git.stash_push", "git.stash_pop", "docker.exec", "db.query"]);
-    const successfulToolSteps: Array<{ tool: string; applyPatchNoop?: boolean }> = [];
-    const toolResultSummaries: string[] = [];
-    let hadMutatingSideEffect = false;
-    for (const call of result.toolCalls) {
-      const callWithMeta: ToolCall = {
-        ...call,
-        args: {
-          ...(call.args || {}),
-          __workItemId: item.id,
-          __workItemRole: item.role,
-          ...(item.blueprintStepId ? { __blueprintStepId: item.blueprintStepId } : {})
-        }
-      };
-      if (mission.dryRun && MUTATING_TOOLS.has(call.tool)) {
-        toolResultSummaries.push(`[DRY-RUN] Skipped mutating tool: ${call.tool} ${JSON.stringify(call.args).slice(0, 200)}`);
-        await this.store.saveEvent(mission.id, { level: "info", source: "orchestrator", message: `[DRY-RUN] Would execute: ${call.tool}` });
-        continue;
-      }
-      await this.markMutatingToolExecutionStarted(mission.id, item, callWithMeta);
-      const toolResult = await this.executeToolOrSyntheticFailure(mission.id, callWithMeta, item.id);
-
-      if (!toolResult.ok && toolResult.blockedByPolicy) {
-        this.pendingCompletionReason.delete(mission.id);
-        const blocker = `${callWithMeta.tool}: ${toolResult.summary}`;
-        await this.updateWorkItemWithHardStopInvariant(mission.id, item, {
-          status: "blocked",
-          activeMutatingToolCall: undefined,
-          hardStopClass: "policy_blocked",
-          output: `${result.summary}\n\nPolicy blocked tool execution: ${blocker}`
-        });
-        await this.store.updateMission(mission.id, {
-          status: "blocked",
-          blocker: `Policy blocked mission progress (${blocker})`,
-          validationState: "failed",
-          blockReasonCode: "policy_blocked"
-        });
-        await this.store.saveEvent(mission.id, {
-          level: "warn",
-          source: "orchestrator",
-          message: `Mission paused: tool call blocked by policy (${blocker}).`
-        });
-        return { earlyReturn: "blocked" };
-      }
-
-      if (!toolResult.ok && !toolResult.requiresApproval) {
-        const latestMission = this.store.get(mission.id)!;
-        if (
-          staleImplementerToolFailureRecoveryDecision(item.role, latestMission, callWithMeta, toolResult.summary) ===
-          "recover_to_satisfied"
-        ) {
-          this.pendingCompletionReason.set(mission.id, "stale_patch_but_goal_already_met");
-          const blocker = `${callWithMeta.tool}: ${toolResult.summary}`;
-          await this.store.saveEvent(mission.id, {
-            level: "info",
-            source: "orchestrator",
-            message: `Stale edit skipped (${blocker}); validation already passed — no code change required (stale_patch_but_goal_already_met).`
-          });
-          const saved = await this.store.addMemory(mission.id, {
-            kind: "tool_result",
-            text: `${callWithMeta.tool}: ${toolResult.summary} [stale_patch_but_goal_already_met: validation already passed, patch skipped]`,
-            tags: [callWithMeta.tool, "stale_patch_recovery"],
-            sourceMissionId: mission.id
-          });
-          await this.globalMemory.add(saved);
-          continue;
-        }
-        this.pendingCompletionReason.delete(mission.id);
-        const blocker = `${callWithMeta.tool}: ${toolResult.summary}`;
-        await this.updateWorkItemWithHardStopInvariant(mission.id, item, {
-          status: "failed",
-          hardStopClass: "tool_failure",
-          output: `${result.summary}\n\nTool execution failed: ${blocker}`
-        });
-        await this.store.updateMission(mission.id, {
-          status: "blocked",
-          blocker: `Mission halted after tool failure (${blocker})`,
-          validationState: "failed",
-          blockReasonCode: "tool_failure"
-        });
-        await this.store.saveEvent(mission.id, {
-          level: "warn",
-          source: "orchestrator",
-          message: `Mission paused: tool call failed (${blocker}).`
-        });
-        return { earlyReturn: "blocked" };
-      }
-
-      if (toolResult.requiresApproval) {
-        this.pendingCompletionReason.delete(mission.id);
-        const req = this.approvals.create(mission.id, callWithMeta, toolResult.requiresApproval, item.id);
-        await this.store.addApproval(mission.id, req);
-        await this.store.updateMission(mission.id, {
-          status: "awaiting_input",
-          blocker: req.title,
-          validationState: "failed",
-          blockReasonCode: "approval_pending"
-        });
-        await this.updateWorkItemWithHardStopInvariant(mission.id, item, {
-          status: "blocked",
-          activeMutatingToolCall: undefined,
-          hardStopClass: "approval_pending",
-          output: `${result.summary}\n\nPending approval: ${req.title}`
-        });
-        await this.store.saveEvent(mission.id, {
-          level: "warn",
-          source: "approval",
-          message: `Approval required: ${req.title}`,
-          data: req
-        });
-        return { earlyReturn: "awaiting_input" };
-      }
-
-      successfulToolSteps.push({ tool: callWithMeta.tool, applyPatchNoop: toolResult.applyPatchNoop });
-      toolResultSummaries.push(`[${callWithMeta.tool}] ${toolResult.summary}`);
-      const isApplyPatchNoop = toolResult.applyPatchNoop === true;
-      if (toolResult.ok && MUTATING_TOOLS.has(callWithMeta.tool) && !isApplyPatchNoop) {
-        hadMutatingSideEffect = true;
-      }
-      const tags = isApplyPatchNoop ? [callWithMeta.tool, "apply_patch_noop"] : [callWithMeta.tool];
-      const prefix = isApplyPatchNoop ? "[apply_patch_noop] " : "";
-      await this.recordToolResultMemoryAndEvent(mission.id, callWithMeta, toolResult, tags, prefix);
-    }
-
-    const derivedCompletionKind = workCompletionKindFromSuccessfulToolSteps(successfulToolSteps) || undefined;
-    return { derivedCompletionKind, toolResultSummaries, hadMutatingSideEffect };
-  }
-
-  private async markMutatingToolExecutionStarted(missionId: string, item: WorkItem, call: ToolCall): Promise<void> {
-    if (!isPotentiallyMutatingToolCall(call)) return;
-    await this.updateWorkItemWithHardStopInvariant(missionId, item, {
-      activeMutatingToolCall: {
-        tool: call.tool,
-        approved: Boolean(call.args?.__approved),
-        target: mutatingToolTarget(call),
-        startedAt: Date.now()
-      }
-    });
-  }
-
-  /**
-   * Execute a single tool call and record memory + event.
-   * Shared between `executeWorkItemToolCalls` (agent-driven) and `resolveApproval` (operator-driven).
-   */
-  private async executeAndRecordToolCall(
-    missionId: string,
-    call: ToolCall,
-    extraTags: string[] = []
-  ): Promise<ToolResult> {
-    const result = await this.executeToolOrSyntheticFailure(missionId, call);
-    await this.recordToolResultMemoryAndEvent(missionId, call, result, extraTags);
-    return result;
-  }
-
-  private async recordToolResultMemoryAndEvent(
-    missionId: string,
-    call: ToolCall,
-    result: ToolResult,
-    extraTags: string[] = [],
-    textPrefix = ""
-  ): Promise<void> {
-    const saved = await this.store.addMemory(missionId, {
-      kind: "tool_result",
-      text: `${textPrefix}${call.tool}: ${result.summary}`,
-      tags: [call.tool, ...extraTags],
-      sourceMissionId: missionId
-    });
-    await this.globalMemory.add(saved);
-
-    // Phase 5 (Research discipline): persist durable research evidence memories for web tools.
-    if (result.ok && (call.tool === "webSearch" || call.tool === "fetchWebPage")) {
-      const ts = Date.now();
-      if (call.tool === "webSearch") {
-        const d = (result.data || {}) as { query?: string; provider?: string; excerpt?: string; attribution?: string; topUrls?: string[] };
-        const finding = formatResearchEvidenceFinding({
-          tool: "webSearch",
-          ts,
-          query: d.query || String(call.args?.query || ""),
-          provider: d.provider,
-          excerpt: d.excerpt ? `${d.excerpt}${d.attribution ? `\n\nAttribution: ${d.attribution}` : ""}` : undefined,
-          topUrls: Array.isArray(d.topUrls) ? d.topUrls : undefined
-        });
-        const mem = await this.store.addMemory(missionId, {
-          kind: "finding",
-          text: finding.text,
-          tags: ["research_evidence", "web", call.tool, `freshness:${finding.freshness}`],
-          sourceMissionId: missionId
-        });
-        await this.globalMemory.add(mem);
-        await this.maybeEmitResearchContradictionWarnings(missionId);
-      } else {
-        const d = (result.data || {}) as { url?: string; status?: number; contentType?: string; body?: string };
-        const url = d.url || String(call.args?.url || "");
-        const finding = formatResearchEvidenceFinding({
-          tool: "fetchWebPage",
-          ts,
-          url,
-          status: typeof d.status === "number" ? d.status : undefined,
-          contentType: typeof d.contentType === "string" ? d.contentType : undefined,
-          excerpt: typeof d.body === "string" ? d.body : undefined
-        });
-        const mem = await this.store.addMemory(missionId, {
-          kind: "finding",
-          text: finding.text,
-          tags: ["research_evidence", "web", call.tool, `freshness:${finding.freshness}`],
-          sourceMissionId: missionId
-        });
-        await this.globalMemory.add(mem);
-      }
-    }
-
-    const isEvidenceTool =
-      extraTags.includes("verification") ||
-      call.tool === "runLinter" ||
-      call.tool === "runTests" ||
-      call.tool === "runCommand" ||
-      call.tool === "runTerminal";
-    if (isEvidenceTool || result.data !== undefined) {
-      const verification = Boolean(call.args?.__verification) || extraTags.includes("verification");
-      await this.store.saveEvent(missionId, {
-        level: result.ok ? "info" : "warn",
-        source: `tool:${call.tool}`,
-        message: result.summary,
-        telemetryKind: verification ? "verification_recorded" : "tool_called",
-        data: {
-          ok: result.ok,
-          tool: call.tool,
-          meta: {
-            workItemId: call.args?.__workItemId,
-            workItemRole: call.args?.__workItemRole,
-            blueprintStepId: call.args?.__blueprintStepId,
-            approved: Boolean(call.args?.__approved),
-            verification
-          },
-          result: result.data
-        }
-      });
-    }
-  }
-
-  private async maybeEmitResearchContradictionWarnings(missionId: string): Promise<void> {
-    const mission = this.store.get(missionId);
-    if (!mission) return;
-    const hits = findDuplicateQueryResearchContradictions(mission.memory);
-    const warnedKeys = new Set(
-      mission.events
-        .filter((e) => e.telemetryKind === "research_contradiction_warn")
-        .slice(-20)
-        .map((e) => String((e.data as { queryKey?: string } | undefined)?.queryKey || ""))
-        .filter(Boolean)
-    );
-    for (const h of hits) {
-      if (warnedKeys.has(h.queryKey)) continue;
-      await this.store.saveEvent(missionId, {
-        level: "warn",
-        source: "research",
-        message: h.detail,
-        telemetryKind: "research_contradiction_warn",
-        data: { queryKey: h.queryKey }
-      });
-      warnedKeys.add(h.queryKey);
-    }
-  }
-
-  private malformedHardStopEventSignature(mission: Mission, gate: ImplementerHardStopGateResult): string {
-    const impl = mission.queue.filter(
-      (w) =>
-        w.role === "implementer" &&
-        (w.status === "blocked" || w.status === "failed") &&
-        w.requiredForCompletion !== false
-    );
-    const kind = gate.malformed ?? "ok";
-    return `${kind}:${impl
-      .map((w) => `${w.id}:${w.status}:${w.hardStopClass ?? "∅"}`)
-      .sort()
-      .join("|")}`;
-  }
-
-  private async noteMalformedImplementerHardStopEvent(
-    missionId: string,
-    mission: Mission,
-    gate: ImplementerHardStopGateResult
-  ): Promise<void> {
-    if (!gate.malformed) {
-      this.lastMalformedHardStopEventSig.delete(missionId);
-      return;
-    }
-    const sig = this.malformedHardStopEventSignature(mission, gate);
-    if (this.lastMalformedHardStopEventSig.get(missionId) === sig) return;
-    this.lastMalformedHardStopEventSig.set(missionId, sig);
-    const message =
-      gate.malformed === "missing_hard_stop_class"
-        ? "Invariant: required implementer work is blocked or failed but hardStopClass is missing (contract violation). Downstream gating uses safe unknown handling; repair the queue or discard corrupt missions."
-        : "Invariant: required implementer work has an invalid hardStopClass value (contract violation). Downstream gating uses safe unknown handling; repair the queue or discard corrupt missions.";
-    await this.store.saveEvent(missionId, {
-      level: "error",
-      source: "orchestrator",
-      message
-    });
-  }
-
-  private ensurePlannerCoverageItems(mission: Mission): WorkItem[] {
-    return computePlannerCoverageItems(mission);
-  }
-
-  private async maybeEnforcePostAgentContracts(
-    missionId: string,
-    item: WorkItem,
-    summary: string,
-    nextWorkItems: WorkItem[],
-    skipReviewerRemediationForAlreadySatisfiedNoTool?: boolean
-  ): Promise<void> {
-    const mission = this.store.get(missionId);
-    if (!mission) return;
-
-    if (
-      item.workItemPurpose === "blueprint_generate" ||
-      item.workItemPurpose === "blueprint_revise" ||
-      item.workItemPurpose === "pre_blueprint_clarify"
-    ) {
-      return;
-    }
-
-    if (item.role === "planner" && vscode.workspace.getConfiguration().get<boolean>("myAi.missions.requirePlannerCoverage", true)) {
-      const coverage = this.ensurePlannerCoverageItems(mission);
-      if (coverage.length) {
-        await this.store.enqueue(missionId, coverage);
-        await this.store.saveEvent(missionId, { level: "info", source: "planner-contract", message: `Injected ${coverage.length} missing role coverage work items.` });
-      }
-    }
-
-    if (
-      shouldEnqueueReviewerAutoRemediation({
-        itemRole: item.role,
-        skipBecauseAlreadySatisfiedNoTool: skipReviewerRemediationForAlreadySatisfiedNoTool === true,
-        autoCreateFixTasksSetting: vscode.workspace.getConfiguration().get<boolean>("myAi.reviewers.autoCreateFixTasks", true),
-        summary,
-        nextWorkItems
-      })
-    ) {
-      const remediation: WorkItem[] = [
-        { id: uid("work"), title: `Reviewer remediation for ${item.title}`, role: "implementer", status: "todo", prompt: `Address the concrete reviewer findings from this output and make bounded fixes with evidence: ${summary.slice(0, 500)}` },
-        { id: uid("work"), title: `Re-review after ${item.title}`, role: "reviewer", status: "todo", prompt: "Re-review the remediation and confirm whether the reported defects were closed." },
-        { id: uid("work"), title: `Re-validation after ${item.title}`, role: "validator", status: "todo", prompt: "Validate the remediation and decide whether further work is required." }
-      ];
-      await this.store.enqueue(missionId, remediation);
-      await this.store.saveEvent(missionId, { level: "warn", source: "reviewer-contract", message: "Reviewer reported issues without an implementer follow-up; remediation work was injected automatically." });
-    }
-  }
-
   private async runWorkItem(mission: Mission, item: WorkItem): Promise<"continue" | "awaiting_input" | "blocked"> {
-    let blueprintAwaitingApproval = false;
-    let preBlueprintAwaitingAnswers = false;
-    const fresh = this.store.get(mission.id)!;
-    if (shouldSkipRedundantValidatorWork(fresh, item)) {
-      await this.store.updateWorkItem(mission.id, item.id, {
-        status: "skipped",
-        output: "Skipped: redundant validator after validation already passed."
-      });
-      await this.store.saveEvent(mission.id, {
-        level: "info",
-        source: "orchestrator",
-        message: `Skipped redundant validator work item: ${item.title}`
-      });
-      await this.store.noteProgress(mission.id);
-      return "continue";
-    }
-
-    await this.updateWorkItemWithHardStopInvariant(mission.id, item, { status: "running" });
-    await this.store.saveEvent(mission.id, {
-      level: "info",
-      source: `agent:${item.role}`,
-      message: `Starting ${item.title}`,
-      telemetryKind: "work_started",
-      data: { workItemId: item.id, role: item.role, title: item.title }
-    });
-
-    const useGitCheckpoint = item.role === "implementer" &&
-      vscode.workspace.getConfiguration().get<boolean>("myAi.missions.gitCheckpointBeforeImpl", false);
-    let didStash = false;
-    if (useGitCheckpoint) {
-      try {
-        const status = await gitStatus();
-        const hasChanges = status.ok && status.data && (status.data as { changedFiles: string[] }).changedFiles?.length > 0;
-        if (hasChanges) {
-          const stash = await gitStashPush(`pre-workitem-${item.id}`);
-          didStash = stash.ok;
-        }
-      } catch { /* git not available — skip */ }
-    }
-
-    const completedCount = mission.queue.filter((w) => w.status === "done" || w.status === "skipped").length;
-    const context = this.collector instanceof EnhancedContextCollector
-      ? await this.collector.collectForMission({
-        isFirstWorkItem: completedCount === 0,
-        keywords: extractKeywords(item.prompt, 5),
-      })
-      : await this.collector.collect();
-    this.missionWorkAbort.get(mission.id)?.abort();
-    const ac = new AbortController();
-    this.missionWorkAbort.set(mission.id, ac);
-    let result: AgentTurnResult;
-    const onChunk = this.onAgentStreamChunk
-      ? (chunk: string) => this.onAgentStreamChunk!(mission.id, item.id, item.role, chunk)
-      : undefined;
-    try {
-      if (this.agentRunForTest) {
-        result = await this.agentRunForTest(mission, item, context, { signal: ac.signal, onChunk });
-      } else {
-        const agent = this.agents.create(item.role);
-        result = await agent.run(mission, item, context, { signal: ac.signal, onChunk });
-      }
-    } catch (err) {
-      if (isLikelyStreamAbort(err, ac.signal)) {
-        const bySignal = ac.signal.aborted;
-        let reason = this.missionAbortReason.get(mission.id) || "unknown";
-        // Only trust "operator" when the mission signal was actually aborted.
-        if (reason === "operator" && !bySignal) reason = "unknown";
-        // Timeout-origin AbortError can happen without mission-level signal abort.
-        if (reason === "unknown" && !bySignal) {
-          const e = err as { name?: string; message?: string } | undefined;
-          const msg = typeof e?.message === "string" ? e.message.toLowerCase() : "";
-          if (e?.name === "AbortError" || msg.includes("timeout") || msg.includes("timed out")) {
-            reason = "timeout";
-          }
-        }
-        
-        // Determine output message based on abort reason
-        let outputMessage = "Model stream cancelled.";
-        if (reason === "operator") {
-          outputMessage = "Model stream cancelled (operator abort).";
-        } else if (reason === "timeout") {
-          outputMessage = "Model stream cancelled (request timeout).";
-        } else if (reason === "system") {
-          outputMessage = "Model stream cancelled (system).";
-        }
-        
-        // Determine whether to block the mission based on reason
-        const shouldBlockMission = reason === "operator";
-        const workItemStatus = shouldBlockMission ? "blocked" : "failed";
-        const hardStopClass =
-          reason === "operator"
-            ? ("operator_abort" as const)
-            : reason === "timeout" || reason === "system"
-              ? ("timeout_or_system_abort" as const)
-              : ("unknown_hard_stop" as const);
-
-        await this.updateWorkItemWithHardStopInvariant(mission.id, item, {
-          status: workItemStatus,
-          hardStopClass,
-          output: outputMessage
-        });
-
-        if (shouldBlockMission) {
-          this.pendingCompletionReason.delete(mission.id);
-          // Operator abort: block the mission and require explicit resume
-          await this.store.updateMission(mission.id, {
-            status: "blocked",
-            blocker: "Model stream cancelled (operator abort). Resume when ready.",
-            blockReasonCode: "operator_stream_abort"
-          });
-          await this.store.saveEvent(mission.id, {
-            level: "warn",
-            source: "orchestrator",
-            message: "Work item LLM stream aborted by operator."
-          });
-          return "blocked";
-        } else {
-          // System/timeout abort: work item fails but mission continues for recovery
-          await this.store.saveEvent(mission.id, {
-            level: "warn",
-            source: "orchestrator",
-            message: `Work item LLM stream cancelled (${reason}). Mission will attempt recovery.`
-          });
-          // Continue to next work item instead of blocking
-          return "continue";
-        }
-      }
-      throw err;
-    } finally {
-      if (this.missionWorkAbort.get(mission.id) === ac) {
-        this.missionWorkAbort.delete(mission.id);
-      }
-      this.missionAbortReason.delete(mission.id);
-      this.onAgentStreamDone?.(mission.id, item.id);
-
-      if (didStash) {
-        const fresh = this.store.get(mission.id);
-        const itemFinal = fresh?.queue.find((w) => w.id === item.id);
-        if (itemFinal?.status === "failed" || itemFinal?.status === "blocked") {
-          try {
-            await gitStashPop();
-            await this.store.saveEvent(mission.id, { level: "info", source: "orchestrator", message: `Restored git stash after ${itemFinal.status} work item: ${item.title}` });
-          } catch { /* stash restore best-effort */ }
-        }
-      }
-    }
-
-    const alreadySatisfiedNoTool = shouldHonorAlreadySatisfiedNoToolRun(item.role, result.summary, result.toolCalls);
-    if (alreadySatisfiedNoTool) {
-      result = {
-        ...result,
-        toolCalls: [],
-        markStatus: "done",
-        summary: `[already_satisfied] ${alreadySatisfiedNoTool.reason}\n\n${result.summary.trim()}`.trim()
-      };
-      await this.store.saveEvent(mission.id, {
-        level: "info",
-        source: "orchestrator",
-        message: `Work item completed without tools (already_satisfied): ${alreadySatisfiedNoTool.reason}`
-      });
-    }
-
-    let toolExecResult = await this.executeWorkItemToolCalls(mission, item, result);
-    if (toolExecResult.earlyReturn) return toolExecResult.earlyReturn;
-
-    const maxToolFollowUps = this.agentRunForTest ? 0 : vscode.workspace.getConfiguration().get<number>("myAi.missions.maxToolFollowUpTurns", 3);
-    const toolLoopRoles: AgentRole[] = ["implementer", "researcher", "reviewer"];
-    let followUpTurn = 0;
-    while (
-      followUpTurn < maxToolFollowUps &&
-      toolLoopRoles.includes(item.role) &&
-      toolExecResult.toolResultSummaries?.length &&
-      !this.missionWorkAbort.get(mission.id)?.signal.aborted
-    ) {
-      followUpTurn++;
-      const followUpPrompt = [
-        `Previous TOOL results (turn ${followUpTurn}):`,
-        ...toolExecResult.toolResultSummaries,
-        "",
-        "Review the tool results above. If more tool calls are needed, emit TOOL: lines. If the task is now complete, output your final summary. Do not re-emit tools that already succeeded."
-      ].join("\n");
-
-      const ac = this.missionWorkAbort.get(mission.id);
-      const followUpOnChunk = this.onAgentStreamChunk
-        ? (chunk: string) => this.onAgentStreamChunk!(mission.id, item.id, item.role, chunk)
-        : undefined;
-
-      const followUpItem: WorkItem = { ...item, prompt: `${item.prompt}\n\n${followUpPrompt}` };
-      let followUpResult: AgentTurnResult;
-      try {
-        if (this.agentRunForTest) {
-          followUpResult = await this.agentRunForTest(mission, followUpItem, context, { signal: ac?.signal, onChunk: followUpOnChunk });
-        } else {
-          const agent = this.agents.create(item.role);
-          followUpResult = await agent.run(mission, followUpItem, context, { signal: ac?.signal, onChunk: followUpOnChunk });
-        }
-      } catch {
-        break;
-      }
-
-      await this.store.saveEvent(mission.id, {
-        level: "info",
-        source: `agent:${item.role}`,
-        message: `Tool follow-up turn ${followUpTurn} completed`
-      });
-
-      result = {
-        ...result,
-        summary: `${result.summary}\n\n--- Follow-up turn ${followUpTurn} ---\n${followUpResult.summary}`,
-        toolCalls: followUpResult.toolCalls,
-        nextWorkItems: [...(result.nextWorkItems || []), ...(followUpResult.nextWorkItems || [])],
-        newMemory: [...(result.newMemory || []), ...(followUpResult.newMemory || [])],
-        decision: followUpResult.decision || result.decision
-      };
-
-      if (!followUpResult.toolCalls?.length) break;
-      toolExecResult = await this.executeWorkItemToolCalls(mission, item, followUpResult);
-      if (toolExecResult.earlyReturn) return toolExecResult.earlyReturn;
-    }
-
-    let workCompletionKind = alreadySatisfiedNoTool ? "already_satisfied" as WorkItem["completionKind"] : undefined;
-    if (!workCompletionKind && toolExecResult.derivedCompletionKind) {
-      workCompletionKind = toolExecResult.derivedCompletionKind;
-    }
-
-    if (item.role === "validator" && result.toolCalls?.length) {
-      const beforeDecision = result.decision;
-      result = applyToolDrivenValidatorCompletion(item.role, result);
-      if (beforeDecision !== result.decision && result.decision === "complete") {
-        await this.store.saveEvent(mission.id, {
-          level: "info",
-          source: "orchestrator",
-          message:
-            "tool-driven-validator: inferred COMPLETE after successful tool calls with no BLOCKER/WORK lines (model omitted COMPLETE:)."
-        });
-      }
-    }
-
-    if (result.events?.length) {
-      for (const event of result.events) await this.store.saveEvent(mission.id, event);
-    }
-    if (result.newMemory?.length) {
-      for (const mem of result.newMemory) {
-        const saved = await this.store.addMemory(mission.id, { ...mem, sourceMissionId: mission.id });
-        await this.globalMemory.add(saved);
-      }
-    }
-
-    if (item.role === "planner" && item.workItemPurpose === "pre_blueprint_clarify") {
-      const parsed = parsePreBlueprintClarificationOutput(result.summary);
-      if (parsed.errors.length) {
-        await this.store.saveEvent(mission.id, {
-          level: "error",
-          source: "pre_blueprint",
-          message: `Pre-blueprint parse failed: ${parsed.errors.join("; ")}`
-        });
-        await this.updateWorkItemWithHardStopInvariant(mission.id, item, {
-          status: "failed",
-          output: parsed.errors.join("\n")
-        });
-        await this.store.updateMission(mission.id, {
-          status: "blocked",
-          blocker: "Pre-blueprint clarification could not be parsed. Adjust the mission goal or switch model.",
-          blockReasonCode: "generic_blocked"
-        });
-        await this.store.noteProgress(mission.id);
-        return "blocked";
-      }
-      await this.store.updateMission(mission.id, {
-        preBlueprintClarification: { questions: parsed.questions, status: "awaiting_answers" }
-      });
-      preBlueprintAwaitingAnswers = true;
-      result = { ...result, nextWorkItems: [] };
-    }
-
-    const isBlueprintPlanner =
-      item.role === "planner" &&
-      (item.workItemPurpose === "blueprint_generate" || item.workItemPurpose === "blueprint_revise");
-
-    if (isBlueprintPlanner) {
-      const maxSteps = vscode.workspace.getConfiguration().get<number>("myAi.missions.maxBlueprintSteps", 40);
-      const parsed = parseBlueprintModelOutput(result.summary, { maxSteps });
-      if (!parsed.blueprint || parsed.errors.length) {
-        await this.store.saveEvent(mission.id, {
-          level: "error",
-          source: "blueprint",
-          message: `Blueprint parse failed: ${parsed.errors.join("; ")}`
-        });
-        await this.updateWorkItemWithHardStopInvariant(mission.id, item, {
-          status: "failed",
-          output: parsed.errors.join("\n")
-        });
-        await this.store.updateMission(mission.id, {
-          status: "blocked",
-          blocker: "Mission blueprint could not be parsed. Adjust the mission goal or switch model.",
-          blockReasonCode: "generic_blocked"
-        });
-        await this.store.noteProgress(mission.id);
-        return "blocked";
-      }
-
-      const bp = parsed.blueprint;
-      const requireApproval = vscode.workspace.getConfiguration().get<boolean>("myAi.missions.requireBlueprintApproval", true);
-      result = { ...result, nextWorkItems: [] };
-
-      if (requireApproval) {
-        const readiness = validateBlueprintReadinessForApproval(bp);
-        if (!readiness.ok) {
-          const maxRev = vscode.workspace.getConfiguration().get<number>("myAi.missions.maxBlueprintRevisions", 3);
-          if ((mission.blueprintRevisionCount || 0) >= maxRev) {
-            const msg = `Blueprint readiness errors (revision limit reached):\n${readinessMessageText(readiness)}`;
-            await this.store.updateMission(mission.id, {
-              blueprint: { ...bp, status: "awaiting_approval" },
-              status: "awaiting_input",
-              blocker: "Blueprint has readiness errors and cannot be auto-revised further. Use Request Blueprint Revision or adjust the mission goal.",
-              blockReasonCode: "manual_review_required"
-            });
-            await this.store.saveEvent(mission.id, { level: "warn", source: "blueprint-readiness", message: msg });
-            blueprintAwaitingApproval = true;
-          } else {
-            const msg = `Blueprint readiness errors; scheduling revision.\n${readinessMessageText(readiness)}`;
-            await this.store.saveEvent(mission.id, { level: "warn", source: "blueprint-readiness", message: msg });
-            await this.store.updateMission(mission.id, {
-              blueprint: { ...bp, status: "draft" },
-              blueprintRevisionCount: (mission.blueprintRevisionCount || 0) + 1,
-              status: "queued",
-              blocker: undefined,
-              blockReasonCode: undefined
-            });
-            const prior = JSON.stringify({
-              requirementsSummary: bp.requirementsSummary,
-              architectureSummary: bp.architectureSummary,
-              goalEndState: bp.goalEndState,
-              approachOptions: bp.approachOptions,
-              chosenApproach: bp.chosenApproach,
-              steps: bp.steps
-            });
-            await this.store.enqueue(mission.id, [
-              {
-                id: uid("work"),
-                title: "Mission blueprint (readiness revision)",
-                role: "planner",
-                status: "todo",
-                workItemPurpose: "blueprint_revise",
-                prompt:
-                  `Revise the full mission blueprint as structured JSON.\n\nReadiness report:\n${readinessMessageText(readiness)}\n\nPrior plan (reference): ${prior.slice(0, 12_000)}`
-              }
-            ]);
-          }
-        } else {
-          const msg = readiness.report.warnings.length
-            ? `Blueprint readiness warnings:\n${readinessMessageText(readiness)}`
-            : "";
-          if (msg) await this.store.saveEvent(mission.id, { level: "warn", source: "blueprint-readiness", message: msg });
-          bp.status = "awaiting_approval";
-          await this.store.updateMission(mission.id, { blueprint: bp });
-          blueprintAwaitingApproval = true;
-        }
-      } else {
-        bp.status = "approved";
-        bp.approvedAt = Date.now();
-        await this.store.updateMission(mission.id, { blueprint: bp });
-        await this.enqueueSynthesizedBlueprintWork(mission.id);
-        await this.addBlueprintMemoryMirror(mission.id);
-        await this.store.saveEvent(mission.id, {
-          level: "info",
-          source: "blueprint",
-          message: "Blueprint auto-approved; synthesized work queue from blueprint."
-        });
-      }
-    }
-
-    if (result.nextWorkItems?.length) {
-      const flattened = flattenSubItems(result.nextWorkItems);
-      await this.store.enqueue(mission.id, flattened);
-    }
-
-    await this.maybeEnforcePostAgentContracts(
-      mission.id,
-      item,
-      result.summary,
-      result.nextWorkItems || [],
-      workCompletionKind === "already_satisfied"
-    );
-
-    const terminalWorkStatus = result.markStatus || "done";
-    const completionWorkPatch: Partial<WorkItem> = {
-      status: terminalWorkStatus,
-      output: result.summary,
-      activeMutatingToolCall: undefined,
-      ...(workCompletionKind ? { completionKind: workCompletionKind } : {})
-    };
-    if (isRequiredImplementerWorkItem(item) && terminalWorkStatus === "blocked") {
-      completionWorkPatch.hardStopClass = item.hardStopClass ?? "unknown_hard_stop";
-    }
-    await this.updateWorkItemWithHardStopInvariant(mission.id, item, completionWorkPatch);
-    await this.store.saveEvent(mission.id, {
-      level: terminalWorkStatus === "failed" ? "error" : terminalWorkStatus === "blocked" ? "warn" : "info",
-      source: "orchestrator",
-      message: `Finished work item "${item.title}" (${terminalWorkStatus})`,
-      telemetryKind:
-        terminalWorkStatus === "failed" ? "work_failed" : terminalWorkStatus === "blocked" ? "mission_blocked" : "work_completed",
-      data: { workItemId: item.id, role: item.role, status: terminalWorkStatus }
-    });
-    const updated = this.store.get(mission.id)!;
-    const patch: Partial<Mission> = { currentStep: updated.currentStep + 1, blocker: undefined, blockReasonCode: undefined };
-    if (item.role === "validator") {
-      patch.validationState = result.decision === "complete" ? "passed" : result.decision === "blocked" ? "failed" : "pending";
-    }
-    await this.store.noteProgress(mission.id);
-    await this.store.updateMission(mission.id, patch);
-
-    // Phase 3 (Verifier Mesh obligations): after implementer mutation under balanced/strict, run deterministic checks.
-    if (item.role === "implementer" && toolExecResult.hadMutatingSideEffect) {
-      const refreshed = this.store.get(mission.id)!;
-      const preset = refreshed.policy.policyPreset || "balanced";
-      if (preset === "balanced" || preset === "strict") {
-        const warnStale = vscode.workspace.getConfiguration().get<boolean>("myAi.webResearch.warnStaleEvidenceOnMutation", true);
-        if (warnStale) {
-          const stale = findStaleResearchEvidenceMemories(refreshed.memory);
-          if (!stale.length) {
-            this.lastStaleEvidenceWarnSigByMission.delete(mission.id);
-          } else {
-            const sig = stale
-              .map((s) => s.id)
-              .sort()
-              .join("|");
-            if (this.lastStaleEvidenceWarnSigByMission.get(mission.id) !== sig) {
-              this.lastStaleEvidenceWarnSigByMission.set(mission.id, sig);
-              const hours = (ms: number) => Math.round(ms / 3_600_000);
-              const detail = stale
-                .slice(0, 6)
-                .map((s) => `${s.id} (${s.freshness}, ~${hours(s.ageMs)}h old, ttl ~${hours(s.ttlMs)}h)`)
-                .join("; ");
-              await this.store.saveEvent(mission.id, {
-                level: "warn",
-                source: "research-evidence",
-                message: `Stale web research evidence may be outdated (${stale.length}): ${detail}${stale.length > 6 ? " …" : ""}`
-              });
-            }
-          }
-        }
-        await this.store.updateRuntime(mission.id, { lastImplementerMutationAt: Date.now() });
-        const runLinterObligation = vscode.workspace.getConfiguration().get<boolean>("myAi.missions.verification.autoRunLinterAfterMutations", true);
-        const runTestsObligation = vscode.workspace.getConfiguration().get<boolean>("myAi.missions.verification.autoRunTestsAfterMutations", true);
-        let ok = true;
-        if (runLinterObligation) {
-          const r = await this.executeAndRecordToolCall(mission.id, {
-            tool: "runLinter",
-            args: { __workItemId: item.id, __workItemRole: item.role, __verification: true }
-          }, ["verification"]);
-          ok = ok && r.ok;
-        }
-        if (runTestsObligation) {
-          const r = await this.executeAndRecordToolCall(mission.id, {
-            tool: "runTests",
-            args: { __workItemId: item.id, __workItemRole: item.role, __verification: true }
-          }, ["verification"]);
-          ok = ok && r.ok;
-        }
-        if (ok && (runLinterObligation || runTestsObligation)) {
-          await this.store.updateRuntime(mission.id, { lastVerificationAt: Date.now() });
-        }
-      }
-    }
-
-    if (blueprintAwaitingApproval) {
-      await this.store.updateMission(mission.id, {
-        status: "awaiting_input",
-        blocker: "Review and approve the mission blueprint (command: Autonomous Factory: Approve Mission Blueprint).",
-        blockReasonCode: "awaiting_blueprint_approval"
-      });
-    }
-
-    if (preBlueprintAwaitingAnswers) {
-      await this.store.updateMission(mission.id, {
-        status: "awaiting_input",
-        blocker: "Answer pre-blueprint questions in the Missions inspector, then submit (or command: Autonomous Factory: Submit Pre-Blueprint Answers).",
-        blockReasonCode: "awaiting_pre_blueprint_answers"
-      });
-    }
-
-    const wiAfter = this.store.get(mission.id)!.queue.find((w) => w.id === item.id);
-    if (wiAfter?.blueprintStepId) {
-      const bpSynced = applyBlueprintStepStatusFromWorkItem(this.store.get(mission.id)!, wiAfter, wiAfter.status);
-      if (bpSynced) await this.store.updateMission(mission.id, { blueprint: bpSynced });
-    }
-
-    if (vscode.workspace.getConfiguration().get<boolean>("myAi.missions.autoCheckpointEveryStep", true)) {
-      await this.store.addCheckpoint(mission.id, {
-        step: updated.currentStep + 1,
-        summary: checkpointSummaryForTerminalWorkItem(item, terminalWorkStatus),
-        queueSnapshot: updated.queue.map((w) => ({ id: w.id, title: w.title, role: w.role, status: w.status }))
-      });
-    }
-
-    if (item.role === "validator" && result.decision === "complete") {
-      const archOn = vscode.workspace.getConfiguration().get<boolean>("myAi.missions.architectPassAfterValidator", false);
-      const mVal = this.store.get(mission.id)!;
-      if (archOn && mVal.blueprint?.status === "approved") {
-        const hasTodoArch = mVal.queue.some((w) => w.role === "architect" && w.status === "todo");
-        if (!hasTodoArch) {
-          await this.store.enqueue(mission.id, [
-            {
-              id: uid("work"),
-              title: "Architect gap review",
-              role: "architect",
-              status: "todo",
-              prompt: "Review the mission against the approved blueprint and mission memory. Emit WORK: lines only if material gaps remain."
-            }
-          ]);
-          await this.store.saveEvent(mission.id, { level: "info", source: "blueprint", message: "Enqueued architect pass after validator complete." });
-        }
-      }
-    }
-
-    if (item.role === "implementer") {
-      const refreshed = this.store.get(mission.id)!;
-      if (terminalWorkStatus === "done") {
-        await this.maybeEnqueuePlanFidelityReview(mission.id, item);
-      }
-      if (refreshed.validationState !== "passed") {
-        const hasTodoReview = refreshed.queue.some((w) => w.role === "reviewer" && w.status === "todo");
-        if (!hasTodoReview) {
-          await this.store.enqueue(mission.id, [
-            {
-              id: uid("work"),
-              title: "Review latest implementation",
-              role: "reviewer",
-              status: "todo",
-              prompt: "Review the latest implementation, identify risks, and propose follow-up work if needed."
-            }
-          ]);
-        }
-      }
-    }
-
-    if (
-      item.role === "validator" &&
-      terminalWorkStatus === "done" &&
-      !blueprintAwaitingApproval &&
-      vscode.workspace.getConfiguration().get<boolean>("myAi.missions.pauseAfterEachValidator", false)
-    ) {
-      await this.store.updateMission(mission.id, {
-        status: "awaiting_input",
-        blocker: "Validator step finished; use Autonomous Factory: Resume Mission after review.",
-        blockReasonCode: "post_validator_checkpoint"
-      });
-      await this.store.saveEvent(mission.id, {
-        level: "info",
-        source: "orchestrator",
-        message: "Paused after validator (myAi.missions.pauseAfterEachValidator)."
-      });
-      await this.store.noteProgress(mission.id);
-      return "awaiting_input";
-    }
-
-    if (result.markStatus === "blocked") {
-      this.pendingCompletionReason.delete(mission.id);
-      const wiNow = this.store.get(mission.id)!.queue.find((w) => w.id === item.id)!;
-      if (!isKnownImplementerHardStopClassValue(wiNow.hardStopClass)) {
-        await this.updateWorkItemWithHardStopInvariant(mission.id, wiNow, { hardStopClass: "unknown_hard_stop" });
-      }
-      await this.store.updateMission(mission.id, {
-        status: "blocked",
-        blocker: item.title,
-        validationState: "failed",
-        blockReasonCode: "generic_blocked"
-      });
-      return "blocked";
-    }
-
-    return "continue";
+    return this.workItemRunner.runWorkItem(mission, item);
   }
 
-  /**
-   * Handles the case where the main loop finds no eligible next work item.
-   * Returns "continue" to retry the loop iteration, or "terminal" to exit the loop.
-   */
-  private async handleEmptyQueue(
-    id: string,
-    mission: Mission,
-    gate: ImplementerHardStopGateResult
-  ): Promise<"continue" | "terminal"> {
-    if (gate.gate) {
-      const desiredStatus =
-        gate.failureClass === "approval_pending"
-          ? "awaiting_input"
-          : gate.failureClass === "timeout_or_system_abort"
-            ? undefined
-            : "blocked";
-      if (desiredStatus) {
-        const blocker =
-          mission.blocker ||
-          (desiredStatus === "awaiting_input"
-            ? "Awaiting approval"
-            : `Blocked: ${gate.reason || gate.failureClass || "required implementer blocked/failed"}`);
-        await this.store.updateMission(id, {
-          status: desiredStatus,
-          blocker,
-          blockReasonCode: missionBlockReasonFromDownstreamGate(gate.failureClass, desiredStatus, gate.reason)
-        });
-        return "terminal";
-      }
-    }
-
-    const enforced = await this.ensureClosurePolicy(mission);
-    if (enforced) return "continue";
-
-    await this.autoDemoteObsolescentQueueItems(id);
-    await this.autoDemoteSupersededTerminalItems(id);
-    let refreshed = this.store.get(id)!;
-    const stillRunning = refreshed.queue.some((w) => w.status === "running");
-    if (stillRunning) {
-      const normalized = recoverInterruptedQueueItems(refreshed.queue);
-      if (normalized.recoveredCount > 0) {
-        await this.store.updateMission(id, { queue: normalized.queue });
-        await this.store.saveEvent(id, {
-          level: "info",
-          source: "orchestrator",
-          message: `Normalized ${normalized.recoveredCount} stale running work item(s) to todo (no eligible next while queue showed running).`
-        });
-        await this.store.noteProgress(id);
-        await this.autoDemoteObsolescentQueueItems(id);
-      }
-      if (normalized.replayRiskCount > 0) {
-        await this.store.saveEvent(id, {
-          level: "warn",
-          source: "orchestrator",
-          message: `Blocked ${normalized.replayRiskCount} stale running work item(s) from automatic replay because a mutating tool may already have executed.`
-        });
-      }
-      return "continue";
-    }
-
-    refreshed = this.store.get(id)!;
-    if (
-      refreshed.blueprint?.status === "awaiting_approval" &&
-      !refreshed.queue.some((w) => w.status === "todo" || w.status === "running")
-    ) {
-      await this.store.updateMission(id, {
-        status: "awaiting_input",
-        blocker: "Approve or revise the mission blueprint.",
-        blockReasonCode: "awaiting_blueprint_approval"
-      });
-      return "terminal";
-    }
-
-    const hasBlocked = refreshed.queue.some((w) => w.status === "blocked" || w.status === "failed");
-    let terminalStatus = resolveCompletionStatus(hasBlocked, refreshed.policy.closureRequired, refreshed.validationState);
-    if (terminalStatus === "completed" && blueprintBlocksMissionCompletion(refreshed)) {
-      await this.store.enqueue(id, [
-        {
-          id: uid("work"),
-          title: "Blueprint completion gap",
-          role: "planner",
-          status: "todo",
-          prompt: `Approved blueprint is not fully satisfied. Pending steps: ${(computeBlueprintProgress(refreshed)?.pendingStepIds || []).join(", ")}. Emit WORK: lines to close gaps.`
-        }
-      ]);
-      await this.store.saveEvent(id, {
-        level: "warn",
-        source: "blueprint-contract",
-        message: "Blocked premature completion: blueprint steps remain."
-      });
-      await this.store.noteProgress(id);
-      return "continue";
-    }
-    if (terminalStatus === "completed" && hasRequiredUnresolvedWork(refreshed)) {
-      terminalStatus = "blocked";
-      this.pendingCompletionReason.delete(id);
-      await this.store.updateMission(id, {
-        status: terminalStatus,
-        blocker: "Mission cannot complete while required work items are still todo or running.",
-        blockReasonCode: "required_work_open",
-        result: refreshed.memory
-          .slice(-8)
-          .map((m) => `- ${m.text}`)
-          .join("\n")
-      });
-      this.onMissionTerminal?.(id, terminalStatus);
-      return "terminal";
-    }
-    const terminalCompletionReason =
-      terminalStatus === "completed" ? this.resolveCompletionReasonForCompleted(id, refreshed.queue) : undefined;
-    if (
-      terminalStatus === "blocked" &&
-      this.hasBlockingImplementerOutcome(refreshed) &&
-      refreshed.validationState === "passed"
-    ) {
-      await this.store.saveEvent(id, {
-        level: "warn",
-        source: "orchestrator",
-        message:
-          "Mission blocked with failed/blocked required implementer work while validationState is passed; do not treat as successfully shipped."
-      });
-    }
-    const finalBlocker =
-      terminalStatus === "completed" ? undefined : refreshed.blocker || "Closure policy not satisfied";
-    const terminalBlockReason =
-      terminalStatus === "completed"
-        ? undefined
-        : terminalStatus === "blocked" && finalBlocker === "Closure policy not satisfied"
-          ? ("closure_not_satisfied" as const)
-          : terminalStatus === "blocked" &&
-              typeof finalBlocker === "string" &&
-              /manual review required before retrying interrupted mutating work/i.test(finalBlocker)
-            ? ("manual_review_required" as const)
-          : terminalStatus === "blocked"
-            ? ("generic_blocked" as const)
-            : undefined;
-    await this.store.updateMission(id, {
-      status: terminalStatus,
-      blocker: finalBlocker,
-      blockReasonCode: terminalBlockReason,
-      result: refreshed.memory
-        .slice(-8)
-        .map((m) => `- ${m.text}`)
-        .join("\n"),
-      ...(terminalStatus === "completed" && terminalCompletionReason ? { completionReason: terminalCompletionReason } : {})
-    });
-    this.onMissionTerminal?.(id, terminalStatus);
-    return "terminal";
-  }
 
   private async ensureClosurePolicy(mission: Mission): Promise<boolean> {
     return enforceClosurePolicy(mission, this.store);
   }
 
-  /**
-   * When `myAi.missions.blueprintFidelityCheck` is on and blueprint is approved, flush file tracker,
-   * compare `filesModified` to blueprint-derived keywords, and enqueue an optional reviewer if drift.
-   */
-  private async maybeEnqueuePlanFidelityReview(missionId: string, implementerItem: WorkItem): Promise<void> {
-    try {
-      if (!vscode.workspace.getConfiguration().get<boolean>("myAi.missions.blueprintFidelityCheck", false)) {
-        return;
-      }
-      await this.fileTracker?.flush(missionId);
-      const mission = this.store.get(missionId);
-      if (!mission?.blueprint || mission.blueprint.status !== "approved") return;
-      const { drift, suspicious } = computePlanFidelityDrift(mission);
-      if (!drift || !suspicious.length) return;
-      const dupe = mission.queue.some(
-        (w) => w.title.startsWith("Plan fidelity") && (w.status === "todo" || w.status === "running")
-      );
-      if (dupe) return;
-      await this.store.enqueue(missionId, [
-        {
-          id: uid("work"),
-          title: "Plan fidelity — unexpected file paths",
-          role: "reviewer",
-          status: "todo",
-          requiredForCompletion: false,
-          dependsOn: [implementerItem.id],
-          prompt: `Blueprint drift heuristic flagged modified paths that do not match blueprint-derived keywords (allowlisted config files excluded): ${suspicious.slice(0, 24).join("; ")}. Review scope; if intentional, note why. Otherwise propose bounded follow-up or planner work.`
-        }
-      ]);
-      await this.store.saveEvent(missionId, {
-        level: "warn",
-        source: "blueprint-fidelity",
-        message: `Plan fidelity: ${suspicious.length} path(s) weakly aligned with blueprint tokens.`
-      });
-      await this.store.noteProgress(missionId);
-    } catch {
-      /* fidelity must not break the mission loop */
-    }
-  }
-
-  private async enqueueSynthesizedBlueprintWork(missionId: string): Promise<void> {
-    const m = this.store.get(missionId);
-    if (!m?.blueprint || m.blueprint.status !== "approved") return;
-    const items = synthesizeWorkItemsFromBlueprint(m.blueprint);
-    if (items.length) await this.store.enqueue(missionId, items);
-  }
-
-  private async addBlueprintMemoryMirror(missionId: string): Promise<void> {
-    const m = this.store.get(missionId);
-    if (!m?.blueprint) return;
-    const text = [
-      `Requirements: ${m.blueprint.requirementsSummary}`,
-      `Architecture: ${m.blueprint.architectureSummary}`,
-      `Steps: ${m.blueprint.steps.map((s) => `${s.id}: ${s.title}`).join("; ")}`
-    ].join("\n");
-    const saved = await this.store.addMemory(missionId, {
-      kind: "summary",
-      text: text.slice(0, 50_000),
-      tags: ["blueprint", "approved"],
-      sourceMissionId: missionId
-    });
-    await this.globalMemory.add(saved);
-  }
-
-  /**
-   * After pre-blueprint questions are shown, operator submits answers; host enqueues blueprint generation
-   * with Q&A embedded in the planner prompt.
-   */
   async submitPreBlueprintClarificationAnswers(
     missionId: string,
     answersMarkdown: string
   ): Promise<{ ok: boolean; message: string }> {
-    const m = this.store.get(missionId);
-    if (!m) return { ok: false, message: "Mission not found." };
-    if (m.blockReasonCode !== "awaiting_pre_blueprint_answers" || m.preBlueprintClarification?.status !== "awaiting_answers") {
-      return { ok: false, message: "Mission is not waiting for pre-blueprint answers." };
-    }
-    const q = m.preBlueprintClarification;
-    if (!q?.questions?.length) {
-      return { ok: false, message: "No clarification questions on mission." };
-    }
-    const trimmed = answersMarkdown.trim().slice(0, 50_000);
-    const numbered = q.questions.map((question, i) => `${i + 1}. ${question}`).join("\n");
-    const blueprintPrompt = [
-      "Generate the full mission blueprint as structured JSON (see system instructions).",
-      "",
-      "## Pre-blueprint clarification",
-      numbered,
-      "",
-      "## Operator answers",
-      trimmed || "(none provided)"
-    ].join("\n");
-
-    await this.store.updateMission(missionId, {
-      preBlueprintClarification: { ...q, answersMarkdown: trimmed || undefined, status: "complete" },
-      status: "queued",
-      blocker: undefined,
-      blockReasonCode: undefined
-    });
-    await this.store.enqueue(missionId, [
-      {
-        id: uid("work"),
-        title: "Mission blueprint (full plan)",
-        role: "planner",
-        status: "todo",
-        workItemPurpose: "blueprint_generate",
-        prompt: blueprintPrompt
-      }
-    ]);
-    await this.store.saveEvent(missionId, {
-      level: "info",
-      source: "pre_blueprint",
-      message: "Operator submitted pre-blueprint answers; blueprint generation enqueued."
-    });
-    await this.store.noteProgress(missionId);
-    void this.runMission(missionId);
-    return { ok: true, message: "Answers recorded; blueprint generation started." };
+    return this.blueprintFlow.submitPreBlueprintClarificationAnswers(missionId, answersMarkdown);
   }
 
-  /** Operator approves a parsed blueprint and starts synthesized execution. */
   async approveMissionBlueprint(missionId: string): Promise<{ ok: boolean; message: string }> {
-    const m = this.store.get(missionId);
-    if (!m) return { ok: false, message: "Mission not found." };
-    if (!m.blueprint || m.blueprint.status !== "awaiting_approval") {
-      return { ok: false, message: "No blueprint awaiting approval." };
-    }
-    const readiness = validateBlueprintReadinessForApproval(m.blueprint);
-    if (!readiness.ok) {
-      const message = `Blueprint not ready for approval:\n- ${readiness.report.errors.join("\n- ")}`;
-      await this.store.saveEvent(missionId, {
-        level: "warn",
-        source: "blueprint-readiness",
-        message
-      });
-      return { ok: false, message };
-    }
-    const bp = { ...m.blueprint, status: "approved" as const, approvedAt: Date.now() };
-    await this.store.updateMission(missionId, {
-      blueprint: bp,
-      status: "queued",
-      blocker: undefined,
-      blockReasonCode: undefined
-    });
-    await this.enqueueSynthesizedBlueprintWork(missionId);
-    await this.addBlueprintMemoryMirror(missionId);
-    await this.store.saveEvent(missionId, {
-      level: "info",
-      source: "blueprint",
-      message: "Operator approved mission blueprint; work queue synthesized."
-    });
-    void this.runMission(missionId);
-    return { ok: true, message: "Blueprint approved; mission resumed." };
+    return this.blueprintFlow.approveMissionBlueprint(missionId);
   }
 
   async rejectMissionBlueprint(missionId: string): Promise<{ ok: boolean; message: string }> {
-    const m = this.store.get(missionId);
-    if (!m) return { ok: false, message: "Mission not found." };
-    if (!m.blueprint || m.blueprint.status !== "awaiting_approval") {
-      return { ok: false, message: "No blueprint awaiting approval." };
-    }
-    await this.store.updateMission(missionId, {
-      status: "cancelled",
-      blocker: "Mission blueprint rejected by operator.",
-      blueprint: undefined
-    });
-    await this.store.saveEvent(missionId, { level: "warn", source: "blueprint", message: "Blueprint rejected; mission cancelled." });
-    return { ok: true, message: "Mission cancelled." };
+    return this.blueprintFlow.rejectMissionBlueprint(missionId);
   }
 
   async requestMissionBlueprintRevision(missionId: string, note: string): Promise<{ ok: boolean; message: string }> {
-    const m = this.store.get(missionId);
-    if (!m) return { ok: false, message: "Mission not found." };
-    const maxRev = vscode.workspace.getConfiguration().get<number>("myAi.missions.maxBlueprintRevisions", 3);
-    if ((m.blueprintRevisionCount || 0) >= maxRev) {
-      return { ok: false, message: `Revision limit reached (${maxRev}).` };
-    }
-    const readiness = m.blueprint ? validateBlueprintReadinessForApproval(m.blueprint) : undefined;
-    const prior = m.blueprint
-      ? JSON.stringify({
-          requirementsSummary: m.blueprint.requirementsSummary,
-          architectureSummary: m.blueprint.architectureSummary,
-          goalEndState: m.blueprint.goalEndState,
-          approachOptions: m.blueprint.approachOptions,
-          chosenApproach: m.blueprint.chosenApproach,
-          steps: m.blueprint.steps
-        })
-      : "";
-    const readinessText = readiness
-      ? `\n\nCurrent readiness report:\n${readinessMessageText(readiness)}`
-      : "";
-    await this.store.updateMission(missionId, {
-      blueprintRevisionCount: (m.blueprintRevisionCount || 0) + 1,
-      status: "queued",
-      blocker: undefined,
-      blockReasonCode: undefined,
-      blueprint: undefined
-    });
-    await this.store.enqueue(missionId, [
-      {
-        id: uid("work"),
-        title: "Mission blueprint (revision)",
-        role: "planner",
-        status: "todo",
-        workItemPurpose: "blueprint_revise",
-        prompt: `Revise the full mission blueprint as structured JSON. Prior plan (reference): ${prior.slice(0, 12_000)}${readinessText}\n\nOperator request: ${note}`
-      }
-    ]);
-    await this.store.saveEvent(missionId, { level: "info", source: "blueprint", message: "Blueprint revision requested." });
-    void this.runMission(missionId);
-    return { ok: true, message: "Revision pass scheduled." };
+    return this.blueprintFlow.requestMissionBlueprintRevision(missionId, note);
   }
 
-  private dependenciesMet(mission: Mission, item: WorkItem): boolean {
-    if (!item.dependsOn?.length) return true;
-    return item.dependsOn.every((dep) => dependencyEdgeSatisfied(mission.queue.find((w) => w.id === dep)?.status));
-  }
-
-  /**
-   * Required implementer work did not succeed (blocked on approval/policy/abort, or tool failure).
-   * Used for terminal honesty signaling only (warn event); we do not mutate `validationState` here because
-   * closure/resume logic still keys off `validationState === "passed"` for inject/skip decisions.
-   *
-   * Current progression policy (minimal queue — no role gating):
-   * - Approval-rejected / tool-failed / policy-blocked / operator-aborted implementer: same pass stops; later
-   *   `runMission`/`resumeMission` may still run reviewer and validator todos (no `dependsOn` on standard queue).
-   * - Timeout/system stream abort on implementer: item `failed`, mission continues in-pass (recovery path).
-   * - Terminal: `resolveCompletionStatus` keeps mission `blocked` (not `completed`) while any blocked/failed item
-   *   remains; if validator already set `validationState: "passed"`, UI must not equate that with shipped code —
-   *   see terminal warn event when implementer is still blocked/failed.
-   */
-  private hasBlockingImplementerOutcome(mission: Mission): boolean {
-    return mission.queue.some(
-      (w) =>
-        w.role === "implementer" &&
-        (w.status === "blocked" || w.status === "failed") &&
-        w.requiredForCompletion !== false
-    );
-  }
-}
-
-/**
- * Flattens work items that contain sub-items into a single queue.
- * Sub-items are placed after their parent in the queue.
- */
-function flattenSubItems(items: WorkItem[]): WorkItem[] {
-  const result: WorkItem[] = [];
-  for (const item of items) {
-    if (item.subItems?.length) {
-      result.push(...item.subItems);
-      const parent: WorkItem = { ...item, subItems: undefined, status: "done", output: `Decomposed into ${item.subItems.length} sub-items.` };
-      result.push(parent);
-    } else {
-      result.push(item);
-    }
-  }
-  return result;
-}
-
-/** Extract salient keywords from a prompt for relevant-file discovery. */
-function extractKeywords(prompt: string, max: number): string[] {
-  const stopWords = new Set(["the", "and", "for", "that", "this", "with", "from", "are", "was", "will", "have", "has", "been", "all", "each", "not", "but", "can", "should"]);
-  const words = prompt
-    .toLowerCase()
-    .replace(/[^a-z0-9_\-]/g, " ")
-    .split(/\s+/)
-    .filter((w) => w.length >= 3 && !stopWords.has(w));
-  const unique = [...new Set(words)];
-  return unique.slice(0, max);
 }

@@ -17,7 +17,7 @@
     "memory",
     "cursor"
   ],
-  "version": "2.0.7",
+  "version": "2.0.21",
   "publisher": "enigma-the",
   "repository": {
     "type": "git",
@@ -426,7 +426,7 @@
         "myAi.missions.diskStoreFolder": {
           "type": "string",
           "default": ".my-ai-extension",
-          "description": "Workspace-relative folder for mission files and approval previews."
+          "description": "Workspace-relative folder for portable mission JSON (`missions/*.json`), approval previews, tool-result spills, MCP session file, global memory file, templates, and related artifacts. Does not replace extension globalState: the mission list still lives in VS Code globalState (`myAi.missions` key); see README “Mission persistence”."
         },
         "myAi.missions.toolResultSpill.enabled": {
           "type": "boolean",
@@ -448,7 +448,7 @@
         "myAi.missions.portableJson": {
           "type": "boolean",
           "default": true,
-          "description": "Persist missions as portable JSON files under the workspace folder."
+          "description": "When true, each mission is also written under diskStoreFolder/missions/<id>.json on every change (for backup, git, multi-window merge on hydrate). When false, those writes are skipped but deleting a mission still removes an existing file to avoid stale re-import. The in-editor mission list remains in globalState either way."
         },
         "myAi.missions.autoCheckpointEveryStep": {
           "type": "boolean",
@@ -1096,7 +1096,8 @@
     "test:webview-smoke": "node --test scripts/webview-modular-smoke.mjs",
     "package": "mkdir -p .vsix && npx @vscode/vsce package --out .vsix",
     "ci": "npm run test",
-    "trace:summarize": "node scripts/summarize-trace.mjs"
+    "trace:summarize": "node scripts/summarize-trace.mjs",
+    "docs:settings-inventory": "node scripts/generate-myai-settings-inventory.cjs"
   },
   "devDependencies": {
     "@types/node": "^20.12.12",

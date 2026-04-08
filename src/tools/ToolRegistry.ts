@@ -43,6 +43,7 @@ import {
   effectiveWebSearchMinIntervalMs
 } from "../missions/webResearchBudgetPolicy";
 import { enqueueWebResearchConsolidationIfAbsent } from "../missions/webResearchConsolidationEnqueue";
+import { pendingApprovalToolResult } from "./approvalHelpers";
 
 function buildDiffHunks(beforeText: string, afterText: string) {
   const before = beforeText.split(/\r?\n/);
@@ -183,15 +184,13 @@ export class ToolRegistry {
       telemetryKind: "approval_requested",
       data: { tool: call.tool, role: attributed.item.role, workItemId: attributed.item.id }
     });
-    return {
-      ok: false,
+    return pendingApprovalToolResult({
+      kind: "terminal",
       summary: `Approval required before ${call.tool} (non-implementer mutation)`,
-      requiresApproval: {
-        kind: "terminal",
-        title,
-        details: trimText(details, 1600)
-      }
-    };
+      title,
+      details,
+      detailsMaxChars: 1600
+    });
   }
 
   private readonly builtinDispatch: Record<string, (missionId: string, call: ToolCall) => Promise<ToolResult>> = {
@@ -259,26 +258,21 @@ export class ToolRegistry {
         message: `Unattributed mutating tool call blocked pending approval: ${call.tool}`,
         data: { tool: call.tool }
       });
-      return {
-        ok: false,
+      return pendingApprovalToolResult({
+        kind: "external_tool",
         summary,
-        requiresApproval: {
-          kind: "external_tool",
-          title: "Unattributed mutating tool call (missing workItemId)",
-          details: trimText(
-            [
-              "This tool call is potentially mutating but is missing __workItemId attribution.",
-              "AFv2 requires mutating actions to be attributable to a WorkItem for scope governance and safe recovery.",
-              "",
-              `Tool: ${call.tool}`,
-              "",
-              "Args (sanitized):",
-              JSON.stringify(sanitizedArgs, null, 2)
-            ].join("\n"),
-            1600
-          )
-        }
-      };
+        title: "Unattributed mutating tool call (missing workItemId)",
+        details: [
+          "This tool call is potentially mutating but is missing __workItemId attribution.",
+          "AFv2 requires mutating actions to be attributable to a WorkItem for scope governance and safe recovery.",
+          "",
+          `Tool: ${call.tool}`,
+          "",
+          "Args (sanitized):",
+          JSON.stringify(sanitizedArgs, null, 2)
+        ].join("\n"),
+        detailsMaxChars: 1600
+      });
     }
 
     if (missionId !== "__system__" && this.isPotentiallyMutatingToolCall(call) && !this.hasWorkItemAttribution(call) && approved) {
@@ -379,15 +373,13 @@ export class ToolRegistry {
     if (!decision.allowed) return this.policyBlocked(decision.reason);
     if (decision.requiresApproval && !approved) {
       const sanitizedArgs = redactSensitiveObject(call.args || {});
-      return {
-        ok: false,
+      return pendingApprovalToolResult({
+        kind: "external_tool",
         summary: `Approval required before MCP call ${call.tool}`,
-        requiresApproval: {
-          kind: "external_tool",
-          title: `Call MCP tool ${call.tool}`,
-          details: trimText(JSON.stringify(sanitizedArgs, null, 2), 1600)
-        }
-      };
+        title: `Call MCP tool ${call.tool}`,
+        details: JSON.stringify(sanitizedArgs, null, 2),
+        detailsMaxChars: 1600
+      });
     }
     const result = await this.mcp.execute(call);
     await this.missionStore.saveEvent(missionId, {
@@ -420,15 +412,13 @@ export class ToolRegistry {
     if (decision.requiresApproval && !approved) {
       const sanitizedAdapter = redactSensitiveObject(adapter);
       const sanitizedArgs = redactSensitiveObject(call.args);
-      return {
-        ok: false,
+      return pendingApprovalToolResult({
+        kind: "external_tool",
         summary: `Approval required before external adapter ${adapterName}`,
-        requiresApproval: {
-          kind: "external_tool",
-          title: `Call external adapter ${adapterName}`,
-          details: trimText(JSON.stringify({ adapter: sanitizedAdapter, args: sanitizedArgs }, null, 2), 1600)
-        }
-      };
+        title: `Call external adapter ${adapterName}`,
+        details: JSON.stringify({ adapter: sanitizedAdapter, args: sanitizedArgs }, null, 2),
+        detailsMaxChars: 1600
+      });
     }
 
     const result = await this.externalAdapters.execute(call, missionId);
@@ -450,15 +440,13 @@ export class ToolRegistry {
       const decision = this.policyEngine().decide({ action: "run_command" });
       if (!decision.allowed) return this.policyBlocked(decision.reason);
       if (decision.requiresApproval && !approved) {
-        return {
-          ok: false,
+        return pendingApprovalToolResult({
+          kind: "terminal",
           summary: `Approval required before ${call.tool}`,
-          requiresApproval: {
-            kind: "terminal",
-            title: `Git: ${call.tool}`,
-            details: trimText(JSON.stringify(call.args, null, 2), 1200)
-          }
-        };
+          title: `Git: ${call.tool}`,
+          details: JSON.stringify(call.args, null, 2),
+          detailsMaxChars: 1200
+        });
       }
     }
 
@@ -497,24 +485,19 @@ export class ToolRegistry {
               return this.policyBlocked(drift.reason);
             }
             if (drift.kind === "needs_approval") {
-              return {
-                ok: false,
+              return pendingApprovalToolResult({
+                kind: "terminal",
                 summary: `Approval required before ${call.tool} (scope drift)`,
-                requiresApproval: {
-                  kind: "terminal",
-                  title: `Git: ${call.tool} (scope drift)`,
-                  details: trimText(
-                    [
-                      drift.reason,
-                      "",
-                      `Path: ${resolvedPath}`,
-                      "",
-                      `Scope drift details: ${JSON.stringify(drift.details, null, 2)}`
-                    ].join("\n"),
-                    1600
-                  )
-                }
-              };
+                title: `Git: ${call.tool} (scope drift)`,
+                details: [
+                  drift.reason,
+                  "",
+                  `Path: ${resolvedPath}`,
+                  "",
+                  `Scope drift details: ${JSON.stringify(drift.details, null, 2)}`
+                ].join("\n"),
+                detailsMaxChars: 1600
+              });
             }
           }
         }
@@ -558,15 +541,13 @@ export class ToolRegistry {
       const decision = this.policyEngine().decide({ action: "run_command" });
       if (!decision.allowed) return this.policyBlocked(decision.reason);
       if (decision.requiresApproval && !approved) {
-        return {
-          ok: false,
+        return pendingApprovalToolResult({
+          kind: "terminal",
           summary: `Approval required before ${call.tool}`,
-          requiresApproval: {
-            kind: "terminal",
-            title: call.tool,
-            details: trimText(JSON.stringify(call.args, null, 2), 1200)
-          }
-        };
+          title: call.tool,
+          details: JSON.stringify(call.args, null, 2),
+          detailsMaxChars: 1200
+        });
       }
     }
 
@@ -1118,15 +1099,13 @@ export class ToolRegistry {
     if (!decision.allowed) return this.policyBlocked(decision.reason);
     const skipHttpApproval = cfg.get<boolean>("myAi.webResearch.skipHttpApproval", true);
     if (decision.requiresApproval && !approved && !skipHttpApproval) {
-      return {
-        ok: false,
+      return pendingApprovalToolResult({
+        kind: "external_tool",
         summary: "Approval required before web search.",
-        requiresApproval: {
-          kind: "external_tool",
-          title: "Web search",
-          details: trimText(query, 500)
-        }
-      };
+        title: "Web search",
+        details: query,
+        detailsMaxChars: 500
+      });
     }
     const providerRaw = String(cfg.get<string>("myAi.webSearch.provider", "duckduckgo") || "duckduckgo").toLowerCase();
     const provider: WebSearchProviderId = providerRaw === "brave" ? "brave" : "duckduckgo";
@@ -1208,15 +1187,13 @@ export class ToolRegistry {
     const decision = this.policyEngine().decide({ action: "run_command" });
     if (!decision.allowed) return this.policyBlocked(decision.reason);
     if (decision.requiresApproval && !approved) {
-      return {
-        ok: false,
+      return pendingApprovalToolResult({
+        kind: "terminal",
         summary: "Approval required before browser capture command.",
-        requiresApproval: {
-          kind: "terminal",
-          title: "Browser / screenshot capture",
-          details: trimText(built.command, 2000)
-        }
-      };
+        title: "Browser / screenshot capture",
+        details: built.command,
+        detailsMaxChars: 2000
+      });
     }
 
     const timeoutMs = cfg.get<number>("myAi.browser.captureTimeoutMs", 120_000);
@@ -1327,15 +1304,13 @@ export class ToolRegistry {
     if (!decision.allowed) return this.policyBlocked(decision.reason);
     const skipHttpApprovalFetch = cfg.get<boolean>("myAi.webResearch.skipHttpApproval", true);
     if (decision.requiresApproval && !approved && !skipHttpApprovalFetch) {
-      return {
-        ok: false,
+      return pendingApprovalToolResult({
+        kind: "external_tool",
         summary: `Approval required before fetching ${url}`,
-        requiresApproval: {
-          kind: "external_tool",
-          title: "Fetch web page",
-          details: trimText(url, 800)
-        }
-      };
+        title: "Fetch web page",
+        details: url,
+        detailsMaxChars: 800
+      });
     }
     const r = await runFetchWebPage(url);
     await this.missionStore.saveEvent(missionId, {
@@ -1357,15 +1332,13 @@ export class ToolRegistry {
     const decision = this.policyEngine().decide({ action: "http_request" });
     if (!decision.allowed) return this.policyBlocked(decision.reason);
     if (decision.requiresApproval && !approved) {
-      return {
-        ok: false,
+      return pendingApprovalToolResult({
+        kind: "external_tool",
         summary: `Approval required before HTTP ${method} ${url}`,
-        requiresApproval: {
-          kind: "external_tool",
-          title: `HTTP ${method} ${url}`,
-          details: trimText(JSON.stringify({ method, url, headers, body }, null, 2), 1200)
-        }
-      };
+        title: `HTTP ${method} ${url}`,
+        details: JSON.stringify({ method, url, headers, body }, null, 2),
+        detailsMaxChars: 1200
+      });
     }
 
     const httpResult = await withRetry(async () => {
@@ -1418,15 +1391,12 @@ export class ToolRegistry {
     const decision = this.policyEngine().decide({ action: "run_terminal" });
     if (!decision.allowed) return this.policyBlocked(decision.reason);
     if (decision.requiresApproval && !approved) {
-      return {
-        ok: false,
+      return pendingApprovalToolResult({
+        kind: "terminal",
         summary: "Approval required before terminal execution.",
-        requiresApproval: {
-          kind: "terminal",
-          title: "Run terminal command",
-          details: command
-        }
-      };
+        title: "Run terminal command",
+        details: command
+      });
     }
     if (!approved && !decision.requiresApproval && call) {
       const m = this.missionStore.get(missionId);
@@ -1438,7 +1408,12 @@ export class ToolRegistry {
         approved: false
       });
       if (tg) {
-        return { ok: false, summary: tg.summary, requiresApproval: { kind: "terminal", title: tg.title, details: tg.details } };
+        return pendingApprovalToolResult({
+          kind: "terminal",
+          summary: tg.summary,
+          title: tg.title,
+          details: tg.details
+        });
       }
     }
     const terminal = vscode.window.createTerminal({ name: `Autonomous Factory ${uid("term")}` });
@@ -1472,15 +1447,12 @@ export class ToolRegistry {
     const decision = this.policyEngine().decide({ action: "run_command" });
     if (!decision.allowed) return this.policyBlocked(decision.reason);
     if (decision.requiresApproval && !approved) {
-      return {
-        ok: false,
+      return pendingApprovalToolResult({
+        kind: "terminal",
         summary: "Approval required before command execution.",
-        requiresApproval: {
-          kind: "terminal",
-          title: "Run command with output capture",
-          details: cwd ? `[cwd: ${cwd}] ${command}` : command
-        }
-      };
+        title: "Run command with output capture",
+        details: cwd ? `[cwd: ${cwd}] ${command}` : command
+      });
     }
     if (!approved && !decision.requiresApproval && call) {
       const m = this.missionStore.get(missionId);
@@ -1492,7 +1464,12 @@ export class ToolRegistry {
         approved: false
       });
       if (tg) {
-        return { ok: false, summary: tg.summary, requiresApproval: { kind: "terminal", title: tg.title, details: tg.details } };
+        return pendingApprovalToolResult({
+          kind: "terminal",
+          summary: tg.summary,
+          title: tg.title,
+          details: tg.details
+        });
       }
     }
 

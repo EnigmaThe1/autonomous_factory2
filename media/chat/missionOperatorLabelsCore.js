@@ -190,7 +190,12 @@ export function getMissionResumeUiState(m) {
   }
 
   if (status === "failed") {
-    return { enabled: false, label: "Failed", title: "This mission has failed terminally and cannot be resumed from the sidebar." };
+    return {
+      enabled: true,
+      label: "Resume",
+      title:
+        "Mission status is failed. Resume runs a salvage pass: failure metadata is cleared and the mission is re-queued. Review Timeline, queue, and Trace before relying on automatic execution."
+    };
   }
 
   if (status === "completed") {

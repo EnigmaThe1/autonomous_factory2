@@ -389,10 +389,23 @@ test("resumeMission completion observability: promise resolves with run loop ina
 
 test("resumeMission idempotence: double resume on completed is safe; double on max-steps queue preserves fingerprint", async () => {
   const agent = roleScript({
-    planner: [{ summary: "Plan.", nextWorkItems: buildStandardNextQueue() }],
-    implementer: [{ summary: "I", toolCalls: [] }],
-    reviewer: [{ summary: "R", toolCalls: [] }],
-    validator: [{ summary: "COMPLETE:", decision: "complete", toolCalls: [] }]
+    // Two missions in this test each need their own planner turn (shared script index is not reset per mission).
+    planner: [
+      { summary: "Plan.", nextWorkItems: buildStandardNextQueue() },
+      { summary: "Plan.", nextWorkItems: buildStandardNextQueue() }
+    ],
+    implementer: [
+      { summary: "I", toolCalls: [] },
+      { summary: "I", toolCalls: [] }
+    ],
+    reviewer: [
+      { summary: "R", toolCalls: [] },
+      { summary: "R", toolCalls: [] }
+    ],
+    validator: [
+      { summary: "COMPLETE:", decision: "complete", toolCalls: [] },
+      { summary: "COMPLETE:", decision: "complete", toolCalls: [] }
+    ]
   });
   const { orchestrator, store } = await createOrchestrator(agent, noop);
   const m = await store.create("Idem", "p", "ollama", undefined, balancedIntegrationPolicy);

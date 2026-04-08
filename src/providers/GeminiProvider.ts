@@ -7,6 +7,7 @@ import { parseGeminiSseLines } from "./streamParsers";
 import { resolveModelForProvider } from "./providerModelResolution";
 import { renderChatContext } from "./providerContextRender";
 import { readStreamChunks } from "./providerStreamReader";
+import { formatProviderHttpError } from "./providerHttpErrors";
 
 export class GeminiProvider implements IModelProvider {
   readonly id = "gemini";
@@ -45,7 +46,16 @@ export class GeminiProvider implements IModelProvider {
       { timeoutMs, retries, retryDelayMs, abortSignal: req.signal }
     );
 
-    if (!res.ok || !res.body) throw new Error(`Gemini request failed: ${res.status} (${root})`);
+    if (!res.ok)
+      throw new Error(
+        formatProviderHttpError({
+          providerLabel: "Gemini",
+          operation: "Chat stream",
+          status: res.status,
+          endpoint: root
+        })
+      );
+    if (!res.body) throw new Error(`Gemini chat stream missing response body (${root})`);
 
     yield* readStreamChunks(res.body, req.signal, parseGeminiSseLines);
   }

@@ -88,7 +88,7 @@ test("operator UI: operator-abort blocked mission remains safely resumable", () 
   assert.match(resumeUi.title, /Safe to resume/i);
 });
 
-test("operator UI: failed mission is terminal and not presented as resumable or blocked", () => {
+test("operator UI: failed mission offers salvage Resume (aligned with orchestrator resumeMission)", () => {
   const mission = {
     status: "failed",
     blocker: "uncaught error",
@@ -99,7 +99,7 @@ test("operator UI: failed mission is terminal and not presented as resumable or 
   };
   assert.equal(formatMissionStatusBadgeLabel(mission), "Failed");
   const resumeUi = getMissionResumeUiState(mission);
-  assert.equal(resumeUi.enabled, false);
-  assert.equal(resumeUi.label, "Failed");
-  assert.match(resumeUi.title, /failed terminally/i);
+  assert.equal(resumeUi.enabled, true);
+  assert.equal(resumeUi.label, "Resume");
+  assert.match(resumeUi.title, /salvage pass/i);
 });

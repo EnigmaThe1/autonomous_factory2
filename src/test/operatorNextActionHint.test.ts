@@ -28,3 +28,10 @@ test("operatorNextActionHint: stall limit", () => {
   const m = { status: "blocked", blockReasonCode: "stall_recovery_limit", approvals: [] } as unknown as Mission;
   assert.ok(operatorNextActionHint(m)?.includes("Stall recovery"));
 });
+
+test("operatorNextActionHint: failed salvage resume", () => {
+  const m = { status: "failed", approvals: [], events: [], queue: [] } as unknown as Mission;
+  const h = operatorNextActionHint(m);
+  assert.ok(h?.includes("salvage"));
+  assert.ok(h?.includes("Timeline"));
+});

@@ -39,7 +39,7 @@ const BLOCKED_OPERATOR_ABORT =
  *
  * **Precedence** (first match wins; all branches are mutually exclusive on `mission.status` except
  * blocked, which inspects downstream-gating classification):
- * 1. Terminal: `completed` (optional `completionReason` clause), `cancelled`, `failed`
+ * 1. Terminal: `completed` (optional `completionReason` clause), `cancelled`, `failed` (see `getMissionResumeUiState` in `media/chat/missionOperatorLabelsCore.js` for Resume button when failed)
  * 2. `awaiting_input`: pending approval vs other input
  * 3. `running`: active queue role, else generic in-progress
  * 4. `blocked`: implementer hard-stop downstream gate (including malformed hardStopClass) vs generic
@@ -58,7 +58,12 @@ export function focusedMissionLifecycleSummary(mission: Mission): string {
 
   if (status === "cancelled") return "Cancelled.";
 
-  if (status === "failed") return "Failed; operator attention required.";
+  if (status === "failed") {
+    if (mission.failureReasonCode === "orchestrator_uncaught_error") {
+      return "Failed after an internal automation error; check Timeline and Trace. You can try Resume for a salvage pass once the cause is understood.";
+    }
+    return "Failed; operator attention required.";
+  }
 
   if (status === "awaiting_input") {
     const pend = (mission.approvals || []).filter((a) => a.status === "pending").length;
