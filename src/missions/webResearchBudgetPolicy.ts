@@ -1,12 +1,14 @@
 import * as vscode from "vscode";
-import type { Mission } from "../types";
+import { resolveProviderIdForWorkItem } from "./missionRouting";
+import type { Mission, WorkItem } from "../types";
 
 /**
  * Provider ids (e.g. `ollama`) that mean “LLM runs on this machine — no token bill from us.”
  * Used to relax **extension-side** web research throttles (call caps, search cooldown), not your electricity bill.
  *
- * Note: we key off `mission.activeProviderId` (the provider you chose when starting the mission).
- * If you ever split providers by role in routing, only this default is considered here.
+ * Resolution order for “which provider is this step using?”:
+ * `workItem.providerId` → `mission.routing.providerPerRole[workItem.role]` → `mission.activeProviderId`.
+ * So mixed routing (e.g. planner=anthropic, implementer=ollama) is respected when the tool call is attributed (`__workItemId`).
  */
 export function parseLocalLlmProviderIds(cfg: vscode.WorkspaceConfiguration): Set<string> {
   const raw = String(cfg.get<string>("myAi.webResearch.localLlmProviderIds", "ollama") || "ollama");
@@ -17,11 +19,15 @@ export function parseLocalLlmProviderIds(cfg: vscode.WorkspaceConfiguration): Se
   return new Set(parts.length ? parts : ["ollama"]);
 }
 
-/** True when the mission’s primary provider is treated as a local LLM and economy relaxations apply. */
-export function missionUsesLocalLlmEconomy(mission: Mission | undefined, cfg: vscode.WorkspaceConfiguration): boolean {
+/** True when the resolved provider for this work item (or mission default) is treated as local LLM economy. */
+export function missionUsesLocalLlmEconomy(
+  mission: Mission | undefined,
+  cfg: vscode.WorkspaceConfiguration,
+  workItem?: WorkItem
+): boolean {
   if (!mission) return false;
   if (!cfg.get<boolean>("myAi.webResearch.unlimitedBudgetForLocalLlm", true)) return false;
-  const pid = (mission.activeProviderId || "").toLowerCase().trim();
+  const pid = resolveProviderIdForWorkItem(mission, workItem);
   if (!pid) return false;
   return parseLocalLlmProviderIds(cfg).has(pid);
 }
@@ -29,9 +35,10 @@ export function missionUsesLocalLlmEconomy(mission: Mission | undefined, cfg: vs
 /** @deprecated Use {@link missionUsesLocalLlmEconomy} — same behavior, clearer name. */
 export function missionUsesLocalLlmForWebBudget(
   mission: Mission | undefined,
-  cfg: vscode.WorkspaceConfiguration
+  cfg: vscode.WorkspaceConfiguration,
+  workItem?: WorkItem
 ): boolean {
-  return missionUsesLocalLlmEconomy(mission, cfg);
+  return missionUsesLocalLlmEconomy(mission, cfg, workItem);
 }
 
 /**
@@ -39,22 +46,24 @@ export function missionUsesLocalLlmForWebBudget(
  */
 export function effectiveWebResearchMaxCallsPerMission(
   mission: Mission | undefined,
-  cfg: vscode.WorkspaceConfiguration
+  cfg: vscode.WorkspaceConfiguration,
+  workItem?: WorkItem
 ): number {
   const configured = Math.max(0, cfg.get<number>("myAi.webResearch.maxCallsPerMission", 0));
   if (configured === 0) return 0;
-  if (missionUsesLocalLlmEconomy(mission, cfg)) return 0;
+  if (missionUsesLocalLlmEconomy(mission, cfg, workItem)) return 0;
   return configured;
 }
 
 /**
- * `myAi.webSearch.minIntervalMs` is for fair use / shared APIs. Local-LLM missions skip it when economy relaxations apply.
+ * `myAi.webSearch.minIntervalMs` is for fair use / shared APIs. Local-LLM economy for this work item skips it.
  */
 export function effectiveWebSearchMinIntervalMs(
   mission: Mission | undefined,
-  cfg: vscode.WorkspaceConfiguration
+  cfg: vscode.WorkspaceConfiguration,
+  workItem?: WorkItem
 ): number {
   const raw = Math.max(0, cfg.get<number>("myAi.webSearch.minIntervalMs", 0));
-  if (missionUsesLocalLlmEconomy(mission, cfg)) return 0;
+  if (missionUsesLocalLlmEconomy(mission, cfg, workItem)) return 0;
   return raw;
 }

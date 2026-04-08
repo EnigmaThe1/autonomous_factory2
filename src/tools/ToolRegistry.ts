@@ -991,7 +991,8 @@ export class ToolRegistry {
     }
 
     const mission = this.missionStore.get(missionId);
-    const maxCalls = effectiveWebResearchMaxCallsPerMission(mission, cfg);
+    const economyItem = call ? this.getAttributedWorkItem(missionId, call)?.item : undefined;
+    const maxCalls = effectiveWebResearchMaxCallsPerMission(mission, cfg, economyItem);
     const currentCalls = mission?.runtime?.webResearchCalls ?? 0;
     if (maxCalls > 0 && currentCalls >= maxCalls) {
       await enqueueWebResearchConsolidationIfAbsent(this.missionStore, missionId, {
@@ -1000,7 +1001,7 @@ export class ToolRegistry {
         triggerTool: "webSearch",
         detail: `query=${trimText(query, 400)}`
       });
-      const msg = `Web research limit reached (${currentCalls}/${maxCalls} webSearch/fetchWebPage calls). A researcher work item was queued to consolidate evidence from mission memory; reuse cache or raise myAi.webResearch.maxCallsPerMission if needed. Local LLM missions skip this cap when myAi.webResearch.unlimitedBudgetForLocalLlm is true.`;
+      const msg = `Web research limit reached (${currentCalls}/${maxCalls} webSearch/fetchWebPage calls). A researcher work item was queued to consolidate evidence from mission memory; reuse cache or raise myAi.webResearch.maxCallsPerMission if needed. Caps follow the provider for this work item (routing per role when set); local providers skip the cap when unlimitedBudgetForLocalLlm is true.`;
       await this.missionStore.saveEvent(missionId, { level: "warn", source: "tool:webSearch", message: msg });
       return { ok: false, summary: msg };
     }
@@ -1062,7 +1063,7 @@ export class ToolRegistry {
         };
       }
     }
-    const minIntervalMs = effectiveWebSearchMinIntervalMs(mission, cfg);
+    const minIntervalMs = effectiveWebSearchMinIntervalMs(mission, cfg, economyItem);
     if (minIntervalMs > 0) {
       const now = Date.now();
       const elapsed = now - this.webSearchLastAtMs;
@@ -1199,7 +1200,8 @@ export class ToolRegistry {
     }
 
     const mission = this.missionStore.get(missionId);
-    const maxCalls = effectiveWebResearchMaxCallsPerMission(mission, cfg);
+    const economyItemFetch = call ? this.getAttributedWorkItem(missionId, call)?.item : undefined;
+    const maxCalls = effectiveWebResearchMaxCallsPerMission(mission, cfg, economyItemFetch);
     const currentCalls = mission?.runtime?.webResearchCalls ?? 0;
     if (maxCalls > 0 && currentCalls >= maxCalls) {
       await enqueueWebResearchConsolidationIfAbsent(this.missionStore, missionId, {
@@ -1208,7 +1210,7 @@ export class ToolRegistry {
         triggerTool: "fetchWebPage",
         detail: `url=${trimText(url, 600)}`
       });
-      const msg = `Web research limit reached (${currentCalls}/${maxCalls} webSearch/fetchWebPage calls). A researcher work item was queued to consolidate evidence from mission memory; reuse cache or raise myAi.webResearch.maxCallsPerMission if needed. Local LLM missions skip this cap when myAi.webResearch.unlimitedBudgetForLocalLlm is true.`;
+      const msg = `Web research limit reached (${currentCalls}/${maxCalls} webSearch/fetchWebPage calls). A researcher work item was queued to consolidate evidence from mission memory; reuse cache or raise myAi.webResearch.maxCallsPerMission if needed. Caps follow the provider for this work item (routing per role when set); local providers skip the cap when unlimitedBudgetForLocalLlm is true.`;
       await this.missionStore.saveEvent(missionId, { level: "warn", source: "tool:fetchWebPage", message: msg });
       return { ok: false, summary: msg };
     }

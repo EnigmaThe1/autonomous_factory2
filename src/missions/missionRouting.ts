@@ -1,5 +1,5 @@
 import * as vscode from "vscode";
-import { AgentRole, MissionAgentRouting } from "../types";
+import { AgentRole, MissionAgentRouting, type Mission, type WorkItem } from "../types";
 
 export const ROUTING_ROLE_ORDER: AgentRole[] = [
   "planner",
@@ -73,6 +73,21 @@ export function canonicalizeStoredRouting(r: MissionAgentRouting | undefined | n
     providerPerRole: { ...(r.providerPerRole || {}) },
     modelPerRole: { ...(r.modelPerRole || {}) }
   };
+}
+
+/**
+ * Provider id used to run a specific work item: work-item override, then `routing.providerPerRole[role]`,
+ * then mission `activeProviderId`. Used for per-role cloud vs local (e.g. planner=anthropic, implementer=ollama).
+ */
+export function resolveProviderIdForWorkItem(mission: Mission, item: WorkItem | undefined): string {
+  const fromItem = item?.providerId?.trim();
+  if (fromItem) return fromItem.toLowerCase();
+  const role = item?.role;
+  if (role) {
+    const fromRoute = mission.routing?.providerPerRole?.[role]?.trim();
+    if (fromRoute) return fromRoute.toLowerCase();
+  }
+  return (mission.activeProviderId || "").trim().toLowerCase();
 }
 
 /** For webview: serializable preset → default maps (defaults only; no workspace). */

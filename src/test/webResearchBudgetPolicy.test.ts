@@ -6,7 +6,7 @@ import {
   effectiveWebSearchMinIntervalMs,
   missionUsesLocalLlmEconomy
 } from "../missions/webResearchBudgetPolicy";
-import type { Mission } from "../types";
+import type { Mission, WorkItem } from "../types";
 import type { VscodeTestApi } from "./missionOrchestratorTestHarness";
 
 const baseMission = (provider: string): Mission =>
@@ -81,4 +81,48 @@ test("effectiveWebResearchMaxCallsPerMission: ollama respects cap when unlimited
   const cfg = vscode.workspace.getConfiguration();
   const m = baseMission("ollama");
   assert.equal(effectiveWebResearchMaxCallsPerMission(m, cfg), 3);
+});
+
+test("per-role routing: researcher on ollama gets unlimited web cap when mission default is openai", () => {
+  (vscode as VscodeTestApi).__setTestConfig?.("myAi.webResearch.maxCallsPerMission", 5);
+  (vscode as VscodeTestApi).__setTestConfig?.("myAi.webResearch.unlimitedBudgetForLocalLlm", true);
+  const cfg = vscode.workspace.getConfiguration();
+  const m = baseMission("openai");
+  m.routing = {
+    preset: "custom",
+    providerPerRole: { researcher: "ollama", planner: "openai" },
+    modelPerRole: {}
+  };
+  assert.equal(effectiveWebResearchMaxCallsPerMission(m, cfg), 5);
+  const researcher: WorkItem = {
+    id: "w1",
+    title: "Research",
+    role: "researcher",
+    status: "todo",
+    prompt: "p"
+  };
+  assert.equal(effectiveWebResearchMaxCallsPerMission(m, cfg, researcher), 0);
+  assert.equal(missionUsesLocalLlmEconomy(m, cfg, researcher), true);
+});
+
+test("per-role routing: researcher on openai pays cap when mission default is ollama", () => {
+  (vscode as VscodeTestApi).__setTestConfig?.("myAi.webResearch.maxCallsPerMission", 4);
+  (vscode as VscodeTestApi).__setTestConfig?.("myAi.webResearch.unlimitedBudgetForLocalLlm", true);
+  const cfg = vscode.workspace.getConfiguration();
+  const m = baseMission("ollama");
+  m.routing = {
+    preset: "custom",
+    providerPerRole: { researcher: "openai" },
+    modelPerRole: {}
+  };
+  assert.equal(effectiveWebResearchMaxCallsPerMission(m, cfg), 0);
+  const researcher: WorkItem = {
+    id: "w2",
+    title: "Research",
+    role: "researcher",
+    status: "todo",
+    prompt: "p"
+  };
+  assert.equal(effectiveWebResearchMaxCallsPerMission(m, cfg, researcher), 4);
+  assert.equal(missionUsesLocalLlmEconomy(m, cfg, researcher), false);
 });

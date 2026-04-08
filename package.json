@@ -495,7 +495,7 @@
         "myAi.webResearch.unlimitedBudgetForLocalLlm": {
           "type": "boolean",
           "default": true,
-          "description": "When true and the mission’s active provider is local (see localLlmProviderIds), the extension does not apply paid-API-style web limits: per-mission webSearch/fetchWebPage call caps are off and webSearch minIntervalMs cooldown is skipped. Planning/code paths are unchanged; this only relaxes web-research throttles we control."
+          "description": "When true and the provider for the current work item resolves to local (workItem.providerId, else routing.providerPerRole[role], else mission active provider; see localLlmProviderIds), the extension skips paid-API-style web limits: webSearch/fetchWebPage call caps and webSearch minIntervalMs. Use mixed routing (e.g. planner cloud + implementer local) and attributed tool calls (__workItemId) so each role is judged correctly."
         },
         "myAi.webResearch.localLlmProviderIds": {
           "type": "string",

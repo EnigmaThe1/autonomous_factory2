@@ -1,6 +1,13 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { canonicalizeStoredRouting, parseRoleMapString, presetRoutingFragment, routingPresetTemplatesForUi } from "../missions/missionRouting";
+import {
+  canonicalizeStoredRouting,
+  parseRoleMapString,
+  presetRoutingFragment,
+  resolveProviderIdForWorkItem,
+  routingPresetTemplatesForUi
+} from "../missions/missionRouting";
+import type { Mission, WorkItem } from "../types";
 
 test("presetRoutingFragment research_heavy sets mixed providers", () => {
   const r = presetRoutingFragment("research_heavy");
@@ -38,4 +45,34 @@ test("routingPresetTemplatesForUi includes all presets", () => {
   assert.ok(u.research_heavy.providerPerRole.implementer);
   assert.ok(u.default);
   assert.ok(u.custom);
+});
+
+test("resolveProviderIdForWorkItem: work item override wins", () => {
+  const mission = {
+    activeProviderId: "openai",
+    routing: { preset: "custom" as const, providerPerRole: { implementer: "ollama" }, modelPerRole: {} }
+  } as Mission;
+  const item = {
+    id: "i",
+    title: "t",
+    role: "implementer" as const,
+    status: "todo" as const,
+    prompt: "p",
+    providerId: "anthropic"
+  } as WorkItem;
+  assert.equal(resolveProviderIdForWorkItem(mission, item), "anthropic");
+});
+
+test("resolveProviderIdForWorkItem: routing per role then activeProviderId", () => {
+  const mission = {
+    activeProviderId: "gemini",
+    routing: {
+      preset: "custom" as const,
+      providerPerRole: { planner: "openai", implementer: "ollama" },
+      modelPerRole: {}
+    }
+  } as Mission;
+  const impl = { id: "i", title: "t", role: "implementer" as const, status: "todo" as const, prompt: "p" } as WorkItem;
+  assert.equal(resolveProviderIdForWorkItem(mission, impl), "ollama");
+  assert.equal(resolveProviderIdForWorkItem(mission, undefined), "gemini");
 });
