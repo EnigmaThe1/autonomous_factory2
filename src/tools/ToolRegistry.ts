@@ -162,13 +162,69 @@ export class ToolRegistry {
     )
   };
 
+  private hasWorkItemAttribution(call: ToolCall): boolean {
+    const id = (call.args as Record<string, unknown> | undefined)?.__workItemId;
+    return typeof id === "string" && id.trim().length > 0;
+  }
+
+  private isPotentiallyMutatingToolCall(call: ToolCall): boolean {
+    const t = call.tool;
+    if (t.startsWith("mcp.")) return true;
+    if (t.startsWith("ext.")) return true;
+    if (t.startsWith("git.")) return ToolRegistry.GIT_MUTATING.has(t);
+    if (t.startsWith("docker.") || t.startsWith("db.")) return ToolRegistry.INFRA_MUTATING.has(t);
+    // Builtins
+    return new Set(["writeFile", "applyPatch", "runTerminal", "runCommand"]).has(t);
+  }
+
   async execute(missionId: string, call: ToolCall): Promise<ToolResult> {
     this.invalidatePolicyCache();
 
-    if (call.tool.startsWith("mcp.")) return this.executeMcp(missionId, call, Boolean(call.args.__approved));
-    if (call.tool.startsWith("ext.")) return this.executeExternal(missionId, call, Boolean(call.args.__approved));
-    if (call.tool.startsWith("git.")) return this.executeGit(missionId, call, Boolean(call.args.__approved));
-    if (call.tool.startsWith("docker.") || call.tool.startsWith("db.")) return this.executeInfra(missionId, call, Boolean(call.args.__approved));
+    const approved = Boolean(call.args?.__approved);
+    if (missionId !== "__system__" && this.isPotentiallyMutatingToolCall(call) && !this.hasWorkItemAttribution(call) && !approved) {
+      const sanitizedArgs = redactSensitiveObject(call.args || {});
+      const summary = `Approval required: unattributed mutating tool call (${call.tool})`;
+      await this.missionStore.saveEvent(missionId, {
+        level: "warn",
+        source: "tool:attribution",
+        message: `Unattributed mutating tool call blocked pending approval: ${call.tool}`,
+        data: { tool: call.tool }
+      });
+      return {
+        ok: false,
+        summary,
+        requiresApproval: {
+          kind: "external_tool",
+          title: "Unattributed mutating tool call (missing workItemId)",
+          details: trimText(
+            [
+              "This tool call is potentially mutating but is missing __workItemId attribution.",
+              "AFv2 requires mutating actions to be attributable to a WorkItem for scope governance and safe recovery.",
+              "",
+              `Tool: ${call.tool}`,
+              "",
+              "Args (sanitized):",
+              JSON.stringify(sanitizedArgs, null, 2)
+            ].join("\n"),
+            1600
+          )
+        }
+      };
+    }
+
+    if (missionId !== "__system__" && this.isPotentiallyMutatingToolCall(call) && !this.hasWorkItemAttribution(call) && approved) {
+      await this.missionStore.saveEvent(missionId, {
+        level: "warn",
+        source: "tool:attribution",
+        message: `Approved mutating tool call executed without __workItemId attribution: ${call.tool}`,
+        data: { tool: call.tool }
+      });
+    }
+
+    if (call.tool.startsWith("mcp.")) return this.executeMcp(missionId, call, approved);
+    if (call.tool.startsWith("ext.")) return this.executeExternal(missionId, call, approved);
+    if (call.tool.startsWith("git.")) return this.executeGit(missionId, call, approved);
+    if (call.tool.startsWith("docker.") || call.tool.startsWith("db.")) return this.executeInfra(missionId, call, approved);
 
     const handler = this.builtinDispatch[call.tool];
     if (handler) return handler(missionId, call);

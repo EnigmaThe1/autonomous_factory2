@@ -24,6 +24,7 @@ afterEach(() => {
 test("resolveApproval: approved tool runs once; duplicate resolve is ignored", async () => {
   let approvedExecutions = 0;
   const tool = async (_mid: string, call: ToolCall): Promise<ToolResult> => {
+    assert.ok(call.args.__workItemId, "tool calls must be attributed with __workItemId");
     if (call.args.__approved) {
       approvedExecutions += 1;
       return { ok: true, summary: "ok" };
@@ -63,6 +64,7 @@ test("resolveApproval: approved tool runs once; duplicate resolve is ignored", a
 
 test("resolveApproval: promise settles before mission reaches terminal (continuation async)", async () => {
   const tool = async (_mid: string, call: ToolCall): Promise<ToolResult> => {
+    assert.ok(call.args.__workItemId, "tool calls must be attributed with __workItemId");
     if (call.args.__approved) return { ok: true, summary: "ok" };
     return {
       ok: false,

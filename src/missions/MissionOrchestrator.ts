@@ -568,7 +568,14 @@ export class MissionOrchestrator {
     });
 
     if (approved) {
-      const approvedCall: ToolCall = { ...approval.toolCall, args: { ...approval.toolCall.args, __approved: true } };
+      const approvedCall: ToolCall = {
+        ...approval.toolCall,
+        args: {
+          ...approval.toolCall.args,
+          __approved: true,
+          ...(approval.workItemId && !approval.toolCall.args?.__workItemId ? { __workItemId: approval.workItemId } : {})
+        }
+      };
       if (approval.workItemId) {
         const m = this.store.get(missionId);
         const wi = m?.queue.find((w) => w.id === approval.workItemId);
@@ -792,17 +799,26 @@ export class MissionOrchestrator {
     const successfulToolSteps: Array<{ tool: string; applyPatchNoop?: boolean }> = [];
     const toolResultSummaries: string[] = [];
     for (const call of result.toolCalls) {
+      const callWithMeta: ToolCall = {
+        ...call,
+        args: {
+          ...(call.args || {}),
+          __workItemId: item.id,
+          __workItemRole: item.role,
+          ...(item.blueprintStepId ? { __blueprintStepId: item.blueprintStepId } : {})
+        }
+      };
       if (mission.dryRun && MUTATING_TOOLS.has(call.tool)) {
         toolResultSummaries.push(`[DRY-RUN] Skipped mutating tool: ${call.tool} ${JSON.stringify(call.args).slice(0, 200)}`);
         await this.store.saveEvent(mission.id, { level: "info", source: "orchestrator", message: `[DRY-RUN] Would execute: ${call.tool}` });
         continue;
       }
-      await this.markMutatingToolExecutionStarted(mission.id, item, call);
-      const toolResult = await this.tools.execute(mission.id, call);
+      await this.markMutatingToolExecutionStarted(mission.id, item, callWithMeta);
+      const toolResult = await this.tools.execute(mission.id, callWithMeta);
 
       if (!toolResult.ok && toolResult.blockedByPolicy) {
         this.pendingCompletionReason.delete(mission.id);
-        const blocker = `${call.tool}: ${toolResult.summary}`;
+        const blocker = `${callWithMeta.tool}: ${toolResult.summary}`;
         await this.updateWorkItemWithHardStopInvariant(mission.id, item, {
           status: "blocked",
           activeMutatingToolCall: undefined,
@@ -826,11 +842,11 @@ export class MissionOrchestrator {
       if (!toolResult.ok && !toolResult.requiresApproval) {
         const latestMission = this.store.get(mission.id)!;
         if (
-          staleImplementerToolFailureRecoveryDecision(item.role, latestMission, call, toolResult.summary) ===
+          staleImplementerToolFailureRecoveryDecision(item.role, latestMission, callWithMeta, toolResult.summary) ===
           "recover_to_satisfied"
         ) {
           this.pendingCompletionReason.set(mission.id, "stale_patch_but_goal_already_met");
-          const blocker = `${call.tool}: ${toolResult.summary}`;
+          const blocker = `${callWithMeta.tool}: ${toolResult.summary}`;
           await this.store.saveEvent(mission.id, {
             level: "info",
             source: "orchestrator",
@@ -838,15 +854,15 @@ export class MissionOrchestrator {
           });
           const saved = await this.store.addMemory(mission.id, {
             kind: "tool_result",
-            text: `${call.tool}: ${toolResult.summary} [stale_patch_but_goal_already_met: validation already passed, patch skipped]`,
-            tags: [call.tool, "stale_patch_recovery"],
+            text: `${callWithMeta.tool}: ${toolResult.summary} [stale_patch_but_goal_already_met: validation already passed, patch skipped]`,
+            tags: [callWithMeta.tool, "stale_patch_recovery"],
             sourceMissionId: mission.id
           });
           await this.globalMemory.add(saved);
           continue;
         }
         this.pendingCompletionReason.delete(mission.id);
-        const blocker = `${call.tool}: ${toolResult.summary}`;
+        const blocker = `${callWithMeta.tool}: ${toolResult.summary}`;
         await this.updateWorkItemWithHardStopInvariant(mission.id, item, {
           status: "failed",
           hardStopClass: "tool_failure",
@@ -868,7 +884,7 @@ export class MissionOrchestrator {
 
       if (toolResult.requiresApproval) {
         this.pendingCompletionReason.delete(mission.id);
-        const req = this.approvals.create(mission.id, call, toolResult.requiresApproval, item.id);
+        const req = this.approvals.create(mission.id, callWithMeta, toolResult.requiresApproval, item.id);
         await this.store.addApproval(mission.id, req);
         await this.store.updateMission(mission.id, {
           status: "awaiting_input",
@@ -891,12 +907,12 @@ export class MissionOrchestrator {
         return { earlyReturn: "awaiting_input" };
       }
 
-      successfulToolSteps.push({ tool: call.tool, applyPatchNoop: toolResult.applyPatchNoop });
-      toolResultSummaries.push(`[${call.tool}] ${toolResult.summary}`);
+      successfulToolSteps.push({ tool: callWithMeta.tool, applyPatchNoop: toolResult.applyPatchNoop });
+      toolResultSummaries.push(`[${callWithMeta.tool}] ${toolResult.summary}`);
       const isApplyPatchNoop = toolResult.applyPatchNoop === true;
-      const tags = isApplyPatchNoop ? [call.tool, "apply_patch_noop"] : [call.tool];
+      const tags = isApplyPatchNoop ? [callWithMeta.tool, "apply_patch_noop"] : [callWithMeta.tool];
       const prefix = isApplyPatchNoop ? "[apply_patch_noop] " : "";
-      await this.recordToolResultMemoryAndEvent(mission.id, call, toolResult, tags, prefix);
+      await this.recordToolResultMemoryAndEvent(mission.id, callWithMeta, toolResult, tags, prefix);
     }
 
     const derivedCompletionKind = workCompletionKindFromSuccessfulToolSteps(successfulToolSteps) || undefined;
