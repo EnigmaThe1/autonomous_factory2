@@ -798,6 +798,16 @@
           "default": false,
           "description": "When true, after each successful implementer step on an approved blueprint mission, flush file tracker and enqueue an optional reviewer if modified paths do not match blueprint-derived keywords (heuristic; allowlists common config files)."
         },
+        "myAi.missions.verification.autoRunLinterAfterMutations": {
+          "type": "boolean",
+          "default": true,
+          "description": "When true, balanced/strict mission policy automatically runs the linter after implementer mutations (Verifier Mesh obligation)."
+        },
+        "myAi.missions.verification.autoRunTestsAfterMutations": {
+          "type": "boolean",
+          "default": true,
+          "description": "When true, balanced/strict mission policy automatically runs tests after implementer mutations (Verifier Mesh obligation)."
+        },
         "myAi.missions.pauseAfterEachValidator": {
           "type": "boolean",
           "default": false,

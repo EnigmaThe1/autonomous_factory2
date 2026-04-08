@@ -792,12 +792,14 @@ export class MissionOrchestrator {
     earlyReturn?: "awaiting_input" | "blocked";
     derivedCompletionKind?: WorkItem["completionKind"];
     toolResultSummaries?: string[];
+    hadMutatingSideEffect?: boolean;
   }> {
     if (!result.toolCalls?.length) return {};
 
     const MUTATING_TOOLS = new Set(["writeFile", "applyPatch", "runTerminal", "runCommand", "git.commit", "git.checkout_file", "git.stash_push", "git.stash_pop", "docker.exec", "db.query"]);
     const successfulToolSteps: Array<{ tool: string; applyPatchNoop?: boolean }> = [];
     const toolResultSummaries: string[] = [];
+    let hadMutatingSideEffect = false;
     for (const call of result.toolCalls) {
       const callWithMeta: ToolCall = {
         ...call,
@@ -910,13 +912,16 @@ export class MissionOrchestrator {
       successfulToolSteps.push({ tool: callWithMeta.tool, applyPatchNoop: toolResult.applyPatchNoop });
       toolResultSummaries.push(`[${callWithMeta.tool}] ${toolResult.summary}`);
       const isApplyPatchNoop = toolResult.applyPatchNoop === true;
+      if (toolResult.ok && MUTATING_TOOLS.has(callWithMeta.tool) && !isApplyPatchNoop) {
+        hadMutatingSideEffect = true;
+      }
       const tags = isApplyPatchNoop ? [callWithMeta.tool, "apply_patch_noop"] : [callWithMeta.tool];
       const prefix = isApplyPatchNoop ? "[apply_patch_noop] " : "";
       await this.recordToolResultMemoryAndEvent(mission.id, callWithMeta, toolResult, tags, prefix);
     }
 
     const derivedCompletionKind = workCompletionKindFromSuccessfulToolSteps(successfulToolSteps) || undefined;
-    return { derivedCompletionKind, toolResultSummaries };
+    return { derivedCompletionKind, toolResultSummaries, hadMutatingSideEffect };
   }
 
   private async markMutatingToolExecutionStarted(missionId: string, item: WorkItem, call: ToolCall): Promise<void> {
@@ -1408,6 +1413,28 @@ export class MissionOrchestrator {
     }
     await this.store.noteProgress(mission.id);
     await this.store.updateMission(mission.id, patch);
+
+    // Phase 3 (Verifier Mesh obligations): after implementer mutation under balanced/strict, run deterministic checks.
+    if (item.role === "implementer" && toolExecResult.hadMutatingSideEffect) {
+      const refreshed = this.store.get(mission.id)!;
+      const preset = refreshed.policy.policyPreset || "balanced";
+      if (preset === "balanced" || preset === "strict") {
+        const runLinterObligation = vscode.workspace.getConfiguration().get<boolean>("myAi.missions.verification.autoRunLinterAfterMutations", true);
+        const runTestsObligation = vscode.workspace.getConfiguration().get<boolean>("myAi.missions.verification.autoRunTestsAfterMutations", true);
+        if (runLinterObligation) {
+          await this.executeAndRecordToolCall(mission.id, {
+            tool: "runLinter",
+            args: { __workItemId: item.id, __workItemRole: item.role, __verification: true }
+          }, ["verification"]);
+        }
+        if (runTestsObligation) {
+          await this.executeAndRecordToolCall(mission.id, {
+            tool: "runTests",
+            args: { __workItemId: item.id, __workItemRole: item.role, __verification: true }
+          }, ["verification"]);
+        }
+      }
+    }
 
     if (blueprintAwaitingApproval) {
       await this.store.updateMission(mission.id, {
