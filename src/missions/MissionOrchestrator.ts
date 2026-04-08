@@ -49,7 +49,7 @@ import { blueprintBlocksMissionCompletion, computeBlueprintProgress } from "./bl
 import { applyBlueprintStepStatusFromWorkItem } from "./blueprintStepSync";
 import { computePlanFidelityDrift } from "./blueprintPlanFidelity";
 import { validateBlueprintReadinessForApproval } from "./blueprintReadinessGate";
-import { formatResearchEvidenceFinding } from "./researchEvidence";
+import { findStaleResearchEvidenceMemories, formatResearchEvidenceFinding } from "./researchEvidence";
 import type { MissionFileTracker } from "./MissionFileTracker";
 import type {
   ResolveApprovalOutcome,
@@ -139,6 +139,8 @@ export class MissionOrchestrator {
   private readonly missionAbortReason = new Map<string, "operator" | "system" | "timeout" | "unknown">();
   /** Dedupe `saveEvent` when implementer hardStopClass contract is violated (signature includes offending queue rows). */
   private readonly lastMalformedHardStopEventSig = new Map<string, string>();
+  /** Dedupe stale-research warnings when the same evidence rows remain stale across multiple mutations. */
+  private readonly lastStaleEvidenceWarnSigByMission = new Map<string, string>();
   /** External callback for streaming LLM tokens to UI during agent runs. */
   onAgentStreamChunk?: (missionId: string, workItemId: string, role: string, text: string) => void;
   /** External callback when an agent's LLM stream finishes for a work item. */
@@ -1532,6 +1534,31 @@ export class MissionOrchestrator {
       const refreshed = this.store.get(mission.id)!;
       const preset = refreshed.policy.policyPreset || "balanced";
       if (preset === "balanced" || preset === "strict") {
+        const warnStale = vscode.workspace.getConfiguration().get<boolean>("myAi.webResearch.warnStaleEvidenceOnMutation", true);
+        if (warnStale) {
+          const stale = findStaleResearchEvidenceMemories(refreshed.memory);
+          if (!stale.length) {
+            this.lastStaleEvidenceWarnSigByMission.delete(mission.id);
+          } else {
+            const sig = stale
+              .map((s) => s.id)
+              .sort()
+              .join("|");
+            if (this.lastStaleEvidenceWarnSigByMission.get(mission.id) !== sig) {
+              this.lastStaleEvidenceWarnSigByMission.set(mission.id, sig);
+              const hours = (ms: number) => Math.round(ms / 3_600_000);
+              const detail = stale
+                .slice(0, 6)
+                .map((s) => `${s.id} (${s.freshness}, ~${hours(s.ageMs)}h old, ttl ~${hours(s.ttlMs)}h)`)
+                .join("; ");
+              await this.store.saveEvent(mission.id, {
+                level: "warn",
+                source: "research-evidence",
+                message: `Stale web research evidence may be outdated (${stale.length}): ${detail}${stale.length > 6 ? " …" : ""}`
+              });
+            }
+          }
+        }
         await this.store.updateRuntime(mission.id, { lastImplementerMutationAt: Date.now() });
         const runLinterObligation = vscode.workspace.getConfiguration().get<boolean>("myAi.missions.verification.autoRunLinterAfterMutations", true);
         const runTestsObligation = vscode.workspace.getConfiguration().get<boolean>("myAi.missions.verification.autoRunTestsAfterMutations", true);

@@ -1,6 +1,68 @@
 import { trimText } from "../util";
+import type { MemoryItem } from "../types";
 
 export type EvidenceFreshnessClass = "volatile" | "short" | "medium" | "long" | "persistent";
+
+const FRESHNESS_ORDER: EvidenceFreshnessClass[] = ["volatile", "short", "medium", "long", "persistent"];
+
+/** Max age (ms) after which evidence of this class is considered stale for warnings/gates. */
+export function freshnessTtlMs(f: EvidenceFreshnessClass): number {
+  const h = 3_600_000;
+  const d = 24 * h;
+  switch (f) {
+    case "volatile":
+      return h;
+    case "short":
+      return d;
+    case "medium":
+      return 7 * d;
+    case "long":
+      return 30 * d;
+    case "persistent":
+      return 365 * d;
+    default:
+      return d;
+  }
+}
+
+export function parseFreshnessFromTags(tags?: string[]): EvidenceFreshnessClass | undefined {
+  const raw = tags?.find((x) => x.startsWith("freshness:"));
+  if (!raw) return undefined;
+  const v = raw.slice("freshness:".length) as EvidenceFreshnessClass;
+  return FRESHNESS_ORDER.includes(v) ? v : undefined;
+}
+
+/** Parses `Captured: <ISO>` line written by `formatResearchEvidenceFinding`. */
+export function parseCapturedMsFromEvidenceText(text: string): number | undefined {
+  const m = text.match(/Captured:\s*(\d{4}-\d{2}-\d{2}T[\d:.]+Z)/);
+  if (!m) return undefined;
+  const ts = Date.parse(m[1]);
+  return Number.isFinite(ts) ? ts : undefined;
+}
+
+export interface StaleResearchEvidenceRow {
+  id: string;
+  freshness: EvidenceFreshnessClass;
+  ageMs: number;
+  ttlMs: number;
+}
+
+/** Mission memories tagged `research_evidence` whose capture time exceeds freshness TTL. */
+export function findStaleResearchEvidenceMemories(memory: MemoryItem[], now = Date.now()): StaleResearchEvidenceRow[] {
+  const out: StaleResearchEvidenceRow[] = [];
+  for (const item of memory) {
+    if (item.kind !== "finding") continue;
+    if (!item.tags?.includes("research_evidence")) continue;
+    const freshness = parseFreshnessFromTags(item.tags);
+    if (!freshness) continue;
+    const captured = parseCapturedMsFromEvidenceText(item.text);
+    if (captured === undefined) continue;
+    const ttlMs = freshnessTtlMs(freshness);
+    const ageMs = now - captured;
+    if (ageMs > ttlMs) out.push({ id: item.id, freshness, ageMs, ttlMs });
+  }
+  return out;
+}
 
 export function inferFreshnessForUrl(url: string): EvidenceFreshnessClass {
   const u = (url || "").toLowerCase();

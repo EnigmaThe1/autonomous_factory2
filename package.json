@@ -498,6 +498,11 @@
           "minimum": 0,
           "description": "Time-to-live for cached webSearch/fetchWebPage results (ms). When stale, the tool refetches and logs a warning."
         },
+        "myAi.webResearch.warnStaleEvidenceOnMutation": {
+          "type": "boolean",
+          "default": true,
+          "description": "When true (balanced/strict missions), warn if mission memory still contains web research evidence past its freshness TTL when an implementer performs a mutating change."
+        },
         "myAi.browser.enabled": {
           "type": "boolean",
           "default": false,
