@@ -199,8 +199,8 @@ export class ToolRegistry {
     runTests: (mid, c) => this.runTestsTool(mid, c.args.command ? String(c.args.command) : undefined),
     runLinter: (mid, c) => this.runLinterTool(mid, c.args.command ? String(c.args.command) : undefined),
     httpRequest: (mid, c) => this.httpRequestTool(mid, String(c.args.method || "GET"), String(c.args.url || ""), c.args.headers as Record<string, string> | undefined, c.args.body ? String(c.args.body) : undefined, Boolean(c.args.__approved)),
-    webSearch: (mid, c) => this.webSearchTool(mid, String(c.args.query || ""), Boolean(c.args.__approved)),
-    fetchWebPage: (mid, c) => this.fetchWebPageTool(mid, String(c.args.url || ""), Boolean(c.args.__approved)),
+    webSearch: (mid, c) => this.webSearchTool(mid, String(c.args.query || ""), Boolean(c.args.__approved), c),
+    fetchWebPage: (mid, c) => this.fetchWebPageTool(mid, String(c.args.url || ""), Boolean(c.args.__approved), c),
     browserCapture: (mid, c) => this.browserCaptureTool(mid, String(c.args.url || ""), Boolean(c.args.__approved)),
     findRelevantFiles: (mid, c) => this.findRelevantFilesTool(mid, String(c.args.query || "")),
     runTerminal: (mid, c) => this.runTerminal(mid, String(c.args.command || ""), Boolean(c.args.__approved), c),
@@ -348,6 +348,16 @@ export class ToolRegistry {
   }
 
   private async executeMcp(missionId: string, call: ToolCall, approved: boolean): Promise<ToolResult> {
+    {
+      const gate = await this.requireApprovalForNonImplementerMutation(
+        missionId,
+        call,
+        approved,
+        `Call MCP tool ${call.tool} (non-implementer mutation)`,
+        `Only implementer work items may call MCP tools without an explicit approval.\n\nArgs (sanitized):\n${trimText(JSON.stringify(redactSensitiveObject(call.args || {}), null, 2), 1200)}`
+      );
+      if (gate) return gate;
+    }
     const decision = this.policyEngine().decide({ action: "call_mcp" });
     if (!decision.allowed) return this.policyBlocked(decision.reason);
     if (decision.requiresApproval && !approved) {
@@ -376,6 +386,17 @@ export class ToolRegistry {
     const adapterName = call.tool.replace(/^ext\./, "");
     const adapter = await this.externalAdapters.get(adapterName);
     if (!adapter) return { ok: false, summary: `External adapter not found: ${adapterName}` };
+
+    if (adapter.mutating) {
+      const gate = await this.requireApprovalForNonImplementerMutation(
+        missionId,
+        call,
+        approved,
+        `Call external adapter ${adapterName} (non-implementer mutation)`,
+        `Only implementer work items may call mutating external adapters without an explicit approval.\n\nArgs (sanitized):\n${trimText(JSON.stringify(redactSensitiveObject(call.args || {}), null, 2), 1200)}`
+      );
+      if (gate) return gate;
+    }
 
     const decision = this.policyEngine().decide({ action: "call_external", mutating: Boolean(adapter.mutating) });
     if (!decision.allowed) return this.policyBlocked(decision.reason);
@@ -940,7 +961,20 @@ export class ToolRegistry {
     return { ok: true, summary: `Found ${files.length} relevant file(s).`, data: files };
   }
 
-  private async webSearchTool(missionId: string, query: string, approved?: boolean): Promise<ToolResult> {
+  private async webSearchTool(missionId: string, query: string, approved?: boolean, call?: ToolCall): Promise<ToolResult> {
+    if (call) {
+      const attributed = this.getAttributedWorkItem(missionId, call);
+      if (attributed && attributed.item.role !== "researcher") {
+        const gate = await this.requireApprovalForNonImplementerMutation(
+          missionId,
+          call,
+          Boolean(approved),
+          "Web search (non-researcher role)",
+          `Only researcher work items may call webSearch without an explicit approval.\n\nQuery:\n${query}`
+        );
+        if (gate) return gate;
+      }
+    }
     const cfg = vscode.workspace.getConfiguration();
     if (!cfg.get<boolean>("myAi.webResearch.enabled", false)) {
       return {
@@ -1089,7 +1123,20 @@ export class ToolRegistry {
     };
   }
 
-  private async fetchWebPageTool(missionId: string, url: string, approved?: boolean): Promise<ToolResult> {
+  private async fetchWebPageTool(missionId: string, url: string, approved?: boolean, call?: ToolCall): Promise<ToolResult> {
+    if (call) {
+      const attributed = this.getAttributedWorkItem(missionId, call);
+      if (attributed && attributed.item.role !== "researcher") {
+        const gate = await this.requireApprovalForNonImplementerMutation(
+          missionId,
+          call,
+          Boolean(approved),
+          "Fetch web page (non-researcher role)",
+          `Only researcher work items may call fetchWebPage without an explicit approval.\n\nURL:\n${url}`
+        );
+        if (gate) return gate;
+      }
+    }
     const cfg = vscode.workspace.getConfiguration();
     if (!cfg.get<boolean>("myAi.webResearch.enabled", false)) {
       return {
