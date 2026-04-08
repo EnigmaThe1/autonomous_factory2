@@ -51,5 +51,8 @@ test("Verifier obligations: after implementer mutation, orchestrator runs runLin
   assert.ok(typeof fin.runtime?.lastImplementerMutationAt === "number");
   assert.ok(typeof fin.runtime?.lastVerificationAt === "number");
   assert.ok((fin.runtime!.lastVerificationAt as number) >= (fin.runtime!.lastImplementerMutationAt as number));
+
+  const verificationEvents = fin.events.filter((e) => e.source === "tool:runLinter" || e.source === "tool:runTests");
+  assert.ok(verificationEvents.length >= 2);
 });
 

@@ -964,12 +964,29 @@ export class MissionOrchestrator {
       sourceMissionId: missionId
     });
     await this.globalMemory.add(saved);
-    if (result.data !== undefined) {
+    const isEvidenceTool =
+      extraTags.includes("verification") ||
+      call.tool === "runLinter" ||
+      call.tool === "runTests" ||
+      call.tool === "runCommand" ||
+      call.tool === "runTerminal";
+    if (isEvidenceTool || result.data !== undefined) {
       await this.store.saveEvent(missionId, {
         level: result.ok ? "info" : "warn",
         source: `tool:${call.tool}`,
         message: result.summary,
-        data: result.data
+        data: {
+          ok: result.ok,
+          tool: call.tool,
+          meta: {
+            workItemId: call.args?.__workItemId,
+            workItemRole: call.args?.__workItemRole,
+            blueprintStepId: call.args?.__blueprintStepId,
+            approved: Boolean(call.args?.__approved),
+            verification: Boolean(call.args?.__verification)
+          },
+          result: result.data
+        }
       });
     }
   }
