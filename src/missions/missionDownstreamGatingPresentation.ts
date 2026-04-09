@@ -40,6 +40,9 @@ export function missionDownstreamGatingOperatorHint(mission: Mission): string | 
 
   switch (gate.failureClass) {
     case "approval_pending":
+      if (mission.blockReasonCode === "approval_gate_stale") {
+        return `${base} A work item is marked approval-pending, but no pending approval exists on the mission (stale or cleared). Inspect the blocked implementer row; reset or fix queue state before resuming.${tail}`;
+      }
       return `${base} Approval is still required before implementer work can continue.${tail}`;
     case "approval_rejected":
       return `${base} The approval was rejected; implementer recovery is required before downstream steps continue.${tail}`;
@@ -71,6 +74,9 @@ export function missionDownstreamGatingCardHint(mission: Mission): string | unde
   if (noRecoveryRunnable) return "Implementer blocked: no runnable recovery work";
   switch (gate.failureClass) {
     case "approval_pending":
+      if (mission.blockReasonCode === "approval_gate_stale") {
+        return "Implementer blocked: approval gate stale (no pending row)";
+      }
       return "Implementer blocked: approval required";
     case "approval_rejected":
       return "Implementer blocked: approval rejected";

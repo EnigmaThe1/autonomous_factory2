@@ -82,6 +82,7 @@ export const MISSION_BLOCK_REASON_BADGE_LABEL = Object.freeze({
   operator_stream_abort: "Paused — run stopped",
   approval_rejected: "Needs attention — approval rejected",
   approval_pending: "Paused — awaiting approval",
+  approval_gate_stale: "Paused — approval state out of sync",
   stall_recovery_limit: "Paused — recovery limit",
   generic_blocked: "Needs attention"
 });
@@ -99,6 +100,8 @@ export const MISSION_BLOCK_REASON_NOTE_PRIMARY = Object.freeze({
   operator_stream_abort: EXACT_BLOCKER_NOTES["Model stream cancelled (operator abort). Resume when ready."].primary,
   approval_rejected: EXACT_BLOCKER_NOTES["Tool request rejected"].primary,
   approval_pending: "Awaiting your approval — open the Approvals tab to continue.",
+  approval_gate_stale:
+    "A work item still shows approval-pending, but nothing is listed under Approvals — state may be stale. Open Focus, inspect the blocked implementer row and Timeline; reset the work item or fix the queue, then Resume.",
   stall_recovery_limit: EXACT_BLOCKER_NOTES["Mission exceeded automatic recovery attempts"].primary,
   generic_blocked: "Blocked — review mission details and queue before continuing."
 });
@@ -244,6 +247,12 @@ export function isMissionResumableForGrouping(m) {
 export function describeMissionBlocker(blocker, status, pendingApprovalCount = 0, blockReasonCode) {
   const code =
     blockReasonCode != null && String(blockReasonCode).trim() ? String(blockReasonCode).trim() : "";
+  if (code === "approval_pending" && pendingApprovalCount === 0) {
+    return {
+      primary: MISSION_BLOCK_REASON_NOTE_PRIMARY.approval_gate_stale,
+      detail: blocker || undefined
+    };
+  }
   if (code && MISSION_BLOCK_REASON_NOTE_PRIMARY[code]) {
     return { primary: MISSION_BLOCK_REASON_NOTE_PRIMARY[code], detail: blocker || undefined };
   }

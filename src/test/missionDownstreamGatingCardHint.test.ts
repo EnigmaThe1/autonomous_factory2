@@ -50,6 +50,14 @@ test("card hint: approval required/rejected", () => {
   } as any);
   assert.equal(missionDownstreamGatingCardHint(pending), "Implementer blocked: approval required");
 
+  const stale = miniMission({
+    status: "awaiting_input",
+    blockReasonCode: "approval_gate_stale",
+    approvals: [],
+    queue: [{ ...reqImpl("blocked", "no text"), hardStopClass: "approval_pending" } as any, { id: "p1", title: "plan", role: "planner", status: "todo", prompt: "p" }]
+  } as any);
+  assert.equal(missionDownstreamGatingCardHint(stale), "Implementer blocked: approval gate stale (no pending row)");
+
   const rej = miniMission({
     approvals: [{ id: "a1", createdAt: 1, missionId: "m1", kind: "write_file", title: "A", details: "d", toolCall: { tool: "write_file", args: {} } as any, status: "rejected" }],
     queue: [{ ...reqImpl("blocked", "no text"), hardStopClass: "approval_rejected" } as any, { id: "p1", title: "plan", role: "planner", status: "todo", prompt: "p" }]

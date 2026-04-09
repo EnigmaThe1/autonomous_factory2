@@ -8,6 +8,10 @@ export function operatorNextActionHint(mission: Mission | undefined): string | u
   const { status, blockReasonCode } = mission;
   const pending = (mission.approvals || []).filter((a) => a.status === "pending").length;
 
+  if (blockReasonCode === "approval_gate_stale") {
+    return "Queue/approval mismatch — a work item still shows approval-pending, but the Approvals tab is empty. Inspect Focus (blocked implementer row) and Timeline; reset the work item or fix stale state, then Resume.";
+  }
+
   if (status === "awaiting_input" || blockReasonCode === "approval_pending") {
     if (pending > 0) {
       return `Approvals: ${pending} pending — open the Approvals tab (or run approve commands) to continue.`;

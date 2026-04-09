@@ -68,6 +68,9 @@ export function focusedMissionLifecycleSummary(mission: Mission): string {
   if (status === "awaiting_input") {
     const pend = (mission.approvals || []).filter((a) => a.status === "pending").length;
     if (pend > 0) return "Waiting for approval to continue.";
+    if (mission.blockReasonCode === "approval_gate_stale") {
+      return "Approval state out of sync — a work item expects approval but nothing is in the Approvals list; check Focus and the blocked implementer row.";
+    }
     if (mission.blockReasonCode === "post_validator_checkpoint") {
       return "Validator finished; resume the mission to continue.";
     }

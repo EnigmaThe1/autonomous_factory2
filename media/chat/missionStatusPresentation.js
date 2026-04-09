@@ -43,7 +43,10 @@ export function formatMissionStatusBadgeLabel(m) {
   }
 
   if (status === "awaiting_input") {
-    const base = pend > 0 ? "Paused — awaiting approval" : "Paused — awaiting input";
+    let base = pend > 0 ? "Paused — awaiting approval" : "Paused — awaiting input";
+    if (pend === 0 && blockReasonCode === "approval_gate_stale") {
+      base = "Paused — approval out of sync";
+    }
     return `${base}${arch}`;
   }
 

@@ -60,6 +60,17 @@ test("downstream gating hint: approval pending", () => {
   assert.ok(h?.includes("Approval is still required"));
 });
 
+test("downstream gating hint: approval_gate_stale", () => {
+  const m = miniMission({
+    status: "awaiting_input",
+    blockReasonCode: "approval_gate_stale",
+    approvals: [],
+    queue: [reqImpl("blocked", "Stale", "approval_pending")]
+  } as any);
+  const h = missionDownstreamGatingOperatorHint(m);
+  assert.ok(h?.includes("no pending approval") || h?.includes("stale"));
+});
+
 test("downstream gating hint: approval rejected", () => {
   const m = miniMission({
     approvals: [{ id: "a1", createdAt: 1, missionId: "m1", kind: "write_file", title: "A", details: "d", toolCall: { tool: "write_file", args: {} } as any, status: "rejected" }],

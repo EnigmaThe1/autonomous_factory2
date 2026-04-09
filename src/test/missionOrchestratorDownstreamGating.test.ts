@@ -264,3 +264,30 @@ test("downstream gating: timeout/system abort does NOT gate reviewer/validator (
   assert.ok(mid.queue.some((w) => w.role === "reviewer" && w.status === "done"), "reviewer should still run");
 });
 
+test("downstream gating: implementer approval_pending without pending approvals row sets approval_gate_stale", async () => {
+  (vscode as VscodeTestApi).__setTestConfig?.("myAi.missions.maxStepsPerRun", 8);
+  const agent = roleScript({
+    planner: [{ summary: "Plan done.", nextWorkItems: [] }]
+  });
+  const { orchestrator, store } = await createOrchestrator(agent, noop);
+  const m = await store.create("gate-appr-stale", "p", "ollama", undefined, balancedIntegrationPolicy);
+  await store.enqueue(m.id, [
+    { id: uid("w"), title: "Initial planning", role: "planner", status: "todo", prompt: "Plan." },
+    {
+      id: uid("w"),
+      title: "Blocked impl",
+      role: "implementer",
+      status: "blocked",
+      prompt: "was waiting",
+      hardStopClass: "approval_pending",
+      output: "Pending approval (stale)"
+    }
+  ]);
+
+  await orchestrator.runMission(m.id);
+  const mid = store.get(m.id)!;
+  assert.equal(mid.status, "awaiting_input");
+  assert.equal(mid.blockReasonCode, "approval_gate_stale");
+  assert.ok(mid.events.some((e) => typeof e.message === "string" && e.message.includes("approval_gate_stale")));
+});
+

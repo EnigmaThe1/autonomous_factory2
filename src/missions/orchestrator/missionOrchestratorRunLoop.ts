@@ -337,15 +337,29 @@ export class MissionOrchestratorRunLoop {
             ? undefined
             : "blocked";
       if (desiredStatus) {
-        const blocker =
+        const hasPendingApprovalRow = mission.approvals.some((a) => a.status === "pending");
+        let blocker =
           mission.blocker ||
           (desiredStatus === "awaiting_input"
             ? "Awaiting approval"
             : `Blocked: ${gate.reason || gate.failureClass || "required implementer blocked/failed"}`);
+        let blockReasonCode = missionBlockReasonFromDownstreamGate(gate.failureClass, desiredStatus, gate.reason);
+        if (gate.failureClass === "approval_pending" && desiredStatus === "awaiting_input" && !hasPendingApprovalRow) {
+          blockReasonCode = "approval_gate_stale";
+          blocker =
+            mission.blocker ||
+            "A blocked work item is still marked approval-pending, but no approval appears in the Approvals tab (stale or cleared). Inspect the blocked implementer row in Focus / queue, fix or reset it, then Resume.";
+          await this.host.store.saveEvent(id, {
+            level: "warn",
+            source: "orchestrator",
+            message:
+              "Mission paused: approval_gate_stale — implementer hardStopClass is approval_pending without a pending mission.approvals row. Operator should inspect queue/Timeline."
+          });
+        }
         await this.host.store.updateMission(id, {
           status: desiredStatus,
           blocker,
-          blockReasonCode: missionBlockReasonFromDownstreamGate(gate.failureClass, desiredStatus, gate.reason)
+          blockReasonCode
         });
         return "terminal";
       }

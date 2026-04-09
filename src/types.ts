@@ -22,6 +22,8 @@ export type MissionBlockReasonCode =
   | "operator_stream_abort"
   | "approval_rejected"
   | "approval_pending"
+  /** Work item hardStopClass says approval pending, but no `mission.approvals` row is pending (stale / desync). */
+  | "approval_gate_stale"
   | "stall_recovery_limit"
   | "generic_blocked"
   | "awaiting_blueprint_approval"

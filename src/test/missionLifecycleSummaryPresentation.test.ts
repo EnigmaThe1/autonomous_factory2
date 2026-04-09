@@ -126,6 +126,12 @@ test("lifecycle: awaiting approval vs other input", () => {
     ),
     "Pre-blueprint questions need answers; submit from the inspector or command palette."
   );
+  assert.match(
+    focusedMissionLifecycleSummary(
+      miniMission({ status: "awaiting_input", approvals: [], blockReasonCode: "approval_gate_stale" })
+    ),
+    /out of sync|Approvals/i
+  );
 });
 
 test("lifecycle: running with role and without", () => {

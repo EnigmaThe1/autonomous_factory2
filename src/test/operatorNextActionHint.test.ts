@@ -3,6 +3,16 @@ import assert from "node:assert/strict";
 import { operatorNextActionHint } from "../ui/operatorNextActionHint";
 import type { Mission } from "../types";
 
+test("operatorNextActionHint: approval_gate_stale", () => {
+  const m = {
+    status: "awaiting_input",
+    blockReasonCode: "approval_gate_stale",
+    approvals: []
+  } as unknown as Mission;
+  const h = operatorNextActionHint(m);
+  assert.ok(h?.includes("mismatch") || h?.includes("stale"));
+});
+
 test("operatorNextActionHint: approval pending", () => {
   const m = {
     status: "awaiting_input",

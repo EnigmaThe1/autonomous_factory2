@@ -452,6 +452,10 @@ test("missionOperatorLabelsCore: blocked badge + notes align with orchestrator b
   assert.match(noPend.primary, /input/i);
   assert.equal(noPend.detail, "Waiting on external step");
 
+  const apprStale = describeMissionBlocker("Awaiting approval", "awaiting_input", 0, "approval_pending");
+  assert.match(apprStale.primary, /Approvals tab is empty|stale|nothing is listed/i);
+  assert.ok(!/open the Approvals tab to continue/i.test(apprStale.primary));
+
   assert.equal(
     formatBlockedMissionBadgeLabel("misleading raw blocker text", "policy_blocked"),
     "Needs attention — policy block"
