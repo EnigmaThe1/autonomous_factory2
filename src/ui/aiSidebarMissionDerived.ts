@@ -13,11 +13,20 @@ export interface MissionDerivedSlices {
 /**
  * Pure computation of mission-derived UI slices: pending approvals, bundles,
  * timeline events, and recent tool events. No instance state required.
+ *
+ * @param missions Used for timeline + recent tool events (typically visible / non-archived per UI filter).
+ * @param allMissionsForApprovals When set, pending approvals and bundles are collected from this list
+ * (should be `MissionStore.list()` / full catalog) so pending rows are not missing when a mission is archived
+ * or otherwise excluded from `missions`.
  */
-export function computeMissionDerivedSlicesPure(missions: Mission[]): MissionDerivedSlices {
+export function computeMissionDerivedSlicesPure(
+  missions: Mission[],
+  allMissionsForApprovals?: Mission[]
+): MissionDerivedSlices {
+  const approvalMissions = allMissionsForApprovals ?? missions;
   const pendingApprovalsUi: SidebarSnapshot["pendingApprovals"] = [];
   const bundleParts: SidebarApprovalBundleSummary[] = [];
-  for (const mission of missions) {
+  for (const mission of approvalMissions) {
     const pending = (mission.approvals || []).filter((approval) => approval.status === "pending");
     for (const approval of pending) {
       pendingApprovalsUi.push({

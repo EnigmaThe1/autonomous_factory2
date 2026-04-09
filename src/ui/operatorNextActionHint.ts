@@ -14,7 +14,7 @@ export function operatorNextActionHint(mission: Mission | undefined): string | u
 
   if (status === "awaiting_input" || blockReasonCode === "approval_pending") {
     if (pending > 0) {
-      return `Approvals: ${pending} pending — open the Approvals tab (or run approve commands) to continue.`;
+      return `Approvals: ${pending} pending — open the Approvals tab (researcher/reviewer runCommand shows as kind "terminal").`;
     }
     return "Awaiting input — check the mission blocker message and use Resume when ready.";
   }

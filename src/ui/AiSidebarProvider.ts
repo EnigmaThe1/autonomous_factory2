@@ -1567,7 +1567,7 @@ export class AiSidebarProvider implements vscode.WebviewViewProvider {
    */
   private computeMissionDerivedSlices(missions: Mission[], allMissions: Mission[]) {
     type RT = NonNullable<SidebarToolSummary["recentToolEvents"]>;
-    const missionListFp = fp.missionVisibleListFingerprint(missions, allMissions, this.includeArchivedMissions);
+    const missionListFp = `${fp.missionVisibleListFingerprint(missions, allMissions, this.includeArchivedMissions)}|gpend:${fp.globalPendingApprovalsFingerprint(allMissions)}`;
     const c = this.missionDerivedCache;
     if (c && c.fp === missionListFp) {
       return {
@@ -1578,7 +1578,7 @@ export class AiSidebarProvider implements vscode.WebviewViewProvider {
         missionDerivedCacheHit: true
       };
     }
-    const slices = computeMissionDerivedSlicesPure(missions);
+    const slices = computeMissionDerivedSlicesPure(missions, allMissions);
     this.missionDerivedCache = { fp: missionListFp, ...slices };
     this.traceLogger.log({
       level: "debug",

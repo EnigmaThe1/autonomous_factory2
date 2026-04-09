@@ -25,6 +25,22 @@ export function missionVisibleListFingerprint(
   return `${includeArchived ? 1 : 0}|${allMissions.length}|${archivedCount}|${rows}`;
 }
 
+/**
+ * Every pending approval id across the full mission list (including archived).
+ * Use alongside `missionVisibleListFingerprint` for caches that aggregate approvals from `allMissions`,
+ * so pending rows are not dropped when the visible list omits a mission (e.g. archived with a stale pending).
+ */
+export function globalPendingApprovalsFingerprint(allMissions: Mission[]): string {
+  const parts: string[] = [];
+  for (const m of allMissions) {
+    for (const a of m.approvals || []) {
+      if (a.status === "pending") parts.push(`${m.id}:${a.id}`);
+    }
+  }
+  parts.sort();
+  return parts.join(";");
+}
+
 export function mcpAuxiliaryFingerprintFromSlice(slice: {
   mcpOnboarding: McpOnboardingState;
   mcpToolCount: number;

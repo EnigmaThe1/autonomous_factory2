@@ -16,6 +16,7 @@ import { runSidebarPollWarmExecution, type SidebarPollWarmExecutionHost } from "
 import type { Mission } from "../types";
 import {
   globalMemoryHeadFingerprint,
+  globalPendingApprovalsFingerprint,
   materialFingerprintCombined,
   missionVisibleListFingerprint,
   mcpAuxiliaryFingerprintFromSlice,
@@ -126,6 +127,17 @@ test("decidePollDashboardRoute covers all 8 axis combinations deterministically"
 });
 
 // --- Pure: fingerprints ---
+
+test("globalPendingApprovalsFingerprint lists mission:approval pairs", () => {
+  const a = minimalMission({
+    id: "a",
+    approvals: [
+      { id: "p1", missionId: "a", status: "pending", kind: "terminal", title: "t", createdAt: 1, details: "", toolCall: { tool: "runCommand", args: {} } }
+    ] as any
+  });
+  const b = minimalMission({ id: "b", approvals: [] });
+  assert.equal(globalPendingApprovalsFingerprint([b, a]), "a:p1");
+});
 
 test("missionVisibleListFingerprint prefixes includeArchived and counts archived missions", () => {
   const active = minimalMission({ id: "a", archivedAt: undefined });

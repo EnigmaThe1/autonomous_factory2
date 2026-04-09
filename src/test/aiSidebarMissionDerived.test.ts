@@ -57,6 +57,31 @@ test("computeMissionDerivedSlicesPure: collects pending approvals", () => {
   assert.equal(result.pendingApprovals[0].missionTitle, "Test mission");
 });
 
+test("computeMissionDerivedSlicesPure: allMissionsForApprovals includes archived mission pending", () => {
+  const archived = baseMission({
+    id: "m-arch",
+    title: "Archived",
+    archivedAt: 1,
+    approvals: [
+      {
+        id: "a-z",
+        missionId: "m-arch",
+        status: "pending",
+        kind: "terminal",
+        title: "Run command (non-implementer mutation)",
+        createdAt: 5000,
+        details: "cmd",
+        toolCall: { tool: "runCommand", args: { command: "x" } }
+      }
+    ]
+  });
+  const visible = baseMission({ id: "m-vis", title: "Visible" });
+  const r = computeMissionDerivedSlicesPure([visible], [visible, archived]);
+  assert.equal(r.pendingApprovals.length, 1);
+  assert.equal(r.pendingApprovals[0].approvalId, "a-z");
+  assert.equal(r.timeline.every((t) => t.missionId !== "m-arch"), true);
+});
+
 test("computeMissionDerivedSlicesPure: excludes resolved approvals from pending", () => {
   const m = baseMission({
     approvals: [
