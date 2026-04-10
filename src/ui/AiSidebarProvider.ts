@@ -723,6 +723,19 @@ export class AiSidebarProvider implements vscode.WebviewViewProvider {
       cfg.update("myAi.tools.requireApprovalForWrite", msg.requireWriteApproval, target),
       cfg.update("myAi.ui.autoRevealOnActivation", msg.autoRevealOnActivation, target),
       cfg.update("myAi.ui.defaultTab", msg.defaultTab, target),
+      cfg.update("myAi.missions.autonomy.mode", msg.autonomyMode, target),
+      cfg.update("myAi.missions.blueprintMode", msg.missionBlueprintModeEnum, target),
+      cfg.update("myAi.missions.autonomy.blueprintPlanning", msg.autonomyBlueprintPlanning, target),
+      cfg.update("myAi.missions.autonomy.autoContinuePasses", msg.autonomyAutoContinuePasses, target),
+      cfg.update("myAi.missions.autonomy.maxAutonomousStepCapChains", msg.autonomyMaxAutonomousStepCapChains, target),
+      cfg.update("myAi.missions.autonomy.autoApproveWorkspaceWrites", msg.autonomyAutoApproveWorkspaceWrites, target),
+      cfg.update("myAi.missions.autonomy.autoApproveWorkspaceDeletes", msg.autonomyAutoApproveWorkspaceDeletes, target),
+      cfg.update("myAi.missions.autonomy.autoApproveWorkspaceSafeCommands", msg.autonomyAutoApproveWorkspaceSafeCommands, target),
+      cfg.update(
+        "myAi.missions.autonomy.requireApprovalForProtectedPaths",
+        msg.autonomyRequireApprovalForProtectedPaths,
+        target
+      ),
       extra
     ]);
     // Section-scoped writes: if an older extension is loaded, unknown keys would fail the whole batch — isolate them.

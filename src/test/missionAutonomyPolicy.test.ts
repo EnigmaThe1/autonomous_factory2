@@ -6,11 +6,13 @@ import assert from "node:assert/strict";
 import {
   classifyCommandZone,
   classifyPathZone,
+  evaluatePathWrite,
   isExtensionCorePath,
   matchesWorkspaceRelativeGlob,
   mayWrite,
   missionAutonomyPolicyForTest
 } from "../security/missionAutonomyPolicy";
+import { autonomyShouldScheduleNextPassAfterStepCap } from "../missions/missionRunnerAutonomy";
 import type { PolicySettings } from "../security/TrustPolicyEngine";
 
 const strictSettings: PolicySettings = {
@@ -60,4 +62,20 @@ test("mayWrite: workspace_coder allows ordinary workspace path", () => {
 test("mayWrite: outside workspace always false", () => {
   const autonomy = missionAutonomyPolicyForTest({ mode: "workspace_coder" });
   assert.equal(mayWrite("/tmp/out.txt", "/ws", "/ext", autonomy, strictSettings), false);
+});
+
+test("evaluatePathWrite: autonomy protected glob allows when requireApprovalForProtectedPaths is false", () => {
+  const autonomy = missionAutonomyPolicyForTest({
+    mode: "workspace_coder",
+    protectedPathGlobs: ["vendor/**"],
+    requireApprovalForProtectedPaths: false
+  });
+  const ad = evaluatePathWrite("/ws/vendor/pkg/a.txt", "/ws", "/ext", autonomy, strictSettings);
+  assert.equal(ad.kind, "allow");
+});
+
+test("autonomyShouldScheduleNextPassAfterStepCap: honors autoContinuePasses and mode", () => {
+  assert.equal(autonomyShouldScheduleNextPassAfterStepCap("workspace_autonomous", false), false);
+  assert.equal(autonomyShouldScheduleNextPassAfterStepCap("workspace_autonomous", true), true);
+  assert.equal(autonomyShouldScheduleNextPassAfterStepCap("strict", true), false);
 });

@@ -59,28 +59,55 @@ function modelPlaceholderForProvider(snapshot, providerId) {
   return (snapshot.providerSavedModels && snapshot.providerSavedModels[pid]) || (pid === snapshot.defaultProvider ? snapshot.resolvedDefaultModel || '' : '');
 }
 
+function globsPreview(arr, max) {
+  if (!arr || !arr.length) return "(none)";
+  const m = typeof max === "number" ? max : 4;
+  const head = arr.slice(0, m).join(", ");
+  return arr.length > m ? `${head} … (+${arr.length - m} more)` : head;
+}
+
 /** One-line hint for how the next mission will plan (reads workspace mission settings from snapshot). */
 function missionStartBlueprintHintText(settings) {
   if (!settings) return "";
-  if (!settings.missionBlueprintMode) {
-    return "Plan: legacy WORK: queue. Enable myAi.missions.blueprintMode for upfront JSON blueprint.";
+  const mode = settings.missionBlueprintModeEnum || (settings.missionBlueprintMode ? "soft" : "off");
+  const am = settings.autonomyMode || "";
+  const bits = [`Autonomy: ${am}`, `Blueprint: ${mode}`];
+  if (mode === "off") bits.push("dynamic planner queue");
+  else {
+    bits.push(settings.missionPreBlueprintClarification ? "pre-Q&A on" : "pre-Q&A off");
+    if (mode === "hard" && settings.missionRequireBlueprintApproval) bits.push("approval before synthesis");
+    else bits.push("structured blueprint");
   }
-  const bits = ["Plan: JSON blueprint"];
-  bits.push(settings.missionPreBlueprintClarification ? "pre-Q&A on" : "pre-Q&A off");
-  bits.push(settings.missionRequireBlueprintApproval ? "blueprint approval required" : "blueprint auto-approved");
+  if (settings.autonomyAutoContinuePasses === false) bits.push("no auto-chains at step cap");
   return bits.join(" · ");
 }
 
 /** Read-only rows for Settings tab (same flags as Chat start-mission hint). */
 function missionBlueprintSettingsRowsHtml(settings) {
   if (!settings) return "";
-  const bm = !!settings.missionBlueprintMode;
+  const bme = settings.missionBlueprintModeEnum || (settings.missionBlueprintMode ? "soft" : "off");
   const pre = !!settings.missionPreBlueprintClarification;
   const apr = !!settings.missionRequireBlueprintApproval;
+  const am = settings.autonomyMode ?? "";
+  const ac = settings.autonomyAutoContinuePasses !== false;
+  const chains = settings.autonomyMaxAutonomousStepCapChains ?? "";
   return `
-    <div class="setting-row"><span>Mission blueprint mode</span><strong>${bm ? "yes" : "no"}</strong></div>
+    <div class="setting-row"><span>Autonomy mode</span><strong>${escapeHtml(String(am))}</strong></div>
+    <div class="setting-row"><span>Blueprint mode</span><strong>${escapeHtml(String(bme))}</strong></div>
+    <div class="setting-row"><span>Blueprint planning preset</span><strong>${escapeHtml(String(settings.autonomyBlueprintPlanning ?? ""))}</strong></div>
+    <div class="setting-row"><span>Auto-continue at step cap</span><strong>${ac ? "yes" : "no"}</strong></div>
+    <div class="setting-row"><span>Max step-cap chains</span><strong>${escapeHtml(String(chains))}</strong></div>
+    <div class="setting-row"><span>Auto workspace writes / deletes / safe cmds</span><strong>${settings.autonomyAutoApproveWorkspaceWrites !== false ? "w" : "−"}${settings.autonomyAutoApproveWorkspaceDeletes !== false ? "d" : "−"}${settings.autonomyAutoApproveWorkspaceSafeCommands !== false ? "c" : "−"}</strong></div>
+    <div class="setting-row"><span>Protected globs need approval</span><strong>${settings.autonomyRequireApprovalForProtectedPaths !== false ? "yes" : "no"}</strong></div>
+    <div class="setting-row"><span>Protected path globs</span><strong>${escapeHtml(globsPreview(settings.autonomyProtectedPathGlobs, 3))}</strong></div>
+    <div class="setting-row"><span>Blocked path globs</span><strong>${escapeHtml(globsPreview(settings.autonomyBlockedPathGlobs, 3))}</strong></div>
+    <div class="setting-row"><span>Extension-core policy</span><strong>${escapeHtml(String(settings.autonomyExtensionCoreMutationPolicy ?? ""))}</strong></div>
+    <div class="setting-row"><span>Recovery preset</span><strong>${escapeHtml(String(settings.toolRecoveryAutonomyPreset ?? ""))}</strong></div>
+    <div class="setting-row"><span>Retry budgets (cmd / write / patch / transient / follow-ups)</span><strong>${escapeHtml(
+      `${settings.retryBudgetMaxRunCommandRecovery ?? "?"}/${settings.retryBudgetMaxWriteFileRecovery ?? "?"}/${settings.retryBudgetMaxApplyPatchRecovery ?? "?"}/${settings.retryBudgetMaxTransientMutating ?? "?"}/${settings.retryBudgetMaxToolFollowUpTurns ?? "?"}`
+    )}</strong></div>
     <div class="setting-row"><span>Pre-blueprint Q&amp;A</span><strong>${pre ? "yes" : "no"}</strong></div>
-    <div class="setting-row"><span>Require blueprint approval</span><strong>${apr ? "yes" : "no"}</strong></div>
+    <div class="setting-row"><span>Require blueprint approval (hard mode)</span><strong>${apr ? "yes" : "no"}</strong></div>
     <div class="setting-row"><span></span><span><button type="button" class="ghost compact" data-action="openSettings" data-query="myAi.missions">Edit mission settings in VS Code…</button></span></div>`;
 }
 
@@ -479,6 +506,15 @@ function renderSettings(snapshot, opts = {}) {
   const autoReveal = document.getElementById('settingAutoRevealOnActivation');
   const unlimitedSteps = document.getElementById('settingUnlimitedStepsPerRun');
   const defaultTab = document.getElementById('settingDefaultTab');
+  const autonomyModeSel = document.getElementById('settingAutonomyMode');
+  const blueprintModeSel = document.getElementById('settingMissionBlueprintModeEnum');
+  const blueprintPlanningSel = document.getElementById('settingAutonomyBlueprintPlanning');
+  const autonomyMaxChains = document.getElementById('settingAutonomyMaxChains');
+  const autonomyAutoContinue = document.getElementById('settingAutonomyAutoContinuePasses');
+  const autonomyW = document.getElementById('settingAutonomyAutoApproveWrites');
+  const autonomyD = document.getElementById('settingAutonomyAutoApproveDeletes');
+  const autonomyC = document.getElementById('settingAutonomyAutoApproveCommands');
+  const autonomyProt = document.getElementById('settingAutonomyRequireProtectedApproval');
   if (!state.dirty.quickSettings) {
     if (modelInput) modelInput.value = coherentModel;
     if (heartbeatInput) heartbeatInput.value = String(s.heartbeatSeconds || 12);
@@ -490,6 +526,16 @@ function renderSettings(snapshot, opts = {}) {
     if (autoReveal) autoReveal.checked = !!s.autoRevealOnActivation;
     if (unlimitedSteps) unlimitedSteps.checked = !!s.unlimitedStepsPerRun;
     if (defaultTab) defaultTab.value = s.defaultTab || 'chat';
+    const bme = s.missionBlueprintModeEnum || (s.missionBlueprintMode ? "soft" : "off");
+    if (autonomyModeSel) autonomyModeSel.value = s.autonomyMode || "workspace_autonomous";
+    if (blueprintModeSel) blueprintModeSel.value = bme;
+    if (blueprintPlanningSel) blueprintPlanningSel.value = s.autonomyBlueprintPlanning || "off";
+    if (autonomyMaxChains) autonomyMaxChains.value = String(s.autonomyMaxAutonomousStepCapChains ?? 2000);
+    if (autonomyAutoContinue) autonomyAutoContinue.checked = s.autonomyAutoContinuePasses !== false;
+    if (autonomyW) autonomyW.checked = s.autonomyAutoApproveWorkspaceWrites !== false;
+    if (autonomyD) autonomyD.checked = s.autonomyAutoApproveWorkspaceDeletes !== false;
+    if (autonomyC) autonomyC.checked = s.autonomyAutoApproveWorkspaceSafeCommands !== false;
+    if (autonomyProt) autonomyProt.checked = s.autonomyRequireApprovalForProtectedPaths !== false;
   }
   if (maxStepsInput && unlimitedSteps) {
     maxStepsInput.disabled = !!unlimitedSteps.checked;

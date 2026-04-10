@@ -8,6 +8,7 @@ import {
 } from "../missions/missionOperatorActionEventPresentation";
 import { focusedMissionLifecycleSummaryForSnapshot } from "../missions/missionLifecycleSummaryPresentation";
 import { focusedMissionRequiredWorkHintForSnapshot } from "../missions/missionRequiredWorkPresentation";
+import { focusedMissionAutonomyObservabilityForSnapshot } from "../missions/missionAutonomyObservabilityPresentation";
 import { resolveModelForProvider } from "../providers/providerModelResolution";
 import { missionAllAndVisibleForFingerprint } from "./aiSidebarSnapshotMisc";
 import type { SidebarSnapshot } from "./protocol";
@@ -23,6 +24,7 @@ export function mergeMissionListIntoSnapshotForHost(
 ): SidebarSnapshot {
   const settings = base.settings;
   const cfg = host.getWorkspaceConfiguration();
+  const cfgGet = (k: string, d: unknown) => cfg.get(k, d as never);
   const resolvedDefaultModel = resolveModelForProvider(settings.defaultProvider, undefined, (k, d) => cfg.get(k, d));
   const { allMissions, missions } = missionAllAndVisibleForFingerprint(
     host.missionStore,
@@ -56,6 +58,7 @@ export function mergeMissionListIntoSnapshotForHost(
     focusedMissionLatestOperatorActionNote: focusedMissionLatestOperatorActionNoteForSnapshot(focusedMission),
     focusedMissionLifecycleSummary: focusedMissionLifecycleSummaryForSnapshot(focusedMission),
     focusedMissionOperatorActionHeadlines: operatorActionHeadlinesByEventIdForMission(focusedMission),
+    focusedMissionAutonomyObservability: focusedMissionAutonomyObservabilityForSnapshot(focusedMission, cfgGet),
     missionDownstreamGatingCardHints: Object.fromEntries(
       missions
         .map((m) => [m.id, missionDownstreamGatingCardHint(m)])

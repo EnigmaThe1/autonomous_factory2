@@ -227,3 +227,28 @@ The extension had no pre-existing `IMPLEMENTATION_LEDGER.md`. This file is the c
 **Follow-ups**
 
 - Optional mission-level fields for last structured review/validation outcome; UI surfacing; docs refresh for new line protocols.
+
+## Phase 8 — Settings / UI / validation stabilization (2026-04-10)
+
+**Status:** DONE
+
+**What changed**
+
+- **Defaults:** `myAi.missions.autonomy.mode` default **`workspace_autonomous`**; `autonomy.blueprintPlanning` default **`off`**; new `myAi.missions.autonomy.autoContinuePasses` (default true) and `requireApprovalForProtectedPaths` (default true). `loadMissionAutonomyPolicy` fallbacks aligned.
+- **Policy:** Non-spine `protectedPathGlobs` may follow ordinary auto-approve when `requireApprovalForProtectedPaths` is false; recovery-spine protected paths still require approval.
+- **Runner:** `autonomyShouldScheduleNextPassAfterStepCap`; `MissionOrchestrator.runMission` persists `runtime.lastRunPassStopReason` after each pass.
+- **Snapshot / UI:** `SidebarSettingsSummary` extended (blueprint enum, autonomy flags, globs, extension-core policy, recovery preset, retry budget numbers); `focusedMissionAutonomyObservability` in merge + full snapshot build; Chat hint + Settings read-only rows + Quick Settings autonomy controls + inspector **Autonomy & recovery** + runtime line for last pass stop.
+- **Tests:** `missionPhase8Stabilization.integration.test.ts`, policy + chain tests, webview contract + modular smoke expectations updated.
+
+**Evidence pack (local, `.dev/` gitignored)**
+
+- `autonomous_factory/.dev/docs/_autogen/refactoring/refactoring__2026_04_10__AF_Autonomy_Phase8_Settings_UI_Validation/` (`07_validation/full_test_run.txt`, `08_final_report/FINAL_REPORT.md`, `08_final_report/RESIDUAL_RISKS_AND_NEXT_STEPS.md`, `05_decisions/01_settings_snapshot_contract.md`).
+
+**Validation**
+
+- `npm run compile` — PASS  
+- `npm test` — PASS (full log under evidence pack `07_validation/full_test_run.txt`).
+
+**Follow-ups**
+
+- Inspector surfacing of structured recovery routes from events; operator doc refresh (`EXTENSION_GUIDANCE_PRINCIPLES`); optional mission-level autonomy overrides.

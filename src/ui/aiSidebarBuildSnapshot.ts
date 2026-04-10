@@ -1,3 +1,4 @@
+import * as vscode from "vscode";
 import type { Mission } from "../types";
 import { focusedMissionHardStopDataQualityHintForSnapshot } from "../missions/missionHardStopDataQualityPresentation";
 import { focusedMissionDownstreamGatingHintForSnapshot } from "../missions/missionDownstreamGatingPresentation";
@@ -9,6 +10,7 @@ import {
 } from "../missions/missionOperatorActionEventPresentation";
 import { focusedMissionLifecycleSummaryForSnapshot } from "../missions/missionLifecycleSummaryPresentation";
 import { focusedMissionRequiredWorkHintForSnapshot } from "../missions/missionRequiredWorkPresentation";
+import { focusedMissionAutonomyObservabilityForSnapshot } from "../missions/missionAutonomyObservabilityPresentation";
 import { operatorNextActionHint } from "./operatorNextActionHint";
 import type { ExtensionTraceLogger } from "../diagnostics/ExtensionTraceLogger";
 import { routingPresetTemplatesForUi } from "../missions/missionRouting";
@@ -129,6 +131,8 @@ export async function buildSidebarDashboardSnapshot(host: AiSidebarBuildSnapshot
   } = host.computeMissionDerivedSlices(missions, allMissions);
   const agentLive = host.buildAgentLive(focusedMission);
   const tAfterMissionAgg = Date.now();
+  const cfg = vscode.workspace.getConfiguration();
+  const cfgGet = (k: string, d: unknown) => cfg.get(k, d as never);
   const tLog = Date.now();
   host.traceLogger.log({
     level: "debug",
@@ -162,6 +166,7 @@ export async function buildSidebarDashboardSnapshot(host: AiSidebarBuildSnapshot
     focusedMissionLifecycleSummary: focusedMissionLifecycleSummaryForSnapshot(focusedMission),
     focusedMissionOperatorNextHint: operatorNextActionHint(focusedMission),
     focusedMissionOperatorActionHeadlines: operatorActionHeadlinesByEventIdForMission(focusedMission),
+    focusedMissionAutonomyObservability: focusedMissionAutonomyObservabilityForSnapshot(focusedMission, cfgGet),
     missionDownstreamGatingCardHints: Object.fromEntries(
       missions
         .map((m) => [m.id, missionDownstreamGatingCardHint(m)])

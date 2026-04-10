@@ -10,3 +10,8 @@ export function autonomyModeAutoChainsRunPasses(mode: string): boolean {
     mode === "structured_autonomous"
   );
 }
+
+/** True when orchestrator may chain another pass after a step-cap exit (mode + explicit setting). */
+export function autonomyShouldScheduleNextPassAfterStepCap(mode: string, autoContinuePasses: boolean): boolean {
+  return autoContinuePasses && autonomyModeAutoChainsRunPasses(mode);
+}

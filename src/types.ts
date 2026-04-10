@@ -1,4 +1,5 @@
 import type { MissionBlueprint } from "./missions/missionBlueprintTypes";
+import type { MissionRunPassStopReason } from "./missions/missionActionResult";
 
 export type MissionStatus =
   | "queued"
@@ -126,6 +127,8 @@ export interface MissionRuntime {
   preBlueprintParseRecoveryAttempts?: number;
   /** Consecutive passes that ended only due to `maxStepsPerRun` (autonomous chaining budget; reset on work-item progress). */
   autonomousStepCapChainCount?: number;
+  /** Last reason a `runMission` pass ended (observability for inspector / operator). */
+  lastRunPassStopReason?: MissionRunPassStopReason;
   /**
    * Promotion state: distinguishes experimentation from validated/promoted state.
    * - experimental: mutations have occurred without a post-mutation verification signal

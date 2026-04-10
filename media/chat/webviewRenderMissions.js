@@ -324,6 +324,17 @@ export function createMissionRenderer(deps) {
         const inspectorNextHint = snapshot.focusedMissionOperatorNextHint
           ? `<div class="mission-operator-next-hint meta" style="margin:8px 0;padding:8px 10px;border-radius:8px;border:1px solid var(--vscode-widget-border, rgba(255,255,255,.12));background:var(--vscode-editor-inactiveSelectionBackground, rgba(127,127,127,.12));"><span class="section-title small">Next step</span><div style="margin-top:4px;">${escapeHtml(snapshot.focusedMissionOperatorNextHint)}</div></div>`
           : "";
+        const ao = snapshot.focusedMissionAutonomyObservability;
+        const inspectorAutonomy = ao
+          ? `<div class="inspector-section"><div class="section-title small">Autonomy &amp; recovery</div><div class="meta-block">
+              <div class="meta">autonomy mode <strong>${escapeHtml(ao.autonomyMode)}</strong> · blueprint <strong>${escapeHtml(ao.blueprintMode)}</strong> · planning preset <strong>${escapeHtml(ao.blueprintPlanning)}</strong></div>
+              ${ao.lastRunPassStopReason ? `<div class="meta">last pass stop: <strong>${escapeHtml(ao.lastRunPassStopReason)}</strong></div>` : ""}
+              ${ao.blockReasonCode ? `<div class="meta">stop / block code: ${escapeHtml(ao.blockReasonCode)}</div>` : ""}
+              ${ao.failureClass ? `<div class="meta">failure class: ${escapeHtml(ao.failureClass)}</div>` : ""}
+              ${ao.recoveryChainSummary ? `<div class="meta">recovery chains: ${escapeHtml(ao.recoveryChainSummary)}</div>` : ""}
+              ${ao.pendingApprovalPreview ? `<div class="meta">approval: ${escapeHtml(ao.pendingApprovalPreview)}</div>` : ""}
+            </div></div>`
+          : "";
         const bpProg = snapshot.focusedMissionBlueprintProgress;
         const preBpQs = m.preBlueprintClarification?.questions;
         const inspectorPreBlueprint =
@@ -405,6 +416,7 @@ export function createMissionRenderer(deps) {
       <div class="row split"><strong>${escapeHtml(m.title)}</strong><span class="badge ${m.status}">${escapeHtml(formatMissionStatusBadgeLabel(m))}</span></div>
       ${inspectorLifecycle}
       ${inspectorNextHint}
+      ${inspectorAutonomy}
       ${
         m.status === "completed" && m.completionReason
           ? `<div class="meta mission-completion-note">${escapeHtml(formatMissionCompletionReason(m.completionReason))}</div>`
@@ -430,7 +442,7 @@ export function createMissionRenderer(deps) {
       ${reportSummaryHtml}
       ${reportActions}
       ${reportPreviewHtml}
-      <div class="inspector-section"><div class="section-title small">Runtime</div><div class="meta-block"><div class="meta">last progress: ${rt.lastProgressAt ? new Date(rt.lastProgressAt).toLocaleString() : "n/a"} (${relTime(rt.lastProgressAt)})</div><div class="meta">last heartbeat: ${rt.lastRunnerHeartbeatAt ? new Date(rt.lastRunnerHeartbeatAt).toLocaleString() : "n/a"} (${relTime(rt.lastRunnerHeartbeatAt)})</div><div class="meta">stalled heartbeats: ${rt.stalledHeartbeats || 0}</div><div class="meta">loop guard trips: ${rt.loopGuardTrips || 0}</div><div class="meta">validation: ${escapeHtml(m.validationState || "pending")}</div></div></div>
+      <div class="inspector-section"><div class="section-title small">Runtime</div><div class="meta-block"><div class="meta">last progress: ${rt.lastProgressAt ? new Date(rt.lastProgressAt).toLocaleString() : "n/a"} (${relTime(rt.lastProgressAt)})</div><div class="meta">last heartbeat: ${rt.lastRunnerHeartbeatAt ? new Date(rt.lastRunnerHeartbeatAt).toLocaleString() : "n/a"} (${relTime(rt.lastRunnerHeartbeatAt)})</div><div class="meta">stalled heartbeats: ${rt.stalledHeartbeats || 0}</div><div class="meta">loop guard trips: ${rt.loopGuardTrips || 0}</div><div class="meta">last pass stop: ${escapeHtml(rt.lastRunPassStopReason || "n/a")}</div><div class="meta">validation: ${escapeHtml(m.validationState || "pending")}</div></div></div>
       <div class="inspector-section"><div class="section-title small">Work queue</div>${queue}</div>
       <div class="inspector-section"><div class="section-title small">Recent checkpoints</div>${checkpoints}</div>
       <div class="inspector-section"><div class="section-title small">Recent mission events</div>${events}</div>

@@ -75,6 +75,8 @@ function minimalSidebarSnapshot() {
       defaultModel: "gpt-4",
       autoResumeOnStartup: false,
       heartbeatSeconds: 8,
+      maxStepsPerRun: 128,
+      unlimitedStepsPerRun: false,
       allowTerminal: true,
       requireWriteApproval: false,
       requireApprovalForNonImplementerMutations: true,
@@ -82,10 +84,28 @@ function minimalSidebarSnapshot() {
       useNativeChatParticipant: false,
       mcpConfigPath: "",
       autoRevealOnActivation: true,
+      missionBlueprintModeEnum: "off",
       missionBlueprintMode: false,
       missionPreBlueprintClarification: false,
       missionRequireBlueprintApproval: true,
-      traceAutoRefreshIntervalMs: 10000
+      traceAutoRefreshIntervalMs: 10000,
+      autonomyMode: "workspace_autonomous",
+      autonomyBlueprintPlanning: "off",
+      autonomyAutoContinuePasses: true,
+      autonomyMaxAutonomousStepCapChains: 2000,
+      autonomyAutoApproveWorkspaceWrites: true,
+      autonomyAutoApproveWorkspaceDeletes: true,
+      autonomyAutoApproveWorkspaceSafeCommands: true,
+      autonomyRequireApprovalForProtectedPaths: true,
+      autonomyProtectedPathGlobs: [],
+      autonomyBlockedPathGlobs: [],
+      autonomyExtensionCoreMutationPolicy: "require_approval",
+      toolRecoveryAutonomyPreset: "standard",
+      retryBudgetMaxRunCommandRecovery: 12,
+      retryBudgetMaxWriteFileRecovery: 12,
+      retryBudgetMaxApplyPatchRecovery: 12,
+      retryBudgetMaxTransientMutating: 4,
+      retryBudgetMaxToolFollowUpTurns: 10
     },
     pendingApprovals: [],
     approvalBundles: [],
@@ -1878,7 +1898,8 @@ test("createPanelRenderers: chat and settings model pickers use provider-aware o
 
     panels.renderSettings(snapshot, { force: true });
     assert.match(els.settingsPanel.innerHTML, /Effective for provider/);
-    assert.match(els.settingsPanel.innerHTML, /Mission blueprint mode/);
+    assert.match(els.settingsPanel.innerHTML, /Autonomy mode/);
+    assert.match(els.settingsPanel.innerHTML, /Blueprint mode/);
     assert.match(els.settingsPanel.innerHTML, /Edit mission settings in VS Code/);
     assert.equal(rows.settings.length, 2);
     assert.equal(rows.settings[0]._kids[0].dataset.model, "qwen2.5-coder");

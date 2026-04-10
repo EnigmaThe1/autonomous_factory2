@@ -373,6 +373,40 @@ export function buildAiSidebarWebviewHtml(extensionUri: vscode.Uri, webview: vsc
             <label class="toggle"><input id="settingAutoRevealOnActivation" type="checkbox" /><span>Auto-reveal on activation</span></label>
             <label class="toggle"><input id="settingUnlimitedStepsPerRun" type="checkbox" /><span>Unlimited steps per run</span></label>
           </div>
+          <div class="section-title" style="margin-top:12px;">Mission autonomy (workspace)</div>
+          <p class="meta" style="margin:4px 0 8px;max-width:44rem;">Defaults favor in-workspace auto-approve for writes, deletes, and safe commands; recovery-spine and extension-core rules still gate risky paths. Edit path globs in VS Code settings (<code>myAi.missions.autonomy.*</code>).</p>
+          <div class="settings-grid">
+            <label><span>Autonomy mode</span>
+              <select id="settingAutonomyMode">
+                <option value="workspace_autonomous">workspace_autonomous</option>
+                <option value="workspace_coder">workspace_coder</option>
+                <option value="structured_autonomous">structured_autonomous</option>
+                <option value="strict">strict</option>
+              </select>
+            </label>
+            <label><span>Blueprint mode</span>
+              <select id="settingMissionBlueprintModeEnum">
+                <option value="off">off</option>
+                <option value="soft">soft</option>
+                <option value="hard">hard</option>
+              </select>
+            </label>
+            <label><span>Blueprint planning preset</span>
+              <select id="settingAutonomyBlueprintPlanning">
+                <option value="off">off</option>
+                <option value="optional">optional</option>
+                <option value="required_first">required_first</option>
+              </select>
+            </label>
+            <label><span>Max auto-chains after step cap</span><input id="settingAutonomyMaxChains" type="number" min="1" max="50000" step="1" title="myAi.missions.autonomy.maxAutonomousStepCapChains" /></label>
+          </div>
+          <div class="toggle-grid">
+            <label class="toggle"><input id="settingAutonomyAutoContinuePasses" type="checkbox" /><span>Auto-continue after step cap</span></label>
+            <label class="toggle"><input id="settingAutonomyAutoApproveWrites" type="checkbox" /><span>Auto-approve workspace writes</span></label>
+            <label class="toggle"><input id="settingAutonomyAutoApproveDeletes" type="checkbox" /><span>Auto-approve workspace deletes/renames</span></label>
+            <label class="toggle"><input id="settingAutonomyAutoApproveCommands" type="checkbox" /><span>Auto-approve workspace-safe commands</span></label>
+            <label class="toggle"><input id="settingAutonomyRequireProtectedApproval" type="checkbox" /><span>Require approval for autonomy protected globs</span></label>
+          </div>
           <div class="row split">
             <button id="openSettings2" class="ghost">Open VS Code Settings</button>
             <button id="openAgentCapabilitiesDoc" class="ghost">Agent capabilities roadmap</button>

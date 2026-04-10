@@ -8,6 +8,7 @@ import {
 import type { ProviderRegistry } from "../providers/ProviderRegistry";
 import { baseUrlSettingKey, defaultBaseUrl } from "../providers/providerCredentialKeys";
 import { modelsConfigKeyForProvider, resolveModelForProvider } from "../providers/providerModelResolution";
+import { blueprintStructuredFlowEnabled, normalizeBlueprintModeSetting } from "../missions/missionBlueprintMode";
 import type { SidebarSnapshot } from "./protocol";
 
 /**
@@ -32,7 +33,24 @@ export const MYAI_SIDEBAR_SNAPSHOT_SETTINGS_KEYS = {
   missionBlueprintMode: "myAi.missions.blueprintMode",
   missionPreBlueprintClarification: "myAi.missions.preBlueprintClarification",
   missionRequireBlueprintApproval: "myAi.missions.requireBlueprintApproval",
-  traceAutoRefreshIntervalMs: "myAi.ui.traceAutoRefreshIntervalMs"
+  traceAutoRefreshIntervalMs: "myAi.ui.traceAutoRefreshIntervalMs",
+  autonomyMode: "myAi.missions.autonomy.mode",
+  autonomyBlueprintPlanning: "myAi.missions.autonomy.blueprintPlanning",
+  autonomyAutoContinuePasses: "myAi.missions.autonomy.autoContinuePasses",
+  autonomyMaxAutonomousStepCapChains: "myAi.missions.autonomy.maxAutonomousStepCapChains",
+  autonomyAutoApproveWorkspaceWrites: "myAi.missions.autonomy.autoApproveWorkspaceWrites",
+  autonomyAutoApproveWorkspaceDeletes: "myAi.missions.autonomy.autoApproveWorkspaceDeletes",
+  autonomyAutoApproveWorkspaceSafeCommands: "myAi.missions.autonomy.autoApproveWorkspaceSafeCommands",
+  autonomyRequireApprovalForProtectedPaths: "myAi.missions.autonomy.requireApprovalForProtectedPaths",
+  autonomyProtectedPathGlobs: "myAi.missions.autonomy.protectedPathGlobs",
+  autonomyBlockedPathGlobs: "myAi.missions.autonomy.blockedPathGlobs",
+  autonomyExtensionCoreMutationPolicy: "myAi.missions.autonomy.extensionCoreMutationPolicy",
+  toolRecoveryAutonomyPreset: "myAi.missions.toolRecoveryAutonomyPreset",
+  retryBudgetMaxRunCommandRecovery: "myAi.missions.maxRunCommandRecoveryAttemptsPerWorkItem",
+  retryBudgetMaxWriteFileRecovery: "myAi.missions.maxWriteFileRecoveryAttemptsPerWorkItem",
+  retryBudgetMaxApplyPatchRecovery: "myAi.missions.maxApplyPatchRecoveryAttemptsPerWorkItem",
+  retryBudgetMaxTransientMutating: "myAi.missions.maxTransientMutatingFailuresPerWorkItem",
+  retryBudgetMaxToolFollowUpTurns: "myAi.missions.maxToolFollowUpTurns"
 } as const;
 
 /** Flat list for `ConfigurationChangeEvent.affectsConfiguration` checks. */
@@ -43,12 +61,19 @@ export function configurationAffectsSidebarSnapshotSettings(e: vscode.Configurat
   return SIDEBAR_SNAPSHOT_SETTINGS_CONFIG_KEYS.some((k) => e.affectsConfiguration(k));
 }
 
+function readStringArraySetting(cfg: vscode.WorkspaceConfiguration, key: string, fallback: string[]): string[] {
+  const raw = cfg.get<unknown>(key, fallback);
+  if (!Array.isArray(raw)) return fallback;
+  return raw.map((x) => String(x)).filter((s) => s.trim().length > 0);
+}
+
 export function readSidebarWorkspaceSettings(): SidebarSnapshot["settings"] & {
   defaultProvider: string;
   defaultModel: string;
 } {
   const cfg = vscode.workspace.getConfiguration();
   const K = MYAI_SIDEBAR_SNAPSHOT_SETTINGS_KEYS;
+  const blueprintEnum = normalizeBlueprintModeSetting(cfg.get(K.missionBlueprintMode, "off"));
   return {
     defaultProvider: cfg.get<string>(K.defaultProvider, "ollama"),
     defaultModel: cfg.get<string>(K.defaultModel, "llama3.1"),
@@ -67,13 +92,49 @@ export function readSidebarWorkspaceSettings(): SidebarSnapshot["settings"] & {
     mcpConfigPath: cfg.get<string>(K.mcpConfigPath, "examples/mcp.sample.json"),
     autoRevealOnActivation: cfg.get<boolean>(K.autoRevealOnActivation, false),
     defaultTab: cfg.get<string>(K.defaultTab, "chat"),
-    missionBlueprintMode: cfg.get<boolean>(K.missionBlueprintMode, false),
+    missionBlueprintModeEnum: blueprintEnum,
+    missionBlueprintMode: blueprintStructuredFlowEnabled(blueprintEnum),
     missionPreBlueprintClarification: cfg.get<boolean>(K.missionPreBlueprintClarification, false),
     missionRequireBlueprintApproval: cfg.get<boolean>(K.missionRequireBlueprintApproval, true),
     traceAutoRefreshIntervalMs: (() => {
       const raw = cfg.get<number>(K.traceAutoRefreshIntervalMs, TRACE_AUTO_REFRESH_INTERVAL_MS_DEFAULT);
       return clampTraceAutoRefreshIntervalMs(Number.isFinite(raw) ? raw : TRACE_AUTO_REFRESH_INTERVAL_MS_DEFAULT);
-    })()
+    })(),
+    autonomyMode: cfg.get<string>(K.autonomyMode, "workspace_autonomous"),
+    autonomyBlueprintPlanning: cfg.get<string>(K.autonomyBlueprintPlanning, "off"),
+    autonomyAutoContinuePasses: cfg.get<boolean>(K.autonomyAutoContinuePasses, true),
+    autonomyMaxAutonomousStepCapChains: Math.max(
+      1,
+      Math.min(50_000, Math.floor(cfg.get<number>(K.autonomyMaxAutonomousStepCapChains, 2000) || 2000))
+    ),
+    autonomyAutoApproveWorkspaceWrites: cfg.get<boolean>(K.autonomyAutoApproveWorkspaceWrites, true),
+    autonomyAutoApproveWorkspaceDeletes: cfg.get<boolean>(K.autonomyAutoApproveWorkspaceDeletes, true),
+    autonomyAutoApproveWorkspaceSafeCommands: cfg.get<boolean>(K.autonomyAutoApproveWorkspaceSafeCommands, true),
+    autonomyRequireApprovalForProtectedPaths: cfg.get<boolean>(K.autonomyRequireApprovalForProtectedPaths, true),
+    autonomyProtectedPathGlobs: readStringArraySetting(cfg, K.autonomyProtectedPathGlobs, []),
+    autonomyBlockedPathGlobs: readStringArraySetting(cfg, K.autonomyBlockedPathGlobs, []),
+    autonomyExtensionCoreMutationPolicy: cfg.get<string>(K.autonomyExtensionCoreMutationPolicy, "require_approval"),
+    toolRecoveryAutonomyPreset: cfg.get<string>(K.toolRecoveryAutonomyPreset, "standard"),
+    retryBudgetMaxRunCommandRecovery: Math.max(
+      0,
+      Math.floor(cfg.get<number>(K.retryBudgetMaxRunCommandRecovery, 12) ?? 12)
+    ),
+    retryBudgetMaxWriteFileRecovery: Math.max(
+      0,
+      Math.floor(cfg.get<number>(K.retryBudgetMaxWriteFileRecovery, 12) ?? 12)
+    ),
+    retryBudgetMaxApplyPatchRecovery: Math.max(
+      0,
+      Math.floor(cfg.get<number>(K.retryBudgetMaxApplyPatchRecovery, 12) ?? 12)
+    ),
+    retryBudgetMaxTransientMutating: Math.max(
+      0,
+      Math.floor(cfg.get<number>(K.retryBudgetMaxTransientMutating, 4) ?? 4)
+    ),
+    retryBudgetMaxToolFollowUpTurns: Math.max(
+      0,
+      Math.floor(cfg.get<number>(K.retryBudgetMaxToolFollowUpTurns, 10) ?? 10)
+    )
   };
 }
 

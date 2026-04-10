@@ -41,6 +41,13 @@ export interface ActionDecision {
 export interface MissionAutonomyPolicy {
   mode: AutonomyMode;
   blueprintPlanning: BlueprintPlanningMode;
+  /** When false, do not auto-chain runMission after maxStepsPerRun (orchestrator reads config separately). */
+  autoContinuePasses: boolean;
+  /**
+   * When true, autonomy `protectedPathGlobs` require approval. Recovery-spine protected paths always require approval.
+   * When false, only non-spine autonomy globs may follow ordinary auto-approve rules.
+   */
+  requireApprovalForProtectedPaths: boolean;
   autoApproveWorkspaceWrites: boolean;
   autoApproveWorkspaceDeletes: boolean;
   autoApproveWorkspaceSafeCommands: boolean;

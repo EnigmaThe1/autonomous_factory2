@@ -220,7 +220,20 @@ document.getElementById('saveQuickSettings')?.addEventListener('click', () => {
     )?.checked,
     autoApproveAllToolRequests: !!document.getElementById('settingAutoApproveAllToolRequests')?.checked,
     autoRevealOnActivation: !!document.getElementById('settingAutoRevealOnActivation')?.checked,
-    defaultTab: document.getElementById('settingDefaultTab')?.value || 'chat'
+    defaultTab: document.getElementById('settingDefaultTab')?.value || 'chat',
+    autonomyMode: document.getElementById('settingAutonomyMode')?.value || 'workspace_autonomous',
+    missionBlueprintModeEnum: document.getElementById('settingMissionBlueprintModeEnum')?.value || 'off',
+    autonomyBlueprintPlanning: document.getElementById('settingAutonomyBlueprintPlanning')?.value || 'off',
+    autonomyAutoContinuePasses: !!document.getElementById('settingAutonomyAutoContinuePasses')?.checked,
+    autonomyMaxAutonomousStepCapChains: Math.max(
+      1,
+      Math.min(50000, Number(document.getElementById('settingAutonomyMaxChains')?.value || 2000))
+    ),
+    autonomyAutoApproveWorkspaceWrites: !!document.getElementById('settingAutonomyAutoApproveWrites')?.checked,
+    autonomyAutoApproveWorkspaceDeletes: !!document.getElementById('settingAutonomyAutoApproveDeletes')?.checked,
+    autonomyAutoApproveWorkspaceSafeCommands: !!document.getElementById('settingAutonomyAutoApproveCommands')?.checked,
+    autonomyRequireApprovalForProtectedPaths: !!document.getElementById('settingAutonomyRequireProtectedApproval')
+      ?.checked
   });
 });
 document.getElementById('openSettings2')?.addEventListener('click', () => post('openSettings'));
@@ -247,7 +260,16 @@ function wireQuickSettingsDirtyTracking() {
     'settingRequireApprovalForNonImplementerMutations',
     'settingAutoApproveAllToolRequests',
     'settingAutoRevealOnActivation',
-    'settingUnlimitedStepsPerRun'
+    'settingUnlimitedStepsPerRun',
+    'settingAutonomyMode',
+    'settingMissionBlueprintModeEnum',
+    'settingAutonomyBlueprintPlanning',
+    'settingAutonomyMaxChains',
+    'settingAutonomyAutoContinuePasses',
+    'settingAutonomyAutoApproveWrites',
+    'settingAutonomyAutoApproveDeletes',
+    'settingAutonomyAutoApproveCommands',
+    'settingAutonomyRequireProtectedApproval'
   ].forEach((id) => {
     document.getElementById(id)?.addEventListener('change', mark);
   });

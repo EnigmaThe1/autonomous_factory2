@@ -83,7 +83,7 @@ export function chatPanelSig(snapshot, chatBuffer, chatHistory, agentStream) {
   const fstat = focused?.status ?? "";
   const s = snapshot?.settings;
   const bpp = s
-    ? `${s.missionBlueprintMode ? 1 : 0}|${s.missionPreBlueprintClarification ? 1 : 0}|${s.missionRequireBlueprintApproval ? 1 : 0}`
+    ? `${s.missionBlueprintModeEnum || (s.missionBlueprintMode ? "soft" : "off")}|${s.missionPreBlueprintClarification ? 1 : 0}|${s.missionRequireBlueprintApproval ? 1 : 0}|${s.autonomyMode || ""}|${s.autonomyAutoContinuePasses === false ? 0 : 1}|${(s.autonomyProtectedPathGlobs || []).length}|${(s.autonomyBlockedPathGlobs || []).length}`
     : "";
   return JSON.stringify({
     buf: chatBuffer,
@@ -209,7 +209,10 @@ export function missionInspectorSig(snapshot, missionQuickFilter = "all", displa
       rmc: reportCacheSig,
       bpx: "",
       mp,
-      fmp
+      fmp,
+      ao: snapshot.focusedMissionAutonomyObservability
+        ? JSON.stringify(snapshot.focusedMissionAutonomyObservability)
+        : ""
     });
   }
   const q = (m.queue || []).map((w) => ({
@@ -265,8 +268,12 @@ export function missionInspectorSig(snapshot, missionQuickFilter = "all", displa
       hb: rt.lastRunnerHeartbeatAt,
       sh: rt.stalledHeartbeats,
       ar: rt.autoReplans,
-      lg: rt.loopGuardTrips
+      lg: rt.loopGuardTrips,
+      lsr: rt.lastRunPassStopReason || ""
     },
+    ao: snapshot.focusedMissionAutonomyObservability
+      ? JSON.stringify(snapshot.focusedMissionAutonomyObservability)
+      : "",
     bpx,
     mp,
     fmp,

@@ -216,6 +216,45 @@ test("integration: maxStepsPerRun exit auto-chains passes in workspace_coder unt
   assert.ok(fin.queue.every((w) => w.status === "done"));
 });
 
+test("integration: autoContinuePasses false does not chain after maxStepsPerRun (mission stays queued)", async () => {
+  V.__setTestConfig?.("myAi.missions.maxStepsPerRun", 2);
+  V.__setTestConfig?.("myAi.missions.unlimitedStepsPerRun", false);
+  V.__setTestConfig?.("myAi.missions.autonomy.mode", "workspace_coder");
+  V.__setTestConfig?.("myAi.missions.autonomy.autoContinuePasses", false);
+  V.__setTestConfig?.("myAi.missions.autonomy.maxAutonomousStepCapChains", 32);
+  V.__setTestConfig?.("myAi.missions.requirePlannerCoverage", false);
+
+  const agent = roleScript({
+    implementer: [
+      { summary: "i1", toolCalls: [] },
+      { summary: "i2", toolCalls: [] },
+      { summary: "i3", toolCalls: [] }
+    ],
+    reviewer: [{ summary: "LGTM", toolCalls: [] }]
+  });
+  const { orchestrator, store } = await createOrchestrator(agent, async () => ({ ok: true, summary: "noop" }));
+  const m = await store.create("no-chain-steps", "p", "ollama", undefined, looseCompletionPolicy);
+  await store.enqueue(m.id, [
+    { id: "w1", title: "1", role: "implementer", status: "todo", prompt: "a" },
+    { id: "w2", title: "2", role: "implementer", status: "todo", prompt: "b" },
+    { id: "w3", title: "3", role: "implementer", status: "todo", prompt: "c" },
+    {
+      id: "rev-pre",
+      title: "Review latest implementation",
+      role: "reviewer",
+      status: "todo",
+      prompt: "Review."
+    }
+  ]);
+
+  await orchestrator.runMission(m.id);
+  await awaitMissionRunLoopIdle(orchestrator, m.id);
+
+  const mid = store.get(m.id)!;
+  assert.equal(mid.status, "queued");
+  assert.ok(mid.queue.some((w) => w.status === "todo" || w.status === "in_progress"));
+});
+
 test("integration: workspace_coder ordinary workspace writeFile completes without awaiting_input", async () => {
   const root = await nodeFs.mkdtemp(nodePath.join(tmpdir(), "myai-runner-ws-"));
   const ext = await nodeFs.mkdtemp(nodePath.join(tmpdir(), "myai-runner-ext-"));

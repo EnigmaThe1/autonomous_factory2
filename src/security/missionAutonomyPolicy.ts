@@ -26,8 +26,8 @@ function normalizeAutonomyMode(raw: string): AutonomyMode {
 }
 
 export function loadMissionAutonomyPolicy(get: PolicyConfigGet): MissionAutonomyPolicy {
-  const mode = normalizeAutonomyMode(get<string>(`${CFG_PREFIX}mode`, "workspace_coder"));
-  const blueprintPlanning = get<BlueprintPlanningMode>(`${CFG_PREFIX}blueprintPlanning`, "optional");
+  const mode = normalizeAutonomyMode(get<string>(`${CFG_PREFIX}mode`, "workspace_autonomous"));
+  const blueprintPlanning = get<BlueprintPlanningMode>(`${CFG_PREFIX}blueprintPlanning`, "off");
   const protectedPathGlobs = readStringArray(get, `${CFG_PREFIX}protectedPathGlobs`, []);
   const blockedPathGlobs = readStringArray(get, `${CFG_PREFIX}blockedPathGlobs`, []);
   const extPol = get<string>(`${CFG_PREFIX}extensionCoreMutationPolicy`, "require_approval");
@@ -37,6 +37,8 @@ export function loadMissionAutonomyPolicy(get: PolicyConfigGet): MissionAutonomy
   return {
     mode,
     blueprintPlanning,
+    autoContinuePasses: get<boolean>(`${CFG_PREFIX}autoContinuePasses`, true),
+    requireApprovalForProtectedPaths: get<boolean>(`${CFG_PREFIX}requireApprovalForProtectedPaths`, true),
     autoApproveWorkspaceWrites: get<boolean>(`${CFG_PREFIX}autoApproveWorkspaceWrites`, true),
     autoApproveWorkspaceDeletes: get<boolean>(`${CFG_PREFIX}autoApproveWorkspaceDeletes`, true),
     autoApproveWorkspaceSafeCommands: get<boolean>(`${CFG_PREFIX}autoApproveWorkspaceSafeCommands`, true),
@@ -237,11 +239,17 @@ function workspaceCoderPathMutationDecision(
     };
   }
   if (zone === "workspace_protected") {
-    return {
-      kind: "require_approval",
-      reason: "Protected path requires operator approval.",
-      recoverySpineProtected: Boolean(recoverySpineProtected)
-    };
+    const spineProtected = Boolean(recoverySpineProtected);
+    if (spineProtected || autonomy.requireApprovalForProtectedPaths) {
+      return {
+        kind: "require_approval",
+        reason: spineProtected
+          ? "Recovery-spine protected path requires operator approval."
+          : "Protected path requires operator approval.",
+        recoverySpineProtected: spineProtected
+      };
+    }
+    // Non-spine autonomy glob only: treat like open workspace when requireApprovalForProtectedPaths is false.
   }
   const auto =
     kind === "delete" ? autonomy.autoApproveWorkspaceDeletes : autonomy.autoApproveWorkspaceWrites;
@@ -438,6 +446,8 @@ export function missionAutonomyPolicyForTest(partial: Partial<MissionAutonomyPol
   const base: MissionAutonomyPolicy = {
     mode: "workspace_coder",
     blueprintPlanning: "optional",
+    autoContinuePasses: true,
+    requireApprovalForProtectedPaths: true,
     autoApproveWorkspaceWrites: true,
     autoApproveWorkspaceDeletes: true,
     autoApproveWorkspaceSafeCommands: true,

@@ -17,7 +17,7 @@ import {
 import { isActiveWorkItemStatus, isRunnableWorkItemStatus } from "./workItemLifecycle";
 import { reconcileStaleApprovalPendingHardStops } from "./missionApprovalGateReconcile";
 import { normalizeMissionQueueForRunner } from "./missionQueueNormalize";
-import { autonomyModeAutoChainsRunPasses } from "./missionRunnerAutonomy";
+import { autonomyShouldScheduleNextPassAfterStepCap } from "./missionRunnerAutonomy";
 import { loadMissionAutonomyPolicy } from "../security/missionAutonomyPolicy";
 import { enforceClosurePolicy } from "./missionClosurePolicy";
 import type { MissionFileTracker } from "./MissionFileTracker";
@@ -444,12 +444,15 @@ export class MissionOrchestrator {
 
   async runMission(id: string): Promise<RunMissionPassOutcome> {
     const outcome = await this.runLoop.runMission(id);
+    if (outcome.kind === "ran_pass" && outcome.stopReason) {
+      await this.store.updateRuntime(id, { lastRunPassStopReason: outcome.stopReason });
+    }
     if (outcome.kind !== "ran_pass" || outcome.stopReason !== "max_steps_per_run") {
       return outcome;
     }
     const cfg = vscode.workspace.getConfiguration();
     const policy = loadMissionAutonomyPolicy((key, def) => cfg.get(key, def));
-    if (!autonomyModeAutoChainsRunPasses(policy.mode)) {
+    if (!autonomyShouldScheduleNextPassAfterStepCap(policy.mode, policy.autoContinuePasses)) {
       return outcome;
     }
     const maxChains = cfg.get<number>("myAi.missions.autonomy.maxAutonomousStepCapChains", 2000);

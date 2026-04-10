@@ -19,7 +19,8 @@ test("webview panel bundle: settings tab mission blueprint rows + openSettings s
     "utf8"
   );
   assert.match(src, /function missionBlueprintSettingsRowsHtml/);
-  assert.match(src, /Mission blueprint mode/);
+  assert.match(src, /Autonomy mode/);
+  assert.match(src, /Blueprint mode/);
   assert.match(src, /Edit mission settings in VS Code/);
   assert.match(src, /data-query="myAi\.missions"/);
 });

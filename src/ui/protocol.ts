@@ -1,6 +1,7 @@
 import { AgentRole, Mission, MissionProgram } from "../types";
 import type { TraceLevel, TraceRecord } from "../diagnostics/traceTypes";
 import type { BlueprintProgress } from "../missions/blueprintProgress";
+import type { FocusedMissionAutonomyObservability } from "../missions/missionAutonomyObservabilityPresentation";
 
 export interface MissionProgressStats {
   total: number;
@@ -47,12 +48,33 @@ export interface SidebarSettingsSummary {
   mcpConfigPath: string;
   autoRevealOnActivation: boolean;
   defaultTab: string;
-  /** Workspace `myAi.missions.blueprintMode` — shown on Chat “Start mission” card. */
+  /** Resolved `myAi.missions.blueprintMode` (off | soft | hard). */
+  missionBlueprintModeEnum: "off" | "soft" | "hard";
+  /** True when blueprint structured flow is enabled (soft or hard). */
   missionBlueprintMode: boolean;
   /** Workspace `myAi.missions.preBlueprintClarification`. */
   missionPreBlueprintClarification: boolean;
   /** Workspace `myAi.missions.requireBlueprintApproval`. */
   missionRequireBlueprintApproval: boolean;
+  /** Workspace `myAi.missions.autonomy.mode`. */
+  autonomyMode: string;
+  /** Workspace `myAi.missions.autonomy.blueprintPlanning`. */
+  autonomyBlueprintPlanning: string;
+  autonomyAutoContinuePasses: boolean;
+  autonomyMaxAutonomousStepCapChains: number;
+  autonomyAutoApproveWorkspaceWrites: boolean;
+  autonomyAutoApproveWorkspaceDeletes: boolean;
+  autonomyAutoApproveWorkspaceSafeCommands: boolean;
+  autonomyRequireApprovalForProtectedPaths: boolean;
+  autonomyProtectedPathGlobs: string[];
+  autonomyBlockedPathGlobs: string[];
+  autonomyExtensionCoreMutationPolicy: string;
+  toolRecoveryAutonomyPreset: string;
+  retryBudgetMaxRunCommandRecovery: number;
+  retryBudgetMaxWriteFileRecovery: number;
+  retryBudgetMaxApplyPatchRecovery: number;
+  retryBudgetMaxTransientMutating: number;
+  retryBudgetMaxToolFollowUpTurns: number;
   /** Workspace `myAi.ui.traceAutoRefreshIntervalMs` (clamped on host). */
   traceAutoRefreshIntervalMs: number;
 }
@@ -200,6 +222,8 @@ export interface SidebarSnapshot {
   focusedMissionLifecycleSummary?: string;
   /** Inspector: concrete “what to do next” when blocked or awaiting input (host-derived). */
   focusedMissionOperatorNextHint?: string;
+  /** Inspector: autonomy mode, blueprint, last pass stop, failure class, recovery chains, approval preview. */
+  focusedMissionAutonomyObservability?: FocusedMissionAutonomyObservability;
   /** Focused mission: event id → compact operator-action headline (inspector/console; host-derived). */
   focusedMissionOperatorActionHeadlines?: Record<string, string>;
   /** Mission-card hint: per-mission downstream-gating hard-stop summary for list rendering. */
@@ -320,6 +344,15 @@ export type UiToExtMessage =
       autoApproveAllToolRequests: boolean;
       autoRevealOnActivation: boolean;
       defaultTab: string;
+      autonomyMode: string;
+      missionBlueprintModeEnum: string;
+      autonomyBlueprintPlanning: string;
+      autonomyAutoContinuePasses: boolean;
+      autonomyMaxAutonomousStepCapChains: number;
+      autonomyAutoApproveWorkspaceWrites: boolean;
+      autonomyAutoApproveWorkspaceDeletes: boolean;
+      autonomyAutoApproveWorkspaceSafeCommands: boolean;
+      autonomyRequireApprovalForProtectedPaths: boolean;
     }
   | { type: "saveProviderCredential"; providerId: string; apiKey: string }
   | { type: "clearProviderCredential"; providerId: string }

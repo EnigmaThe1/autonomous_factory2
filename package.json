@@ -494,9 +494,19 @@
         },
         "myAi.missions.autonomy.mode": {
           "type": "string",
-          "default": "workspace_coder",
+          "default": "workspace_autonomous",
           "enum": ["strict", "workspace_coder", "workspace_autonomous", "structured_autonomous"],
-          "description": "Mission tool autonomy: workspace_coder / workspace_autonomous / structured_autonomous auto-allow ordinary in-workspace actions per autoApprove* settings and may auto-chain runMission passes after maxStepsPerRun; strict mirrors legacy approval-heavy behavior (also honors myAi.tools.requireApprovalForInWorkspaceWrites / requireApprovalForTerminal)."
+          "description": "Mission tool autonomy: workspace_autonomous (default) / workspace_coder / structured_autonomous auto-allow ordinary in-workspace actions per autoApprove* settings and may auto-chain runMission passes after maxStepsPerRun when autoContinuePasses is true; strict mirrors legacy approval-heavy behavior (also honors myAi.tools.requireApprovalForInWorkspaceWrites / requireApprovalForTerminal)."
+        },
+        "myAi.missions.autonomy.autoContinuePasses": {
+          "type": "boolean",
+          "default": true,
+          "description": "When true and autonomy mode allows chaining, automatically schedule another runMission pass after hitting maxStepsPerRun (bounded by maxAutonomousStepCapChains). When false, the mission stays queued at the step cap until the operator resumes."
+        },
+        "myAi.missions.autonomy.requireApprovalForProtectedPaths": {
+          "type": "boolean",
+          "default": true,
+          "description": "When true (default), workspace paths matching recovery-spine protection or myAi.missions.autonomy.protectedPathGlobs require operator approval before mutation. When false, autonomy-defined protected globs (not recovery-spine targets) follow the same auto-approve rules as ordinary workspace paths. Recovery-spine paths always require approval."
         },
         "myAi.missions.autonomy.maxAutonomousStepCapChains": {
           "type": "number",
@@ -507,7 +517,7 @@
         },
         "myAi.missions.autonomy.blueprintPlanning": {
           "type": "string",
-          "default": "optional",
+          "default": "off",
           "enum": ["off", "optional", "required_first"],
           "description": "Blueprint as a planning strategy preset (UI/docs). Mission execution still uses myAi.missions.blueprintMode per mission."
         },
