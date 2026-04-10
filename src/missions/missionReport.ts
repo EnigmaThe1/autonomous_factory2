@@ -165,6 +165,14 @@ function renderMarkdown(
   if (mission.dryRun) lines.push("**Mode:** Dry run (no mutations executed)");
   lines.push("");
 
+  if (mission.validationVerdict || mission.validationLimits) {
+    lines.push("## Validation (operator)");
+    lines.push("");
+    if (mission.validationVerdict) lines.push(`**Verdict:** ${mission.validationVerdict}`);
+    if (mission.validationLimits) lines.push(`**Limits:** ${mission.validationLimits}`);
+    lines.push("");
+  }
+
   if (files.length > 0) {
     lines.push("## Files Modified");
     lines.push("");

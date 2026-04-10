@@ -8,7 +8,7 @@ import { GlobalMemoryStore } from "../memory/GlobalMemoryStore";
 import { loadWorkspaceSkillsForAgents } from "../skills/workspaceSkillsLoader";
 import { getAgentToolInstructionLines } from "./toolPromptCatalog";
 import { CLAIM_STATUS_INSTRUCTIONS } from "../missions/claimTrust";
-import { EXTENSION_TOOL_HARD_RULES_MISSION } from "./extensionToolHardRules";
+import { EXTENSION_MISSION_DISCIPLINE_RULES, EXTENSION_TOOL_HARD_RULES_MISSION } from "./extensionToolHardRules";
 import { GOAL_FIRST_DISCIPLINE_SYSTEM } from "./goalFirstDiscipline";
 import { AI_NATIVE_OVERLAY_SYSTEM } from "./aiNativeOverlay";
 
@@ -116,6 +116,7 @@ export abstract class BaseAgent {
     const systemPrompt = [
       instructions,
       EXTENSION_TOOL_HARD_RULES_MISSION,
+      EXTENSION_MISSION_DISCIPLINE_RULES,
       AI_NATIVE_OVERLAY_SYSTEM,
       goalFirstOn ? GOAL_FIRST_DISCIPLINE_SYSTEM : "",
       skillsBlock.trim().length > 0

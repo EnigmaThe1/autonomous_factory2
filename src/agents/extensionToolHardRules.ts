@@ -24,6 +24,19 @@ export const EXTENSION_TOOL_HARD_RULES_MISSION = [
   "8) runLinter: When output is ESLint JSON with 0 errors and 0 warnings, the extension may treat the run as passing even if the process exit code is non-zero; trust the reported error/warning counts."
 ].join("\n");
 
+/** Mission discipline aligned with extension guidance: re-ground after plan changes, scope, honest validation. */
+export const EXTENSION_MISSION_DISCIPLINE_RULES = [
+  "MISSION DISCIPLINE (extension defaults — follow on every task):",
+  "",
+  "1) After a replan, detour, or change of approach: re-read enough of the real codebase to restore an accurate picture (entrypoints and flow for what you will touch), not only the last file edited — then make the smallest change that fits the actual system.",
+  "",
+  "2) For non-trivial work, be explicit about in-scope vs out-of-scope and what would count as proof of success (in narrative, plans, or MEMORY).",
+  "",
+  "3) Do not claim full success or PASS unless evidence supports it; if validation is partial, say so honestly.",
+  "",
+  "4) Validators may optionally add two single lines at the end of the response: VALIDATION_VERDICT: <e.g. PASS | PASS_WITH_LIMITS | BLOCKED | PENDING — brief reason> and VALIDATION_LIMITS: <what was not verified, or \"none\">."
+].join("\n");
+
 /** Shorter block for sidebar chat (no TOOL lines; still sets path expectations). */
 export const EXTENSION_CHAT_WORKSPACE_RULES = [
   "Workspace context: file paths are relative to the open workspace folder; on this OS file names are usually case-sensitive.",

@@ -150,6 +150,7 @@ export class MissionOrchestrator {
    */
   async startMission(title: string, prompt: string, providerId: string, model?: string): Promise<StartMissionResult> {
     const mission = await this.store.create(title, prompt, providerId, model);
+    await this.recordMissionStartBaseline(mission);
     const blueprintMode = vscode.workspace.getConfiguration().get<boolean>("myAi.missions.blueprintMode", false);
     if (blueprintMode) {
       const preQ = vscode.workspace.getConfiguration().get<boolean>("myAi.missions.preBlueprintClarification", false);
@@ -479,6 +480,26 @@ export class MissionOrchestrator {
     return this.approvalResolver.resolveApproval(missionId, approvalId, approved, note);
   }
 
+
+  /** Durable preflight-style record: workspace + policy at mission start (rules-aligned baseline, JSON memory). */
+  private async recordMissionStartBaseline(mission: Mission): Promise<void> {
+    const names = vscode.workspace.workspaceFolders?.map((f) => f.name) ?? [];
+    const rootHint = names.length ? names.join(", ") : "(no workspace folder)";
+    const blueprintMode = vscode.workspace.getConfiguration().get<boolean>("myAi.missions.blueprintMode", false);
+    const preset = mission.policy.policyPreset ?? "custom";
+    const text = `Mission start baseline: workspace folder(s): ${rootHint}; policy preset: ${preset}; blueprintMode: ${blueprintMode}.`;
+    await this.store.addMemory(mission.id, {
+      kind: "summary",
+      text,
+      tags: ["mission_baseline", "preflight"],
+      sourceMissionId: mission.id
+    });
+    await this.store.saveEvent(mission.id, {
+      level: "info",
+      source: "orchestrator",
+      message: `Mission start baseline recorded (folders: ${rootHint}; preset ${preset}).`
+    });
+  }
 
   private async updateWorkItemWithHardStopInvariant(
     missionId: string,

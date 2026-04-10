@@ -6,6 +6,8 @@
 
 **Last updated:** 2026-04-10
 
+**Extension behavior:** Mission agents receive `EXTENSION_MISSION_DISCIPLINE_RULES` in the system prompt (`src/agents/extensionToolHardRules.ts` → `BaseAgent`). New missions record a **start baseline** (memory + event). Validators may emit `VALIDATION_VERDICT:` / `VALIDATION_LIMITS:` lines; those persist on the mission and appear in generated mission reports.
+
 ---
 
 ## Persistence: structured state is enough

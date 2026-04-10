@@ -43,6 +43,8 @@ import {
   mutatingToolTarget,
   readinessMessageText
 } from "./orchestratorLeafHelpers";
+import { normalizeRunCommandPreview } from "../runCommandPreviewNormalize";
+import { extractValidationVerdictFromSummary } from "../validatorVerdictExtract";
 import type { MissionAgentRunForTest, MissionToolExecutor } from "../missionOrchestratorContracts";
 import type { MissionStore } from "../MissionStore";
 
@@ -503,9 +505,7 @@ export class MissionOrchestratorWorkItemRunner {
   public async markMutatingToolExecutionStarted(missionId: string, item: WorkItem, call: ToolCall): Promise<void> {
     if (!isPotentiallyMutatingToolCall(call)) return;
     const cmd =
-      call.tool === "runCommand" && typeof call.args?.command === "string"
-        ? call.args.command.slice(0, 500)
-        : undefined;
+      call.tool === "runCommand" ? normalizeRunCommandPreview(call.args?.command) : undefined;
     await this.host.updateWorkItemWithHardStopInvariant(missionId, item, {
       activeMutatingToolCall: {
         tool: call.tool,
@@ -1141,6 +1141,9 @@ export class MissionOrchestratorWorkItemRunner {
     const patch: Partial<Mission> = { currentStep: updated.currentStep + 1, blocker: undefined, blockReasonCode: undefined };
     if (item.role === "validator") {
       patch.validationState = result.decision === "complete" ? "passed" : result.decision === "blocked" ? "failed" : "pending";
+      const ve = extractValidationVerdictFromSummary(result.summary || "");
+      if (ve.validationVerdict) patch.validationVerdict = ve.validationVerdict;
+      if (ve.validationLimits) patch.validationLimits = ve.validationLimits;
     }
     await this.host.store.noteProgress(mission.id);
     await this.host.store.updateMission(mission.id, patch);

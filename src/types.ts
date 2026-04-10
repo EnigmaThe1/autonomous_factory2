@@ -306,6 +306,14 @@ export interface Mission {
   currentStep: number;
   policy: MissionPolicy;
   validationState?: "pending" | "passed" | "failed";
+  /**
+   * Optional honest verdict line from validator output (`VALIDATION_VERDICT:`); persisted for reports and audit.
+   */
+  validationVerdict?: string;
+  /**
+   * Optional limits line from validator (`VALIDATION_LIMITS:`): what was not verified.
+   */
+  validationLimits?: string;
   roundsCompleted?: number;
   runtime?: MissionRuntime;
   /** When true, mutating tools are skipped — the mission plans but does not execute changes. */
