@@ -33,6 +33,17 @@ import { isRequiredImplementerWorkItem } from "../implementerHardStopWorkItemWri
 import { isKnownImplementerHardStopClassValue } from "../implementerHardStopClassInvariant";
 import { RecoveryBudget } from "./recoveryBudget";
 import { classifyToolOutcome } from "./toolOutcomeClassifier";
+import {
+  classifyBlueprintFailure,
+  classifyPolicyDenial,
+  classifyRuntimeStreamAbort,
+  classifyToolFailureStructured,
+  classifyValidationFailure,
+  computeRecoveryFingerprint,
+  nextRecoveryStreakState,
+  routeStructuredRecovery,
+  type StructuredFailure
+} from "../failure";
 import { buildFailureInvestigationWave } from "../failureInvestigationEnqueue";
 import { READONLY_MISSION_TOOL_IDS } from "../readonlyMissionToolIds";
 import {
@@ -110,6 +121,8 @@ export class MissionOrchestratorWorkItemRunner {
     earlyReturn?: "awaiting_input" | "blocked";
     /** When set with `earlyReturn: "blocked"`, work item is already `failed`/`tool_failure`; mission not yet blocked until the runner resolves recovery vs terminal block. */
     pendingToolFailureMissionBlock?: { blocker: string };
+    /** Structured classification for `pendingToolFailureMissionBlock` (Phase 2 recovery router). */
+    pendingStructuredFailure?: StructuredFailure;
     derivedCompletionKind?: WorkItem["completionKind"];
     toolResultSummaries?: string[];
     hadMutatingSideEffect?: boolean;
@@ -337,6 +350,43 @@ export class MissionOrchestratorWorkItemRunner {
           source: "orchestrator",
           message: `Mission paused: tool call blocked by policy (${blocker}).`
         });
+        const sfp = classifyPolicyDenial(toolResult.summary, callWithMeta.tool);
+        const freshPol = this.host.store.get(mission.id)!;
+        const fpPol = computeRecoveryFingerprint({
+          missionId: mission.id,
+          workItemId: item.id,
+          failure: sfp,
+          missionQueueLength: freshPol.queue.length,
+          missionValidationState: freshPol.validationState
+        });
+        const polSt = nextRecoveryStreakState(
+          freshPol.runtime?.lastStructuredRecoveryFingerprint,
+          freshPol.runtime?.structuredRecoverySameFingerprintStreak ?? 0,
+          fpPol
+        );
+        await this.host.store.updateRuntime(mission.id, {
+          lastStructuredRecoveryFingerprint: polSt.fingerprint,
+          structuredRecoverySameFingerprintStreak: polSt.streak
+        });
+        const polRoute = routeStructuredRecovery(sfp, {
+          sameFingerprintStreak: polSt.streak,
+          failureInvestigationEnabled: false,
+          failureInvestigationWavesRemaining: 0,
+          workItemRole: item.role
+        });
+        await this.host.store.saveEvent(mission.id, {
+          level: "warn",
+          source: "orchestrator",
+          telemetryKind: "recovery_attempt",
+          message: `Policy denial classified: ${sfp.domain}/${sfp.class} → ${polRoute.route}`,
+          data: {
+            structuredFailure: sfp,
+            recoveryRoute: polRoute.route,
+            recoveryReason: polRoute.reason,
+            recoveryFingerprint: fpPol,
+            recoveryStreak: polSt.streak
+          }
+        });
         return { earlyReturn: "blocked" };
       }
 
@@ -349,9 +399,11 @@ export class MissionOrchestratorWorkItemRunner {
           activeMutatingToolCall: undefined,
           output: `${result.summary}\n\nTool execution failed: ${blocker}`
         });
+        const structuredFailure = classifyToolFailureStructured(decision, callWithMeta, toolResult);
         return {
           earlyReturn: "blocked",
-          pendingToolFailureMissionBlock: { blocker: `Mission halted after tool failure (${blocker})` }
+          pendingToolFailureMissionBlock: { blocker: `Mission halted after tool failure (${blocker})` },
+          pendingStructuredFailure: structuredFailure
         };
       }
 
@@ -456,6 +508,249 @@ export class MissionOrchestratorWorkItemRunner {
     return true;
   }
 
+  private failureInvestigationWavesRemaining(missionId: string): number {
+    const cfg = vscode.workspace.getConfiguration();
+    const maxWaves = Math.max(0, cfg.get<number>("myAi.missions.failureInvestigation.maxWavesPerMission", 2));
+    const used = this.host.store.get(missionId)?.runtime?.failureInvestigationWavesUsed ?? 0;
+    return Math.max(0, maxWaves - used);
+  }
+
+  /**
+   * Post–mutation verification failed (implementer already `done`); enqueue recovery wave using the
+   * same investigation shape as tool failures without requiring the anchor item to be `failed`.
+   */
+  private async tryEnqueueVerificationRecoveryWave(
+    missionId: string,
+    anchorItem: WorkItem,
+    missionBlock: { blocker: string }
+  ): Promise<boolean> {
+    const cfg = vscode.workspace.getConfiguration();
+    if (!cfg.get<boolean>("myAi.missions.failureInvestigation.enabled", false)) return false;
+    const maxWaves = Math.max(0, cfg.get<number>("myAi.missions.failureInvestigation.maxWavesPerMission", 2));
+    const includePlanner = cfg.get<boolean>("myAi.missions.failureInvestigation.includePlannerStep", false);
+    const mission = this.host.store.get(missionId);
+    if (!mission?.queue.length || mission.dryRun) return false;
+    const used = mission.runtime?.failureInvestigationWavesUsed ?? 0;
+    if (maxWaves === 0 || used >= maxWaves) return false;
+    if (anchorItem.role !== "implementer" || anchorItem.status !== "done") return false;
+    if (anchorItem.requiredForCompletion === false) return false;
+
+    const syntheticFailed: WorkItem = {
+      ...anchorItem,
+      status: "failed",
+      hardStopClass: "tool_failure",
+      output: missionBlock.blocker
+    };
+    const wave = buildFailureInvestigationWave(syntheticFailed, {
+      includePlanner,
+      blockerSummary: missionBlock.blocker
+    });
+    await this.host.store.enqueueAfterWorkItem(missionId, anchorItem.id, wave);
+    await this.host.store.updateRuntime(missionId, { failureInvestigationWavesUsed: used + 1 });
+    await this.host.store.updateMission(missionId, {
+      status: "queued",
+      blocker: undefined,
+      blockReasonCode: undefined
+    });
+    return true;
+  }
+
+  private async resolveStructuredToolFailure(
+    mission: Mission,
+    item: WorkItem,
+    block: { blocker: string },
+    structuredFailure: StructuredFailure
+  ): Promise<"continue" | "blocked"> {
+    const fresh = this.host.store.get(mission.id)!;
+    const fp = computeRecoveryFingerprint({
+      missionId: mission.id,
+      workItemId: item.id,
+      failure: structuredFailure,
+      missionQueueLength: fresh.queue.length,
+      missionValidationState: fresh.validationState
+    });
+    const prevFp = fresh.runtime?.lastStructuredRecoveryFingerprint;
+    const prevStreak = fresh.runtime?.structuredRecoverySameFingerprintStreak ?? 0;
+    const { fingerprint, streak } = nextRecoveryStreakState(prevFp, prevStreak, fp);
+    await this.host.store.updateRuntime(mission.id, {
+      lastStructuredRecoveryFingerprint: fingerprint,
+      structuredRecoverySameFingerprintStreak: streak
+    });
+    const cfg = vscode.workspace.getConfiguration();
+    const invEnabled = cfg.get<boolean>("myAi.missions.failureInvestigation.enabled", false);
+    const wavesRem = this.failureInvestigationWavesRemaining(mission.id);
+    const decision = routeStructuredRecovery(structuredFailure, {
+      sameFingerprintStreak: streak,
+      failureInvestigationEnabled: invEnabled,
+      failureInvestigationWavesRemaining: wavesRem,
+      workItemRole: item.role,
+      allowTerminalMissionFail: true
+    });
+    await this.host.store.saveEvent(mission.id, {
+      level: "warn",
+      source: "orchestrator",
+      telemetryKind: "recovery_attempt",
+      message: `Structured failure: ${structuredFailure.domain}/${structuredFailure.class} → ${decision.route}`,
+      data: {
+        structuredFailure,
+        recoveryRoute: decision.route,
+        recoveryReason: decision.reason,
+        recoveryFingerprint: fingerprint,
+        recoveryStreak: streak
+      }
+    });
+
+    if (decision.route === "spawn_recovery_work") {
+      const enqueued = await this.tryEnqueueFailureInvestigationWave(mission.id, item.id, block);
+      if (enqueued) {
+        await this.host.store.saveEvent(mission.id, {
+          level: "info",
+          source: "orchestrator",
+          message: "Failure investigation wave enqueued after structured tool failure routing."
+        });
+        return "continue";
+      }
+    }
+
+    if (decision.route === "replan") {
+      await this.host.store.enqueueAfterWorkItem(mission.id, item.id, [
+        {
+          id: uid("work"),
+          title: `Environmental recovery: ${item.title}`,
+          role: "researcher",
+          status: "todo",
+          prompt: [
+            "The mission hit an environmental-style tool failure (network, missing toolchain, path outside expected layout, etc.).",
+            "",
+            "Failure context:",
+            block.blocker.slice(0, 8000),
+            "",
+            "Diagnose likely root cause, list concrete next steps, and emit MEMORY: findings for downstream roles."
+          ].join("\n")
+        }
+      ]);
+      await this.host.store.updateMission(mission.id, {
+        status: "queued",
+        blocker: undefined,
+        blockReasonCode: undefined
+      });
+      await this.host.store.saveEvent(mission.id, {
+        level: "info",
+        source: "orchestrator",
+        message: "Environmental recovery work enqueued after structured tool failure routing."
+      });
+      return "continue";
+    }
+
+    if (decision.route === "fail") {
+      await this.host.store.updateMission(mission.id, {
+        status: "failed",
+        blocker: block.blocker,
+        validationState: "failed",
+        blockReasonCode: "tool_failure"
+      });
+      await this.host.store.saveEvent(mission.id, {
+        level: "error",
+        source: "orchestrator",
+        message: "Mission marked failed after repeated identical recovery attempts (structured router)."
+      });
+      return "blocked";
+    }
+
+    await this.host.store.updateMission(mission.id, {
+      status: "blocked",
+      blocker: block.blocker,
+      validationState: "failed",
+      blockReasonCode: "tool_failure"
+    });
+    await this.host.store.saveEvent(mission.id, {
+      level: "warn",
+      source: "orchestrator",
+      message: `Mission paused: tool call failed (${block.blocker.slice(0, 280)})`
+    });
+    return "blocked";
+  }
+
+  private async resolveStructuredValidationFailure(
+    mission: Mission,
+    anchorItem: WorkItem,
+    block: { blocker: string },
+    structuredFailure: StructuredFailure
+  ): Promise<void> {
+    const fresh = this.host.store.get(mission.id)!;
+    const fp = computeRecoveryFingerprint({
+      missionId: mission.id,
+      workItemId: anchorItem.id,
+      failure: structuredFailure,
+      missionQueueLength: fresh.queue.length,
+      missionValidationState: fresh.validationState
+    });
+    const prevFp = fresh.runtime?.lastStructuredRecoveryFingerprint;
+    const prevStreak = fresh.runtime?.structuredRecoverySameFingerprintStreak ?? 0;
+    const { fingerprint, streak } = nextRecoveryStreakState(prevFp, prevStreak, fp);
+    await this.host.store.updateRuntime(mission.id, {
+      lastStructuredRecoveryFingerprint: fingerprint,
+      structuredRecoverySameFingerprintStreak: streak
+    });
+    const cfg = vscode.workspace.getConfiguration();
+    const invEnabled = cfg.get<boolean>("myAi.missions.failureInvestigation.enabled", false);
+    const wavesRem = this.failureInvestigationWavesRemaining(mission.id);
+    const decision = routeStructuredRecovery(structuredFailure, {
+      sameFingerprintStreak: streak,
+      failureInvestigationEnabled: invEnabled,
+      failureInvestigationWavesRemaining: wavesRem,
+      workItemRole: anchorItem.role,
+      allowTerminalMissionFail: true
+    });
+    await this.host.store.saveEvent(mission.id, {
+      level: "warn",
+      source: "orchestrator",
+      telemetryKind: "recovery_attempt",
+      message: `Post-mutation verification: ${structuredFailure.domain}/${structuredFailure.class} → ${decision.route}`,
+      data: {
+        structuredFailure,
+        recoveryRoute: decision.route,
+        recoveryReason: decision.reason,
+        recoveryFingerprint: fingerprint,
+        recoveryStreak: streak
+      }
+    });
+    if (decision.route === "spawn_recovery_work") {
+      const enqueued = await this.tryEnqueueVerificationRecoveryWave(mission.id, anchorItem, block);
+      if (enqueued) {
+        await this.host.store.saveEvent(mission.id, {
+          level: "info",
+          source: "orchestrator",
+          message: "Failure investigation wave enqueued after post-mutation verification failure."
+        });
+        return;
+      }
+    }
+    if (decision.route === "replan") {
+      await this.host.store.enqueueAfterWorkItem(mission.id, anchorItem.id, [
+        {
+          id: uid("work"),
+          title: "Environmental recovery: verification / tests",
+          role: "researcher",
+          status: "todo",
+          prompt: [
+            "Automated verification (lint/tests) failed after an implementer mutation.",
+            "",
+            "Failure summary:",
+            block.blocker.slice(0, 8000),
+            "",
+            "Determine whether this is environment/tooling vs code defect; emit MEMORY: with next steps."
+          ].join("\n")
+        }
+      ]);
+      await this.host.store.updateMission(mission.id, {
+        status: "queued",
+        blocker: undefined,
+        blockReasonCode: undefined
+      });
+    }
+  }
+
   /**
    * Resolves `executeWorkItemToolCalls` early exits: tool-failure blocks may enqueue a recovery wave
    * instead of pausing the mission.
@@ -466,11 +761,20 @@ export class MissionOrchestratorWorkItemRunner {
     toolExecResult: {
       earlyReturn?: "awaiting_input" | "blocked";
       pendingToolFailureMissionBlock?: { blocker: string };
+      pendingStructuredFailure?: StructuredFailure;
     }
   ): Promise<"continue" | "awaiting_input" | "blocked" | undefined> {
     if (!toolExecResult.earlyReturn) return undefined;
     if (toolExecResult.earlyReturn === "awaiting_input") return "awaiting_input";
     if (toolExecResult.earlyReturn === "blocked") {
+      if (toolExecResult.pendingToolFailureMissionBlock && toolExecResult.pendingStructuredFailure) {
+        return this.resolveStructuredToolFailure(
+          mission,
+          item,
+          toolExecResult.pendingToolFailureMissionBlock,
+          toolExecResult.pendingStructuredFailure
+        );
+      }
       if (toolExecResult.pendingToolFailureMissionBlock) {
         const enqueued = await this.tryEnqueueFailureInvestigationWave(
           mission.id,
@@ -803,18 +1107,47 @@ export class MissionOrchestratorWorkItemRunner {
             blocker: "Model stream cancelled (operator abort). Resume when ready.",
             blockReasonCode: "operator_stream_abort"
           });
+          const rsfOp = classifyRuntimeStreamAbort("operator");
+          const rdecOp = routeStructuredRecovery(rsfOp, {
+            sameFingerprintStreak: 1,
+            failureInvestigationEnabled: false,
+            failureInvestigationWavesRemaining: 0,
+            workItemRole: item.role
+          });
           await this.host.store.saveEvent(mission.id, {
             level: "warn",
             source: "orchestrator",
-            message: "Work item LLM stream aborted by operator."
+            message: "Work item LLM stream aborted by operator.",
+            data: {
+              structuredFailure: rsfOp,
+              recoveryRoute: rdecOp.route,
+              recoveryReason: rdecOp.reason
+            }
           });
           return "blocked";
         } else {
           // System/timeout abort: work item fails but mission continues for recovery
+          const rsfRt =
+            reason === "timeout"
+              ? classifyRuntimeStreamAbort("timeout")
+              : reason === "system"
+                ? classifyRuntimeStreamAbort("system")
+                : classifyRuntimeStreamAbort("unknown");
+          const rdecRt = routeStructuredRecovery(rsfRt, {
+            sameFingerprintStreak: 1,
+            failureInvestigationEnabled: false,
+            failureInvestigationWavesRemaining: 0,
+            workItemRole: item.role
+          });
           await this.host.store.saveEvent(mission.id, {
             level: "warn",
             source: "orchestrator",
-            message: `Work item LLM stream cancelled (${reason}). Mission will attempt recovery.`
+            message: `Work item LLM stream cancelled (${reason}). Mission will attempt recovery.`,
+            data: {
+              structuredFailure: rsfRt,
+              recoveryRoute: rdecRt.route,
+              recoveryReason: rdecRt.reason
+            }
           });
           // Continue to next work item instead of blocking
           return "continue";
@@ -931,26 +1264,21 @@ export class MissionOrchestratorWorkItemRunner {
       const noSuccessBlock = {
         blocker: "Mission halted: tools were invoked but none completed successfully for this work item."
       };
-      const enqueued = await this.tryEnqueueFailureInvestigationWave(mission.id, item.id, noSuccessBlock);
-      if (enqueued) {
+      const sfNoSuccess: StructuredFailure = {
+        class: "repairable",
+        domain: "tool",
+        code: "tool_batch_no_success_after_followups",
+        message: noSuccessBlock.blocker
+      };
+      const noSuccessRes = await this.resolveStructuredToolFailure(mission, item, noSuccessBlock, sfNoSuccess);
+      if (noSuccessRes === "continue") {
         await this.host.store.saveEvent(mission.id, {
           level: "info",
           source: "orchestrator",
-          message: "Failure investigation wave enqueued after tool follow-up loop produced no successful tool results."
+          message: "Structured recovery routed after tool batch had no successful results after follow-ups."
         });
         return "continue";
       }
-      await this.host.store.updateMission(mission.id, {
-        status: "blocked",
-        blocker: noSuccessBlock.blocker,
-        validationState: "failed",
-        blockReasonCode: "tool_failure"
-      });
-      await this.host.store.saveEvent(mission.id, {
-        level: "warn",
-        source: "orchestrator",
-        message: "Mission paused: tool batch had no successful results after the tool follow-up loop."
-      });
       return "blocked";
     }
 
@@ -990,6 +1318,72 @@ export class MissionOrchestratorWorkItemRunner {
           source: "pre_blueprint",
           message: `Pre-blueprint parse failed: ${parsed.errors.join("; ")}`
         });
+        const sfPre = classifyBlueprintFailure(parsed.errors);
+        const freshPre = this.host.store.get(mission.id)!;
+        const fpPre = computeRecoveryFingerprint({
+          missionId: mission.id,
+          workItemId: item.id,
+          failure: sfPre,
+          missionQueueLength: freshPre.queue.length,
+          missionValidationState: freshPre.validationState
+        });
+        const stPre = nextRecoveryStreakState(
+          freshPre.runtime?.lastStructuredRecoveryFingerprint,
+          freshPre.runtime?.structuredRecoverySameFingerprintStreak ?? 0,
+          fpPre
+        );
+        await this.host.store.updateRuntime(mission.id, {
+          lastStructuredRecoveryFingerprint: stPre.fingerprint,
+          structuredRecoverySameFingerprintStreak: stPre.streak
+        });
+        const decPre = routeStructuredRecovery(sfPre, {
+          sameFingerprintStreak: stPre.streak,
+          failureInvestigationEnabled: false,
+          failureInvestigationWavesRemaining: 0,
+          workItemRole: item.role
+        });
+        await this.host.store.saveEvent(mission.id, {
+          level: "warn",
+          source: "pre_blueprint",
+          telemetryKind: "recovery_attempt",
+          message: `Pre-blueprint failure classified: ${sfPre.class} → ${decPre.route}`,
+          data: {
+            structuredFailure: sfPre,
+            recoveryRoute: decPre.route,
+            recoveryReason: decPre.reason,
+            recoveryFingerprint: fpPre,
+            recoveryStreak: stPre.streak
+          }
+        });
+        const preAttempts = freshPre.runtime?.preBlueprintParseRecoveryAttempts ?? 0;
+        if (decPre.route === "replan" && preAttempts < 2) {
+          await this.host.store.updateRuntime(mission.id, { preBlueprintParseRecoveryAttempts: preAttempts + 1 });
+          await this.host.updateWorkItemWithHardStopInvariant(mission.id, item, {
+            status: "failed",
+            output: parsed.errors.join("\n")
+          });
+          await this.host.store.updateMission(mission.id, {
+            status: "queued",
+            blocker: undefined,
+            blockReasonCode: undefined
+          });
+          await this.host.store.enqueue(mission.id, [
+            {
+              id: uid("work"),
+              title: "Pre-blueprint clarification (parse recovery)",
+              role: "planner",
+              status: "todo",
+              workItemPurpose: "pre_blueprint_clarify",
+              prompt: [
+                "Re-emit ONLY the required pre-blueprint clarification format from the mission instructions.",
+                "Previous output failed validation with:",
+                parsed.errors.join("\n").slice(0, 6000)
+              ].join("\n\n")
+            }
+          ]);
+          await this.host.store.noteProgress(mission.id);
+          return "continue";
+        }
         await this.host.updateWorkItemWithHardStopInvariant(mission.id, item, {
           status: "failed",
           output: parsed.errors.join("\n")
@@ -1022,6 +1416,75 @@ export class MissionOrchestratorWorkItemRunner {
           source: "blueprint",
           message: `Blueprint parse failed: ${parsed.errors.join("; ")}`
         });
+        const sfBp = classifyBlueprintFailure(parsed.errors);
+        const freshBp = this.host.store.get(mission.id)!;
+        const fpBp = computeRecoveryFingerprint({
+          missionId: mission.id,
+          workItemId: item.id,
+          failure: sfBp,
+          missionQueueLength: freshBp.queue.length,
+          missionValidationState: freshBp.validationState
+        });
+        const stBp = nextRecoveryStreakState(
+          freshBp.runtime?.lastStructuredRecoveryFingerprint,
+          freshBp.runtime?.structuredRecoverySameFingerprintStreak ?? 0,
+          fpBp
+        );
+        await this.host.store.updateRuntime(mission.id, {
+          lastStructuredRecoveryFingerprint: stBp.fingerprint,
+          structuredRecoverySameFingerprintStreak: stBp.streak
+        });
+        const maxRevBp = vscode.workspace.getConfiguration().get<number>("myAi.missions.maxBlueprintRevisions", 3);
+        const decBp = routeStructuredRecovery(sfBp, {
+          sameFingerprintStreak: stBp.streak,
+          failureInvestigationEnabled: false,
+          failureInvestigationWavesRemaining: 0,
+          workItemRole: item.role
+        });
+        await this.host.store.saveEvent(mission.id, {
+          level: "warn",
+          source: "blueprint",
+          telemetryKind: "recovery_attempt",
+          message: `Blueprint parse failure classified: ${sfBp.class} → ${decBp.route}`,
+          data: {
+            structuredFailure: sfBp,
+            recoveryRoute: decBp.route,
+            recoveryReason: decBp.reason,
+            recoveryFingerprint: fpBp,
+            recoveryStreak: stBp.streak
+          }
+        });
+        if (decBp.route === "replan" && (mission.blueprintRevisionCount || 0) < maxRevBp) {
+          await this.host.updateWorkItemWithHardStopInvariant(mission.id, item, {
+            status: "failed",
+            output: parsed.errors.join("\n")
+          });
+          await this.host.store.updateMission(mission.id, {
+            blueprintRevisionCount: (mission.blueprintRevisionCount || 0) + 1,
+            status: "queued",
+            blocker: undefined,
+            blockReasonCode: undefined
+          });
+          await this.host.store.enqueue(mission.id, [
+            {
+              id: uid("work"),
+              title: "Mission blueprint (parse recovery revision)",
+              role: "planner",
+              status: "todo",
+              workItemPurpose: "blueprint_revise",
+              prompt: [
+                "Revise the full mission blueprint as structured JSON.",
+                "The previous blueprint output failed parser validation with:",
+                parsed.errors.join("; ").slice(0, 8000),
+                "",
+                "Prior model output (reference, may be invalid JSON):",
+                result.summary.slice(0, 12_000)
+              ].join("\n\n")
+            }
+          ]);
+          await this.host.store.noteProgress(mission.id);
+          return "continue";
+        }
         await this.host.updateWorkItemWithHardStopInvariant(mission.id, item, {
           status: "failed",
           output: parsed.errors.join("\n")
@@ -1205,12 +1668,14 @@ export class MissionOrchestratorWorkItemRunner {
         const runLinterObligation = vscode.workspace.getConfiguration().get<boolean>("myAi.missions.verification.autoRunLinterAfterMutations", true);
         const runTestsObligation = vscode.workspace.getConfiguration().get<boolean>("myAi.missions.verification.autoRunTestsAfterMutations", true);
         let ok = true;
+        let verificationFailedDetail: { tool: "runLinter" | "runTests"; summary: string } | undefined;
         if (runLinterObligation) {
           const r = await this.executeAndRecordToolCall(mission.id, {
             tool: "runLinter",
             args: { __workItemId: item.id, __workItemRole: item.role, __verification: true }
           }, ["verification"]);
           ok = ok && r.ok;
+          if (!r.ok) verificationFailedDetail = { tool: "runLinter", summary: r.summary };
         }
         if (runTestsObligation) {
           const r = await this.executeAndRecordToolCall(mission.id, {
@@ -1218,6 +1683,7 @@ export class MissionOrchestratorWorkItemRunner {
             args: { __workItemId: item.id, __workItemRole: item.role, __verification: true }
           }, ["verification"]);
           ok = ok && r.ok;
+          if (!r.ok) verificationFailedDetail = { tool: "runTests", summary: r.summary };
         }
         if (ok && (runLinterObligation || runTestsObligation)) {
           await this.host.store.updateRuntime(mission.id, { lastVerificationAt: Date.now() });
@@ -1225,6 +1691,23 @@ export class MissionOrchestratorWorkItemRunner {
             promotionState: "verified",
             promotionStateAt: Date.now()
           });
+        }
+        if (verificationFailedDetail) {
+          const anchor = this.host.store.get(mission.id)!.queue.find((w) => w.id === item.id);
+          if (anchor) {
+            const sfVal = classifyValidationFailure({
+              tool: verificationFailedDetail.tool,
+              summary: verificationFailedDetail.summary
+            });
+            await this.resolveStructuredValidationFailure(
+              mission,
+              anchor,
+              {
+                blocker: `Post-mutation ${verificationFailedDetail.tool} failed: ${verificationFailedDetail.summary}`
+              },
+              sfVal
+            );
+          }
         }
       }
     }

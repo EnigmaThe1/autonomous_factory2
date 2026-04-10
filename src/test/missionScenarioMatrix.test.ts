@@ -159,6 +159,74 @@ test("matrix: blockedByPolicy tool result pauses blocked with policy_blocked", a
   assert.equal(fin.blockReasonCode, "policy_blocked");
 });
 
+test("matrix: host-risk policy denial emits structured hard_deny", async () => {
+  const tool = async () => ({
+    ok: false,
+    summary: "Host-risk command pattern detected (central policy).",
+    blockedByPolicy: true
+  });
+  const agent = roleScript({
+    planner: [{ summary: "Plan.", nextWorkItems: buildStandardNextQueue() }],
+    implementer: [{ summary: "Risky", toolCalls: [{ tool: "runCommand", args: { command: "sudo rm -rf /" } }] }]
+  });
+  const { orchestrator, store } = await createOrchestrator(agent, tool as any);
+  const m = await store.create("matrix-host-risk-policy", "p", "ollama", undefined, balancedIntegrationPolicy);
+  await store.enqueue(m.id, [{ id: "p0", title: "Plan", role: "planner", status: "todo", prompt: "Plan." }]);
+  await orchestrator.runMission(m.id);
+  const fin = store.get(m.id)!;
+  assert.equal(fin.status, "blocked");
+  const hit = fin.events.find((e) => {
+    const d = e.data as { structuredFailure?: { class?: string } } | undefined;
+    return d?.structuredFailure?.class === "hard_deny";
+  });
+  assert.ok(hit, "expected structuredFailure.class hard_deny in mission events");
+});
+
+test("matrix: post-mutation test failure is repairable and can spawn recovery work", async () => {
+  (vscode as VscodeTestApi).__setTestConfig?.("myAi.missions.failureInvestigation.enabled", true);
+  (vscode as VscodeTestApi).__setTestConfig?.("myAi.missions.failureInvestigation.maxWavesPerMission", 2);
+  (vscode as VscodeTestApi).__setTestConfig?.("myAi.missions.maxStepsPerRun", 32);
+  (vscode as VscodeTestApi).__setTestConfig?.("myAi.missions.verification.autoRunTestsAfterMutations", true);
+  (vscode as VscodeTestApi).__setTestConfig?.("myAi.missions.verification.autoRunLinterAfterMutations", true);
+  try {
+    const tool = async (_mid: string, call: ToolCall) => {
+      if (call.tool === "writeFile") return { ok: true, summary: "Wrote file" };
+      if (call.tool === "runLinter") return { ok: true, summary: "lint ok" };
+      if (call.tool === "runTests") return { ok: false, summary: "Tests failed: exit 1" };
+      return { ok: true, summary: "noop" };
+    };
+    const agent = roleScript({
+      planner: [{ summary: "Plan.", nextWorkItems: buildStandardNextQueue() }],
+      implementer: [
+        { summary: "Mutate", toolCalls: [{ tool: "writeFile", args: { path: "t.txt", content: "z" } }] },
+        { summary: "Retry after verification failure", toolCalls: [] }
+      ],
+      researcher: [{ summary: "MEMORY:finding: fix tests", toolCalls: [] }],
+      reviewer: [{ summary: "R", toolCalls: [] }],
+      validator: [{ summary: "COMPLETE:", decision: "complete" as const, toolCalls: [] }]
+    });
+    const { orchestrator, store } = await createOrchestrator(agent, tool as any);
+    const m = await store.create("matrix-post-verify-recovery", "p", "ollama", undefined, balancedIntegrationPolicy);
+    await store.enqueue(m.id, [{ id: "p0", title: "Plan", role: "planner", status: "todo", prompt: "Plan." }]);
+    await orchestrator.runMission(m.id);
+    const fin = store.get(m.id)!;
+    const ev = fin.events.find((e) => {
+      const d = e.data as { structuredFailure?: { class?: string; domain?: string }; recoveryRoute?: string } | undefined;
+      return d?.structuredFailure?.domain === "validation" && d?.structuredFailure?.class === "repairable";
+    });
+    assert.ok(ev, "expected validation structuredFailure repairable");
+    const d = ev!.data as { recoveryRoute?: string };
+    assert.equal(d.recoveryRoute, "spawn_recovery_work");
+    assert.ok(fin.events.some((e) => String(e.message || "").includes("Post-mutation verification")));
+    assert.ok(fin.queue.some((w) => w.workItemPurpose === "failure_investigation_diagnose"));
+  } finally {
+    (vscode as VscodeTestApi).__setTestConfig?.("myAi.missions.failureInvestigation.enabled", false);
+    (vscode as VscodeTestApi).__setTestConfig?.("myAi.missions.maxStepsPerRun", 8);
+    (vscode as VscodeTestApi).__setTestConfig?.("myAi.missions.verification.autoRunTestsAfterMutations", true);
+    (vscode as VscodeTestApi).__setTestConfig?.("myAi.missions.verification.autoRunLinterAfterMutations", true);
+  }
+});
+
 test("matrix: tool throws is treated as tool_failure and blocks mission", async () => {
   const tool = async () => {
     throw new Error("tool crashed unexpectedly");
@@ -237,6 +305,11 @@ test("matrix: timeout abort fails work item but mission continues (recovery path
   // Not blocked on operator abort. Timeout is treated as failed item + continue.
   assert.notEqual(fin.blockReasonCode, "operator_stream_abort");
   assert.ok(fin.events.some((e) => String(e.message || "").includes("cancelled (timeout)")));
+  const to = fin.events.find((e) => {
+    const d = e.data as { structuredFailure?: { class?: string }; recoveryRoute?: string } | undefined;
+    return d?.structuredFailure?.class === "transient" && d?.recoveryRoute === "retry_direct";
+  });
+  assert.ok(to, "timeout stream abort should classify as transient with retry_direct route");
 });
 
 test("matrix: transient mutating tool failure can be treated as recoverable (bounded)", async () => {

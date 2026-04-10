@@ -66,3 +66,30 @@ The extension had no pre-existing `IMPLEMENTATION_LEDGER.md`. This file is the c
 **Follow-ups**
 
 - Failure-taxonomy adapter + recovery routing; optional autonomy for HTTP/MCP; sidebar copy for autonomy settings.
+
+## Phase 2 — Structured failure classification & recovery router (2026-04-10)
+
+**Status:** DONE
+
+**What changed**
+
+- Added canonical module `src/missions/failure/` (`structuredFailureTypes`, `failureClassifier`, `recoveryRouter`, `recoveryFingerprint`, `index.ts`).
+- Wired `MissionOrchestratorWorkItemRunner` so terminal tool failures carry `pendingStructuredFailure`, resolve via `routeStructuredRecovery` (fingerprint + streak on `MissionRuntime`), and enqueue investigation / environmental researcher / terminal fail as appropriate.
+- Policy denials record structured `hard_deny` (and related) on mission events while preserving block semantics.
+- Post-mutation `runLinter` / `runTests` failures classify as validation failures and can spawn investigation waves via `tryEnqueueVerificationRecoveryWave` (implementer may remain `done`).
+- Blueprint and pre-blueprint parse failures use `classifyBlueprintFailure` with bounded replan (`blueprint_revise` or extra `pre_blueprint_clarify`); streak and revision limits prevent infinite loops.
+- Stream abort path records `StructuredFailure` + route (`transient` → `retry_direct` for timeout/system).
+- Tests: `src/test/failureRecovery.test.ts`; matrix integration cases (host-risk `hard_deny`, post-mutation repairable + recovery wave, timeout `transient`).
+
+**Evidence pack**
+
+- `.dev/docs/_autogen/refactoring/refactoring__2026_04_10__AF_Autonomy_Phase2_Failure_Recovery/` (code map, findings, decisions, validation log, final report).
+
+**Validation**
+
+- `npm run typecheck` — PASS  
+- `npm test` — PASS  
+
+**Follow-ups**
+
+- Optional replan around selected `hard_deny` cases (setting-gated); validator summary-only failure routing; UI surfacing of structured recovery fields.

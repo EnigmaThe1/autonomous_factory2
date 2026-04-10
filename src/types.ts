@@ -100,6 +100,12 @@ export interface MissionRuntime {
   webResearchCalls?: number;
   /** How many structured failure-investigation waves (researcher → optional planner → retry) were enqueued. */
   failureInvestigationWavesUsed?: number;
+  /** Last structured-recovery fingerprint (tool/validation routing) for streak detection. */
+  lastStructuredRecoveryFingerprint?: string;
+  /** Consecutive recoveries for the same fingerprint (avoids blind infinite retries). */
+  structuredRecoverySameFingerprintStreak?: number;
+  /** Post–pre-blueprint parse recovery attempts (bounded replan). */
+  preBlueprintParseRecoveryAttempts?: number;
   /**
    * Promotion state: distinguishes experimentation from validated/promoted state.
    * - experimental: mutations have occurred without a post-mutation verification signal
