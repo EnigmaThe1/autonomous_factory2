@@ -11,6 +11,14 @@ export function routeStructuredRecovery(failure: StructuredFailure, ctx: Recover
     };
   }
 
+  if (failure.domain === "tool" && failure.code === "premature_or_out_of_scope_read") {
+    return {
+      route: "replan",
+      reason:
+        "Reviewer/validator read a path outside the current deliverable scope or not yet produced; replan to align scope or finish implementation first."
+    };
+  }
+
   if (failure.domain === "policy" && failure.class === "hard_deny") {
     return { route: "block", reason: "Policy hard denial (host/outside workspace or explicit deny)." };
   }

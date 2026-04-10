@@ -254,3 +254,46 @@ The extension had no pre-existing `IMPLEMENTATION_LEDGER.md`. This file is the c
 **Follow-ups**
 
 - Inspector surfacing of structured recovery routes from events; operator doc refresh (`EXTENSION_GUIDANCE_PRINCIPLES`); optional mission-level autonomy overrides.
+
+## Phase 9 — Mission root & phase/deliverable contract (2026-04-10)
+
+**Status:** DONE
+
+**Problem addressed**
+
+- Reviewer/validator probed **future** or **out-of-scope** paths (often suggested by full mission goal text), hit ENOENT, and the runner treated those as **generic recoverable readonly** retries instead of scope/phase mismatch.
+- No persisted **canonical artifact root** after unique run-folder selection.
+- Implementer could reach **done** without on-disk evidence when blueprint acceptance criteria named concrete output paths.
+
+**What changed**
+
+- `types.ts`: `MissionRuntime.resolvedArtifactRootRelative`; `WorkItem.expectedDeliverableRelPaths`.
+- `missionArtifactRootBinding.ts`: parse/persist `MISSION_ARTIFACT_ROOT:` (no `..`) into runtime.
+- `missionReviewReadScope.ts`: reviewer/validator read allowlist from `filesModified`, `changedFiles`, and work-item scope fields (not `mission.prompt`); optional strict ENOENT handling.
+- `implementerDeliverableVerification.ts`: stat expected deliverables before implementer `done`.
+- `blueprintSynthesis.ts`: `extractImplementerDeliverablePathsFromStep` + populate `expectedDeliverableRelPaths` for implementer steps.
+- `roleContextBuilder.ts`: reviewer prompt/keywords aligned with phase-scoped task context; optional bound root line.
+- `toolOutcomeClassifier.ts`: `out_of_scope_review_read` blocked outcome.
+- `failureClassifier.ts` / `recoveryRouter.ts`: `premature_or_out_of_scope_read` → **replan** (planner enqueue in runner).
+- `missionOrchestratorWorkItemRunner.ts`: wire scope check, artifact root persistence, deliverable guard, structured recovery branch for premature reads.
+
+**Design summary**
+
+- Generalized, mission-agnostic; enforcement activates only when scope signals exist (backward compatible).
+- Autonomy / protected-path / outside-workspace behavior unchanged.
+
+**Validation**
+
+- `npm run compile` — PASS  
+- `npm test` — PASS (899 dist + 78 webview smoke); targeted `missionRootPhaseContract.test.ts` — PASS
+
+**Evidence pack**
+
+- `.dev/docs/_autogen/refactoring/refactoring__2026_04_10__AF_Mission_Root_And_Phase_Contract_Fix/` (inventory, code map, findings, decisions, validation log attachment).
+
+**Residual follow-ups**
+
+- Optional ToolRegistry join with `resolvedArtifactRootRelative` for default-relative reads (not implemented; blast radius).
+- Tighter allowlist rules if operators need stricter “only these files” without `filesModified` warming up.
+
+**Checkpoint commit:** `12aca30` — `[Phase 9][P9-T-001] Mission artifact root binding, review read scope, deliverable guard, premature-read recovery.`

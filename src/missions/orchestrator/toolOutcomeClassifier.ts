@@ -11,7 +11,9 @@ export type ToolOutcomeCategory =
   | "run_command_agent_retry"
   | "write_file_agent_retry"
   | "apply_patch_agent_retry"
-  | "tool_failure";
+  | "tool_failure"
+  /** Reviewer/validator readFile missing outside current deliverable scope (phase/root mismatch). */
+  | "out_of_scope_review_read";
 
 /**
  * runCommand is classified as mutating for attribution, but many agents use it only for
@@ -39,7 +41,7 @@ export function isRunCommandBenignDiscoveryFailure(result: ToolResult): boolean 
 export type ToolOutcomeDecision =
   | { kind: "continue"; category: ToolOutcomeCategory; tags?: string[]; hintLines?: string[] }
   | { kind: "awaiting_input"; category: "approval_required" }
-  | { kind: "blocked"; category: "policy_denied" | "tool_failure" };
+  | { kind: "blocked"; category: "policy_denied" | "tool_failure" | "out_of_scope_review_read" };
 
 export function classifyToolOutcome(input: {
   call: ToolCall;
@@ -56,12 +58,17 @@ export function classifyToolOutcome(input: {
   writeFileAgentRetryBudgetRemaining?: boolean;
   /** When true, failed applyPatch may continue for a bounded retry / fixed search context. */
   applyPatchAgentRetryBudgetRemaining?: boolean;
+  /** Reviewer/validator probed a path not in the current work-item read allowlist. */
+  reviewReadOutOfAllowlist?: boolean;
 }): ToolOutcomeDecision {
   const { result, isReadonlyTool, isMutatingTool, readonlyBudgetRemaining, isReadFileMissing } = input;
 
   if (result.requiresApproval) return { kind: "awaiting_input", category: "approval_required" };
   if (!result.ok && result.blockedByPolicy) return { kind: "blocked", category: "policy_denied" };
   if (!result.ok) {
+    if (input.reviewReadOutOfAllowlist === true) {
+      return { kind: "blocked", category: "out_of_scope_review_read" };
+    }
     // Special-case: missing readFile should be recoverable.
     if (isReadFileMissing) {
       return {

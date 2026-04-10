@@ -130,6 +130,11 @@ export interface MissionRuntime {
   /** Last reason a `runMission` pass ended (observability for inspector / operator). */
   lastRunPassStopReason?: MissionRunPassStopReason;
   /**
+   * Workspace-relative directory bound from agent output (`MISSION_ARTIFACT_ROOT:`), e.g. unique run folder.
+   * Canonical source for artifact path resolution after first successful bind.
+   */
+  resolvedArtifactRootRelative?: string;
+  /**
    * Promotion state: distinguishes experimentation from validated/promoted state.
    * - experimental: mutations have occurred without a post-mutation verification signal
    * - verified: verification evidence recorded after last mutation
@@ -290,6 +295,11 @@ export interface WorkItem {
   validationHint?: string;
   /** From blueprint step: step may touch protected workspace / extension paths. */
   touchesProtectedPath?: boolean;
+  /**
+   * Implementer-only: relative paths expected on disk before this work item may be marked done
+   * (derived from blueprint acceptance criteria path-like lines when present).
+   */
+  expectedDeliverableRelPaths?: string[];
 }
 
 /** Cross-mission program / roadmap (persisted under workspace `.my-ai-extension`; missions link via `programId`). */

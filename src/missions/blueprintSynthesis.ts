@@ -6,6 +6,24 @@ function roleFromHint(hint: BlueprintStep["roleHint"]): AgentRole {
   return hint;
 }
 
+/** Pull path-like acceptance lines for implementer deliverable guards (mission-agnostic heuristic). */
+export function extractImplementerDeliverablePathsFromStep(step: BlueprintStep): string[] {
+  if (step.roleHint !== "implementer") return [];
+  const out: string[] = [];
+  const plainPath = /^[\w./-]+\.(?:md|txt|json|ts|tsx|py|yaml|yml|toml)$/i;
+  const backtickRe = /`([\w./-]+\.(?:md|txt|json|ts|tsx|py|yaml|yml|toml))`/gi;
+  for (const line of step.acceptanceCriteria || []) {
+    const t = line.trim().replace(/^\.\//, "");
+    if (plainPath.test(t)) out.push(t);
+  }
+  const blob = (step.acceptanceCriteria || []).join("\n");
+  let m: RegExpExecArray | null;
+  while ((m = backtickRe.exec(blob)) !== null) {
+    out.push(m[1].replace(/^\.\//, ""));
+  }
+  return [...new Set(out)].slice(0, 24);
+}
+
 /** Prefix first work item so the queue inherits blueprint-level goal-first context. */
 export function goalFirstBlueprintPromptPrefix(bp: MissionBlueprint): string {
   const blocks: string[] = [];
@@ -59,6 +77,7 @@ export function synthesizeWorkItemsFromBlueprint(blueprint: MissionBlueprint): W
     const ac = step.acceptanceCriteria.length ? `\n\nAcceptance criteria:\n- ${step.acceptanceCriteria.join("\n- ")}` : "";
     let prompt = `${step.summary}${ac}`.trim() || step.title;
     if (!items.length && prefix) prompt = `${prefix}${prompt}`;
+    const deliv = extractImplementerDeliverablePathsFromStep(step);
     items.push({
       id: wid,
       title: step.title,
@@ -70,7 +89,8 @@ export function synthesizeWorkItemsFromBlueprint(blueprint: MissionBlueprint): W
       requiredForCompletion: step.optional ? false : undefined,
       ...(step.scopeSummary?.trim() ? { scopeSummary: step.scopeSummary.trim().slice(0, 2000) } : {}),
       ...(step.validationHint?.trim() ? { validationHint: step.validationHint.trim().slice(0, 2000) } : {}),
-      ...(step.touchesProtectedPath ? { touchesProtectedPath: true } : {})
+      ...(step.touchesProtectedPath ? { touchesProtectedPath: true } : {}),
+      ...(deliv.length ? { expectedDeliverableRelPaths: deliv } : {})
     });
   }
   return items;

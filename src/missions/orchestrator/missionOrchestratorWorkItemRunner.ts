@@ -46,6 +46,13 @@ import {
 import { buildFailureInvestigationWave } from "../failureInvestigationEnqueue";
 import { resolveActiveStatusForWorkItem } from "../workItemLifecycle";
 import { READONLY_MISSION_TOOL_IDS } from "../readonlyMissionToolIds";
+import { persistArtifactRootFromSummaryIfNew } from "../missionArtifactRootBinding";
+import {
+  buildReviewerValidatorReadScope,
+  isReadPathAllowedInReviewScope,
+  normalizeWorkspaceRelPath
+} from "../missionReviewReadScope";
+import { findMissingExpectedDeliverablePaths } from "../implementerDeliverableVerification";
 import {
   missionWorkItemContextKeywords,
   filterChatContextForWorkItem,
@@ -216,6 +223,15 @@ export class MissionOrchestratorWorkItemRunner {
           code === "EntryNotFound" ||
           code === "ENOENT" ||
           /ENOENT|EntryNotFound|no such file|not found/i.test(summary));
+      const missionSnap = this.host.store.get(mission.id) ?? mission;
+      const readScope = buildReviewerValidatorReadScope(missionSnap, item);
+      const relReadPath = normalizeWorkspaceRelPath(String(callWithMeta.args?.path ?? ""));
+      const reviewReadOutOfAllowlist =
+        callWithMeta.tool === "readFile" &&
+        isReadFileMissing &&
+        readScope.mode === "enforce" &&
+        !isReadPathAllowedInReviewScope(readScope, relReadPath);
+      const effectiveReadFileMissing = isReadFileMissing && !reviewReadOutOfAllowlist;
       const isReadonlyTool = READONLY_TOOLS.has(callWithMeta.tool);
       const isMutatingTool = MUTATING_TOOLS.has(callWithMeta.tool);
       const budgetKey = `${mission.id}:${item.id}:recoverable_readonly`;
@@ -279,12 +295,13 @@ export class MissionOrchestratorWorkItemRunner {
         isReadonlyTool,
         isMutatingTool,
         readonlyBudgetRemaining,
-        isReadFileMissing,
+        isReadFileMissing: effectiveReadFileMissing,
         transientMutatingBudgetRemaining,
         runCommandProbeBudgetRemaining,
         runCommandAgentRetryBudgetRemaining,
         writeFileAgentRetryBudgetRemaining,
-        applyPatchAgentRetryBudgetRemaining
+        applyPatchAgentRetryBudgetRemaining,
+        reviewReadOutOfAllowlist
       });
 
       if (decision.kind === "continue" && !toolResult.ok) {
@@ -654,6 +671,36 @@ export class MissionOrchestratorWorkItemRunner {
     }
 
     if (decision.route === "replan") {
+      if (structuredFailure.code === "premature_or_out_of_scope_read") {
+        await this.host.store.enqueueAfterWorkItem(mission.id, item.id, [
+          {
+            id: uid("work"),
+            title: `Align review/validation scope: ${item.title}`,
+            role: "planner",
+            status: "todo",
+            prompt: [
+              "STRUCTURED_RECOVERY: A reviewer or validator hit readFile ENOENT on a path outside the current deliverable read scope.",
+              "",
+              "Re-sequence work: either narrow the next review/validation to mission.filesModified and this step's prompt/hints, or enqueue implementer work if an artifact is truly required now.",
+              "If a unique run folder applies, ensure agents emit MISSION_ARTIFACT_ROOT: <relative/path> once it exists.",
+              "",
+              "Failure context:",
+              block.blocker.slice(0, 8000)
+            ].join("\n")
+          }
+        ]);
+        await this.host.store.updateMission(mission.id, {
+          status: "queued",
+          blocker: undefined,
+          blockReasonCode: undefined
+        });
+        await this.host.store.saveEvent(mission.id, {
+          level: "info",
+          source: "orchestrator",
+          message: "Planner replan enqueued after premature/out-of-scope review read (structured recovery)."
+        });
+        return "continue";
+      }
       await this.host.store.enqueueAfterWorkItem(mission.id, item.id, [
         {
           id: uid("work"),
@@ -1696,6 +1743,8 @@ export class MissionOrchestratorWorkItemRunner {
       await this.host.store.enqueue(mission.id, flattened);
     }
 
+    await persistArtifactRootFromSummaryIfNew(this.host.store, mission.id, result.summary);
+
     await this.maybeEnforcePostAgentContracts(
       mission.id,
       item,
@@ -1704,13 +1753,33 @@ export class MissionOrchestratorWorkItemRunner {
       workCompletionKind === "already_satisfied"
     );
 
-    const terminalWorkStatus = result.markStatus || "done";
+    let terminalWorkStatus = result.markStatus || "done";
     const completionWorkPatch: Partial<WorkItem> = {
       status: terminalWorkStatus,
       output: result.summary,
       activeMutatingToolCall: undefined,
       ...(workCompletionKind ? { completionKind: workCompletionKind } : {})
     };
+    if (item.role === "implementer" && terminalWorkStatus === "done" && item.expectedDeliverableRelPaths?.length) {
+      const missingDeliv = await findMissingExpectedDeliverablePaths(item.expectedDeliverableRelPaths);
+      if (missingDeliv.length) {
+        terminalWorkStatus = "failed";
+        completionWorkPatch.status = "failed";
+        completionWorkPatch.hardStopClass = "tool_failure";
+        completionWorkPatch.output = [
+          result.summary,
+          "",
+          "DELIVERABLE_GUARD: expected outputs missing on disk:",
+          ...missingDeliv.map((p) => `- ${p}`)
+        ].join("\n");
+        await this.host.store.saveEvent(mission.id, {
+          level: "warn",
+          source: "orchestrator",
+          message: `Implementer marked done but deliverable guard failed (${missingDeliv.length} missing).`,
+          data: { workItemId: item.id, missing: missingDeliv }
+        });
+      }
+    }
     if (isRequiredImplementerWorkItem(item) && terminalWorkStatus === "blocked") {
       completionWorkPatch.hardStopClass = item.hardStopClass ?? "unknown_hard_stop";
     }

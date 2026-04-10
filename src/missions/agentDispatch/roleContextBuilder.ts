@@ -33,6 +33,11 @@ export function missionWorkItemContextKeywords(mission: Mission, item: WorkItem)
     if (hint) return extractKeywords(hint, 5);
     if (item.changedFiles?.length) return item.changedFiles.slice(0, 5).map((p) => p.replace(/^.*[/\\]/, ""));
   }
+  if (item.role === MissionAgentRole.Reviewer) {
+    const hint = item.validationScopeHint?.trim();
+    if (hint) return extractKeywords(hint, 5);
+    if (item.changedFiles?.length) return item.changedFiles.slice(0, 5).map((p) => p.replace(/^.*[/\\]/, ""));
+  }
   return extractKeywords(item.prompt, 5);
 }
 
@@ -154,10 +159,14 @@ export function buildRoleSpecificUserPromptCoreLines(mission: Mission, item: Wor
     return [
       `MISSION: ${mission.title}`,
       `REVIEW TARGET: ${item.title}`,
-      `IMPLEMENTATION INTENT (mission goal excerpt):\n${trimText(mission.prompt, 2500)}`,
-      cf ? `CHANGED / TOUCHED AREAS:\n${cf}` : "(No mission-level modified file list yet — use read/git tools on likely paths.)",
-      `TASK PROMPT:\n${item.prompt}`,
-      item.validationScopeHint?.trim() ? `REVIEW SCOPE HINT:\n${item.validationScopeHint.trim()}` : ""
+      `STEP / TASK CONTEXT (canonical scope — do not chase end-state filenames from the overall mission unless this task or CHANGED AREAS names them):\n${trimText(item.prompt, 3500)}`,
+      cf ? `CHANGED / TOUCHED AREAS:\n${cf}` : "(No mission-level modified file list yet — discover paths with listFiles only under hints above; avoid speculative final-report reads.)",
+      item.scopeSummary?.trim() ? `SCOPE NOTE: ${item.scopeSummary.trim()}` : "",
+      item.validationHint?.trim() ? `VALIDATION HINT: ${item.validationHint.trim()}` : "",
+      item.validationScopeHint?.trim() ? `REVIEW SCOPE HINT:\n${item.validationScopeHint.trim()}` : "",
+      mission.runtime?.resolvedArtifactRootRelative
+        ? `BOUND ARTIFACT ROOT (workspace-relative): ${mission.runtime.resolvedArtifactRootRelative}`
+        : ""
     ].filter(Boolean);
   }
 
