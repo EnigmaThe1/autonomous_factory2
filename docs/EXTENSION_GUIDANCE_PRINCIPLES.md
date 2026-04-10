@@ -94,6 +94,20 @@ Use those rule files as **guidance for agents and humans**, adapted to how Auton
 
 ---
 
+## 8. Re-ground in the system after any plan shift
+
+After a **detour**, **re-plan**, **new sub-goal**, **long pause**, **resume**, or any moment the “current plan” changed, do **not** jump straight to new edits.
+
+**Before the next meaningful code change:**
+
+1. **Re-read** enough of the real code to restore truth: follow the flow from entrypoint through the subsystem you will change (orchestrator, store, tools, webview), and widen the read until behavior is clear — **not** only the last file you edited.
+2. **Reconcile** what actually changed: recent diffs, prior commits, or behavior you observed at runtime — so you are not assuming an old layout.
+3. **Trace blast radius** — how the next edit affects callers, persistence shape, policy, and UI — then make the **smallest** change that fits the real system.
+
+Blindly appending lines on top of a stale picture produces drift, duplicate paths, and fixes that miss the real bug. **Planning and re-planning reset the obligation to understand the codebase again.**
+
+---
+
 ## Related
 
 - [RULES_GAP_ANALYSIS.md](./RULES_GAP_ANALYSIS.md) — rule clusters vs implementation, partial gaps, recommendations.
