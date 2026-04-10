@@ -17,7 +17,7 @@
     "memory",
     "cursor"
   ],
-  "version": "2.0.39",
+  "version": "2.0.40",
   "publisher": "enigma-the",
   "repository": {
     "type": "git",
@@ -495,7 +495,12 @@
         "myAi.missions.autonomy.mode": {
           "type": "string",
           "default": "workspace_autonomous",
-          "enum": ["strict", "workspace_coder", "workspace_autonomous", "structured_autonomous"],
+          "enum": [
+            "strict",
+            "workspace_coder",
+            "workspace_autonomous",
+            "structured_autonomous"
+          ],
           "description": "Mission tool autonomy: workspace_autonomous (default) / workspace_coder / structured_autonomous auto-allow ordinary in-workspace actions per autoApprove* settings and may auto-chain runMission passes after maxStepsPerRun when autoContinuePasses is true; strict mirrors legacy approval-heavy behavior (also honors myAi.tools.requireApprovalForInWorkspaceWrites / requireApprovalForTerminal)."
         },
         "myAi.missions.autonomy.autoContinuePasses": {
@@ -518,7 +523,11 @@
         "myAi.missions.autonomy.blueprintPlanning": {
           "type": "string",
           "default": "off",
-          "enum": ["off", "optional", "required_first"],
+          "enum": [
+            "off",
+            "optional",
+            "required_first"
+          ],
           "description": "Blueprint as a planning strategy preset (UI/docs). Mission execution still uses myAi.missions.blueprintMode per mission."
         },
         "myAi.missions.autonomy.autoApproveWorkspaceWrites": {
@@ -544,19 +553,26 @@
         "myAi.missions.autonomy.protectedPathGlobs": {
           "type": "array",
           "default": [],
-          "items": { "type": "string" },
+          "items": {
+            "type": "string"
+          },
           "description": "Extra workspace-relative globs (same syntax as myAi.recoverySpine.protectedPaths) requiring approval to mutate, in addition to recovery spine paths."
         },
         "myAi.missions.autonomy.blockedPathGlobs": {
           "type": "array",
           "default": [],
-          "items": { "type": "string" },
+          "items": {
+            "type": "string"
+          },
           "description": "Workspace-relative globs that hard-deny mutations (and reads when matched)."
         },
         "myAi.missions.autonomy.extensionCoreMutationPolicy": {
           "type": "string",
           "default": "require_approval",
-          "enum": ["deny", "require_approval"],
+          "enum": [
+            "deny",
+            "require_approval"
+          ],
           "description": "Targets under the VSIX install folder but outside the opened workspace: deny or require approval."
         },
         "myAi.tools.allowTerminal": {
@@ -596,8 +612,13 @@
         },
         "myAi.skills.globPatterns": {
           "type": "array",
-          "default": [".my-ai/skills/**/*.md", "docs/agent-skills/**/*.md"],
-          "items": { "type": "string" },
+          "default": [
+            ".my-ai/skills/**/*.md",
+            "docs/agent-skills/**/*.md"
+          ],
+          "items": {
+            "type": "string"
+          },
           "description": "Workspace-relative globs for skill markdown files."
         },
         "myAi.skills.maxTotalChars": {
@@ -617,7 +638,10 @@
         },
         "myAi.webSearch.provider": {
           "type": "string",
-          "enum": ["duckduckgo", "brave"],
+          "enum": [
+            "duckduckgo",
+            "brave"
+          ],
           "default": "duckduckgo",
           "description": "webSearch backend: duckduckgo (instant answer API; fair use) or brave (Brave Search API). For brave, use Command Palette → Autonomous Factory: Set Brave Search API Key (stores myAi.webSearch.braveApiKey in Secret Storage)."
         },
@@ -815,7 +839,10 @@
         "myAi.tools.runCommandUnixShell": {
           "type": "string",
           "default": "bash",
-          "enum": ["bash", "posix"],
+          "enum": [
+            "bash",
+            "posix"
+          ],
           "description": "On Linux/macOS, runCommand runs the script with /bin/bash -c when set to bash (default) so common agent snippets work (function keyword, [[ ]], etc.). Use posix to run via the system /bin/sh only (stricter, may reject bash-only syntax)."
         },
         "myAi.providers.requestTimeoutMs": {
@@ -851,7 +878,10 @@
         "myAi.missions.scalingMode": {
           "type": "string",
           "default": "fixed",
-          "enum": ["fixed", "adaptive"],
+          "enum": [
+            "fixed",
+            "adaptive"
+          ],
           "description": "How mission step/round limits scale. 'fixed' uses config values directly. 'adaptive' scales limits based on work item count."
         },
         "myAi.missions.maxAutoRetries": {
@@ -955,7 +985,11 @@
         "myAi.missions.gitCheckpointMode": {
           "type": "string",
           "default": "off",
-          "enum": ["off", "implementer_only", "all_completed_roles"],
+          "enum": [
+            "off",
+            "implementer_only",
+            "all_completed_roles"
+          ],
           "enumDescriptions": [
             "Do not create git commits when work items finish.",
             "After each implementer work item reaches done, run `git add -u` and commit tracked changes (separate from in-mission checkpoints).",
@@ -966,7 +1000,10 @@
         "myAi.missions.toolRecoveryAutonomyPreset": {
           "type": "string",
           "default": "standard",
-          "enum": ["standard", "exploratory"],
+          "enum": [
+            "standard",
+            "exploratory"
+          ],
           "description": "standard: use the numeric recovery settings below as configured. exploratory: raises effective tool follow-up turns and per-category recovery budgets (~1.75×, capped) so models can investigate failures and retry more before the mission hard-stops. Does not bypass policy, approvals, trust gates, or tool-layer crashes."
         },
         "myAi.missions.maxToolFollowUpTurns": {
@@ -1075,7 +1112,11 @@
         "myAi.embeddings.provider": {
           "type": "string",
           "default": "openai",
-          "enum": ["openai", "openai-compat", "ollama"],
+          "enum": [
+            "openai",
+            "openai-compat",
+            "ollama"
+          ],
           "description": "Provider to use for real embedding requests."
         },
         "myAi.embeddings.model": {
@@ -1099,7 +1140,11 @@
           "oneOf": [
             {
               "type": "string",
-              "enum": ["off", "soft", "hard"]
+              "enum": [
+                "off",
+                "soft",
+                "hard"
+              ]
             },
             {
               "type": "boolean",
