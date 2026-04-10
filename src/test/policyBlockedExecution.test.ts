@@ -11,12 +11,12 @@ test("ToolRegistry marks denied tool calls as blockedByPolicy", () => {
   assert.match(src, /run_terminal[\s\S]*if \(!decision\.allowed\) return this\.policyBlocked\(decision\.reason\)/);
 });
 
-test("ToolRegistry defaults requireApprovalForInWorkspaceWrites to true (matches package.json)", () => {
+test("ToolRegistry defaults requireApprovalForInWorkspaceWrites to false (matches package.json workspace_coder)", () => {
   const p = path.join(__dirname, "..", "..", "src", "tools", "ToolRegistry.ts");
   const src = fs.readFileSync(p, "utf8");
   assert.match(
     src,
-    /requireApprovalForInWorkspaceWrites:\s*cfg\.get<boolean>\(\s*["']myAi\.tools\.requireApprovalForInWorkspaceWrites["']\s*,\s*true\s*\)/
+    /requireApprovalForInWorkspaceWrites:\s*cfg\.get<boolean>\(\s*["']myAi\.tools\.requireApprovalForInWorkspaceWrites["']\s*,\s*false\s*\)/
   );
 });
 

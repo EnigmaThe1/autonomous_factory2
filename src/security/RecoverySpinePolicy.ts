@@ -41,8 +41,8 @@ export function classifyRecoverySpineTarget(resolvedPath: string): RecoverySpine
   const abs = normalizeFsPath(resolvedPath);
   const rootNorm = normalizeFsPath(root);
   if (!abs.startsWith(rootNorm)) {
-    // Shouldn't happen due to resolveWorkspacePath, but keep contract explicit.
-    return { protected: true, reason: "Target path is outside workspace root (recovery spine guard).", rel: abs };
+    /** Outside the opened workspace: not a recovery-spine target; file policy (autonomy / restrictToWorkspace) denies separately. */
+    return { protected: false, rel: abs };
   }
   const rel = workspaceRelPath(abs, rootNorm);
   // Always protect the persistence root configured by WorkspacePaths default.

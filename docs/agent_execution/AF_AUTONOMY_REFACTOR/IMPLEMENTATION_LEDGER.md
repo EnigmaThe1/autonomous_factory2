@@ -39,3 +39,30 @@ The extension had no pre-existing `IMPLEMENTATION_LEDGER.md`. This file is the c
 **Next phase entry point**
 
 - Implement policy/snapshot changes per `05_decisions/01_repo_mapping.md` recommended order; update this ledger after each validated phase.
+
+## Phase 1 — Policy layer (2026-04-10)
+
+**Status:** DONE
+
+**What changed**
+
+- Added `src/security/missionAutonomyPolicyTypes.ts`, `missionAutonomyPolicy.ts`, `workspacePathUtils.ts` (shared `isPathInWorkspace`).
+- Refactored `TrustPolicyEngine` to delegate file/rename/terminal command decisions to the autonomy evaluator; extended `PolicyInput` with `renameFromPath`, `commandText`, `commandCwd`, `shellInvocationKind`.
+- Updated `ToolRegistry` (`policyEngine` + `rename` + `runCommand`/`runTerminal`/git/docker/browser policy calls) to pass extension root and command context.
+- `RecoverySpinePolicy`: paths outside workspace root are **not** recovery-spine protected (avoids bogus approval prompts; autonomy denies outside writes).
+- `package.json`: new `myAi.missions.autonomy.*` settings; defaults aligned with workspace_coder (`allowTerminal` true, legacy write/terminal approval defaults false).
+- `scripts/vscode-stub.cjs`: default `myAi.missions.autonomy.mode` **strict** so headless tests keep approval-heavy behavior unless overridden.
+- Tests: `missionAutonomyPolicy.test.ts`, `missionAutonomyToolRegistry.integration.test.ts`, expanded `TrustPolicyEngine.test.ts`, `policyBlockedExecution` expectation update.
+
+**Evidence pack**
+
+- `.dev/docs/_autogen/refactoring/refactoring__2026_04_10__AF_Autonomy_Phase1_Policy_Layer/` (findings, decisions, validation log, final report).
+
+**Validation**
+
+- `npm run typecheck` — PASS  
+- `npm test` — PASS
+
+**Follow-ups**
+
+- Failure-taxonomy adapter + recovery routing; optional autonomy for HTTP/MCP; sidebar copy for autonomy settings.

@@ -15,7 +15,10 @@ const configDefaults = {
   "myAi.sendSelection": false,
   "myAi.sendActiveFile": false,
   "myAi.sendDiagnostics": false,
+  "myAi.missions.autonomy.mode": "strict",
   "myAi.tools.requireApprovalForInWorkspaceWrites": true,
+  "myAi.tools.requireApprovalForTerminal": true,
+  "myAi.tools.allowTerminal": true,
   "myAi.missions.maxToolFollowUpsWhenTestHarness": 0,
   "myAi.missions.failureInvestigation.enabled": false
 };

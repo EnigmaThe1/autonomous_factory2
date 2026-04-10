@@ -1,4 +1,13 @@
-import * as path from "path";
+import * as vscode from "vscode";
+import {
+  evaluatePathDelete,
+  evaluatePathRead,
+  evaluatePathRename,
+  evaluatePathWrite,
+  evaluateRunCommand,
+  evaluateRunTerminal,
+  loadMissionAutonomyPolicy
+} from "./missionAutonomyPolicy";
 
 export type PolicyAction =
   | "read_file"
@@ -21,6 +30,14 @@ export interface PolicyDecision {
 export interface PolicyInput {
   action: PolicyAction;
   targetPath?: string;
+  /** rename_file: source path (destination is targetPath). */
+  renameFromPath?: string;
+  /** run_command / run_terminal: shell command text for host-risk classification. */
+  commandText?: string;
+  /** run_command: resolved cwd if any. */
+  commandCwd?: string;
+  /** run_command: agent shell vs git/docker/db mutating builtin (workspace_coder keeps infra gated). */
+  shellInvocationKind?: import("./missionAutonomyPolicy").ShellInvocationKind;
   mutating?: boolean;
 }
 
@@ -36,49 +53,74 @@ export interface PolicySettings {
   restrictToWorkspace: boolean;
 }
 
-export function isPathInWorkspace(workspaceRoot: string | undefined, targetPath: string): boolean {
-  if (!workspaceRoot) return false;
-  const normalizedRoot = path.resolve(workspaceRoot);
-  const normalizedTarget = path.resolve(targetPath);
-  const rel = path.relative(normalizedRoot, normalizedTarget);
-  return rel === "" || (!rel.startsWith("..") && !path.isAbsolute(rel));
+export { isPathInWorkspace } from "./workspacePathUtils";
+
+function actionDecisionToPolicyDecision(d: import("./missionAutonomyPolicyTypes").ActionDecision): PolicyDecision {
+  if (d.kind === "deny") return { allowed: false, requiresApproval: false, reason: d.reason };
+  if (d.kind === "require_approval") return { allowed: true, requiresApproval: true, reason: d.reason };
+  return { allowed: true, requiresApproval: false, reason: d.reason };
 }
 
 export class TrustPolicyEngine {
-  constructor(private readonly workspaceRoot: string | undefined, private readonly settings: PolicySettings) {}
+  constructor(
+    private readonly workspaceRoot: string | undefined,
+    private readonly settings: PolicySettings,
+    private readonly extensionRoot?: string
+  ) {}
 
   decide(input: PolicyInput): PolicyDecision {
-    if (input.targetPath && this.settings.restrictToWorkspace && !isPathInWorkspace(this.workspaceRoot, input.targetPath)) {
-      return { allowed: false, requiresApproval: false, reason: `Path is outside workspace: ${input.targetPath}` };
-    }
+    const cfg = vscode.workspace.getConfiguration();
+    const autonomy: import("./missionAutonomyPolicyTypes").MissionAutonomyPolicy = {
+      ...loadMissionAutonomyPolicy((k, d) => cfg.get(k, d)),
+      allowTerminal: this.settings.allowTerminal,
+      restrictToWorkspace: this.settings.restrictToWorkspace
+    };
 
     switch (input.action) {
-      case "read_file":
-        return { allowed: true, requiresApproval: false, reason: "Read permitted." };
+      case "read_file": {
+        if (!input.targetPath) {
+          return { allowed: true, requiresApproval: false, reason: "Read permitted (no path)." };
+        }
+        const ad = evaluatePathRead(input.targetPath, this.workspaceRoot, this.extensionRoot, autonomy, this.settings);
+        return actionDecisionToPolicyDecision(ad);
+      }
       case "write_file":
       case "apply_patch": {
-        const hasPath = Boolean(input.targetPath);
-        const inWorkspace = hasPath && isPathInWorkspace(this.workspaceRoot, input.targetPath!);
-        const requiresApproval =
-          this.settings.requireApprovalForWrite &&
-          (!inWorkspace || this.settings.requireApprovalForInWorkspaceWrites);
-        return { allowed: true, requiresApproval, reason: "Write policy evaluated." };
+        if (!input.targetPath) {
+          return { allowed: false, requiresApproval: false, reason: "Missing target path for write policy." };
+        }
+        const ad = evaluatePathWrite(input.targetPath, this.workspaceRoot, this.extensionRoot, autonomy, this.settings);
+        return actionDecisionToPolicyDecision(ad);
       }
-      case "delete_file":
+      case "delete_file": {
+        if (!input.targetPath) {
+          return { allowed: false, requiresApproval: false, reason: "Missing target path for delete policy." };
+        }
+        const ad = evaluatePathDelete(input.targetPath, this.workspaceRoot, this.extensionRoot, autonomy, this.settings);
+        return actionDecisionToPolicyDecision(ad);
+      }
       case "rename_file": {
-        const hasPath = Boolean(input.targetPath);
-        const inWorkspace = hasPath && isPathInWorkspace(this.workspaceRoot, input.targetPath!);
-        const requiresApproval =
-          this.settings.requireApprovalForWrite &&
-          (!inWorkspace || this.settings.requireApprovalForInWorkspaceWrites);
-        return { allowed: true, requiresApproval, reason: "Delete/rename policy evaluated." };
+        const to = input.targetPath;
+        const from = input.renameFromPath;
+        if (!to || !from) {
+          return { allowed: false, requiresApproval: false, reason: "rename_file requires renameFromPath and targetPath (destination)." };
+        }
+        const ad = evaluatePathRename(from, to, this.workspaceRoot, this.extensionRoot, autonomy, this.settings);
+        return actionDecisionToPolicyDecision(ad);
       }
-      case "run_terminal":
-        if (!this.settings.allowTerminal) return { allowed: false, requiresApproval: false, reason: "Terminal execution disabled by policy." };
-        return { allowed: true, requiresApproval: this.settings.requireApprovalForTerminal, reason: "Terminal policy evaluated." };
-      case "run_command":
-        if (!this.settings.allowTerminal) return { allowed: false, requiresApproval: false, reason: "Command execution disabled by policy (myAi.tools.allowTerminal)." };
-        return { allowed: true, requiresApproval: this.settings.requireApprovalForTerminal, reason: "Command policy evaluated." };
+      case "run_terminal": {
+        const cmd = String(input.commandText || "");
+        const ad = evaluateRunTerminal(cmd, this.workspaceRoot, autonomy, this.settings);
+        return actionDecisionToPolicyDecision(ad);
+      }
+      case "run_command": {
+        const cmd = String(input.commandText || "");
+        const cwd = input.commandCwd;
+        const ad = evaluateRunCommand(cmd, cwd, this.workspaceRoot, autonomy, this.settings, {
+          shellInvocationKind: input.shellInvocationKind
+        });
+        return actionDecisionToPolicyDecision(ad);
+      }
       case "http_request":
         return { allowed: true, requiresApproval: this.settings.requireApprovalForHttp, reason: "HTTP request policy evaluated." };
       case "call_mcp":

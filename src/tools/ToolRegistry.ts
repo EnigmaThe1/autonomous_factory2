@@ -116,16 +116,20 @@ export class ToolRegistry {
     if (!this.cachedPolicyEngine) {
       const workspaceRoot = vscode.workspace.workspaceFolders?.[0]?.uri.fsPath;
       const cfg = vscode.workspace.getConfiguration();
-      this.cachedPolicyEngine = new TrustPolicyEngine(workspaceRoot, {
-        allowTerminal: cfg.get<boolean>("myAi.tools.allowTerminal", false),
-        requireApprovalForWrite: cfg.get<boolean>("myAi.tools.requireApprovalForWrite", true),
-        requireApprovalForInWorkspaceWrites: cfg.get<boolean>("myAi.tools.requireApprovalForInWorkspaceWrites", true),
-        requireApprovalForTerminal: cfg.get<boolean>("myAi.tools.requireApprovalForTerminal", true),
-        requireApprovalForHttp: cfg.get<boolean>("myAi.tools.requireApprovalForHttp", true),
-        requireApprovalForMcp: cfg.get<boolean>("myAi.tools.requireApprovalForMcp", true),
-        requireApprovalForExternal: cfg.get<boolean>("myAi.tools.requireApprovalForExternal", true),
-        restrictToWorkspace: cfg.get<boolean>("myAi.tools.restrictToWorkspace", true)
-      });
+      this.cachedPolicyEngine = new TrustPolicyEngine(
+        workspaceRoot,
+        {
+          allowTerminal: cfg.get<boolean>("myAi.tools.allowTerminal", true),
+          requireApprovalForWrite: cfg.get<boolean>("myAi.tools.requireApprovalForWrite", true),
+          requireApprovalForInWorkspaceWrites: cfg.get<boolean>("myAi.tools.requireApprovalForInWorkspaceWrites", false),
+          requireApprovalForTerminal: cfg.get<boolean>("myAi.tools.requireApprovalForTerminal", false),
+          requireApprovalForHttp: cfg.get<boolean>("myAi.tools.requireApprovalForHttp", true),
+          requireApprovalForMcp: cfg.get<boolean>("myAi.tools.requireApprovalForMcp", true),
+          requireApprovalForExternal: cfg.get<boolean>("myAi.tools.requireApprovalForExternal", true),
+          restrictToWorkspace: cfg.get<boolean>("myAi.tools.restrictToWorkspace", true)
+        },
+        this.context.extensionUri?.fsPath
+      );
     }
     return this.cachedPolicyEngine;
   }
@@ -467,7 +471,11 @@ export class ToolRegistry {
     const isMutating = ToolRegistry.GIT_MUTATING.has(call.tool);
 
     if (isMutating) {
-      const decision = this.policyEngine().decide({ action: "run_command" });
+      const decision = this.policyEngine().decide({
+        action: "run_command",
+        commandText: call.tool,
+        shellInvocationKind: "git_or_infra"
+      });
       if (!decision.allowed) return this.policyBlocked(decision.reason);
       if (decision.requiresApproval && !approved) {
         return pendingApprovalToolResult({
@@ -568,7 +576,11 @@ export class ToolRegistry {
     const isMutating = ToolRegistry.INFRA_MUTATING.has(call.tool);
 
     if (isMutating) {
-      const decision = this.policyEngine().decide({ action: "run_command" });
+      const decision = this.policyEngine().decide({
+        action: "run_command",
+        commandText: call.tool,
+        shellInvocationKind: "git_or_infra"
+      });
       if (!decision.allowed) return this.policyBlocked(decision.reason);
       if (decision.requiresApproval && !approved) {
         return pendingApprovalToolResult({
@@ -1178,7 +1190,11 @@ export class ToolRegistry {
       if (driftTo.kind === "hard_block") return this.policyBlocked(driftTo.reason);
     }
 
-    const decision = this.policyEngine().decide({ action: "rename_file", targetPath: resolvedTo });
+    const decision = this.policyEngine().decide({
+      action: "rename_file",
+      targetPath: resolvedTo,
+      renameFromPath: resolvedFrom
+    });
     if (!decision.allowed) return this.policyBlocked(decision.reason);
     if (decision.requiresApproval && !approved) {
       return pendingApprovalToolResult({
@@ -1456,7 +1472,11 @@ export class ToolRegistry {
       return { ok: false, summary: `browserCapture command rejected: ${cmdValidation.reason}` };
     }
 
-    const decision = this.policyEngine().decide({ action: "run_command" });
+    const decision = this.policyEngine().decide({
+      action: "run_command",
+      commandText: built.command,
+      commandCwd: root
+    });
     if (!decision.allowed) return this.policyBlocked(decision.reason);
     if (decision.requiresApproval && !approved) {
       return pendingApprovalToolResult({
@@ -1660,7 +1680,7 @@ export class ToolRegistry {
       );
       if (gate) return gate;
     }
-    const decision = this.policyEngine().decide({ action: "run_terminal" });
+    const decision = this.policyEngine().decide({ action: "run_terminal", commandText: command });
     if (!decision.allowed) return this.policyBlocked(decision.reason);
     if (decision.requiresApproval && !approved) {
       return pendingApprovalToolResult({
@@ -1716,7 +1736,13 @@ export class ToolRegistry {
     const cmdValidation = validateCommand(command);
     if (!cmdValidation.valid) return { ok: false, summary: `Command rejected: ${cmdValidation.reason}` };
 
-    const decision = this.policyEngine().decide({ action: "run_command" });
+    const root = vscode.workspace.workspaceFolders?.[0]?.uri.fsPath;
+    const resolvedCwd = cwd ? (path.isAbsolute(cwd) ? cwd : root ? path.join(root, cwd) : cwd) : root;
+    const decision = this.policyEngine().decide({
+      action: "run_command",
+      commandText: command,
+      commandCwd: resolvedCwd
+    });
     if (!decision.allowed) return this.policyBlocked(decision.reason);
     if (decision.requiresApproval && !approved) {
       return pendingApprovalToolResult({
