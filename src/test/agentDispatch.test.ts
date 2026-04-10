@@ -5,8 +5,13 @@ import {
   buildRoleSpecificUserPromptCoreLines,
   isMissionToolAllowedForRole,
   missionWorkItemContextKeywords,
-  researcherTargetedEnrichmentNeeded
+  researcherTargetedEnrichmentNeeded,
+  shouldAttachOptionalContextLabel
 } from "../missions/agentDispatch";
+import {
+  classifyToolEvidenceNecessity,
+  shouldPreferArtifactScopedEvidence
+} from "../missions/missionEvidenceContract";
 
 function minimalMission(overrides: Partial<Mission> = {}): Mission {
   return {
@@ -79,6 +84,53 @@ test("buildRoleSpecificUserPromptCoreLines: reviewer mentions REVIEW TARGET", ()
   const item = { id: "w", title: "Review", role: MissionAgentRole.Reviewer, status: "todo", prompt: "Check quality." };
   const lines = buildRoleSpecificUserPromptCoreLines(m, item as any);
   assert.ok(lines.some((l) => l.includes("REVIEW TARGET")));
+});
+
+test("reviewer evidence contract prefers artifact-scoped evidence and does not auto-attach git status", () => {
+  const m = minimalMission({
+    prompt:
+      "Phase-scoped document review.\nRequired files:\n- docs/run_1/phase_outputs/phase2/04_current_phase_review.md",
+    runtime: { stalledHeartbeats: 0, autoReplans: 0, loopGuardTrips: 0, resolvedArtifactRootRelative: "docs/run_1" }
+  } as Mission);
+  const item = {
+    id: "w",
+    title: "Review",
+    role: MissionAgentRole.Reviewer,
+    status: "todo",
+    prompt: "Review only docs/run_1/phase_outputs/phase2/04_current_phase_review.md."
+  };
+  assert.equal(shouldPreferArtifactScopedEvidence(m, item as any), true);
+  assert.equal(
+    classifyToolEvidenceNecessity({
+      mission: m,
+      item: item as any,
+      call: { tool: "git.status", args: {} }
+    }),
+    "optional"
+  );
+  assert.equal(shouldAttachOptionalContextLabel(m, item as any, "GIT STATUS"), false);
+  const lines = buildRoleSpecificUserPromptCoreLines(m, item as any).join("\n");
+  assert.match(lines, /Repo-level git probes are optional/);
+});
+
+test("explicit git review contract marks git probe as required", () => {
+  const m = minimalMission({ prompt: "Review repository status and confirm the working tree is clean." });
+  const item = {
+    id: "w",
+    title: "Review git state",
+    role: MissionAgentRole.Reviewer,
+    status: "todo",
+    prompt: "Use git status and git diff to confirm the repository state."
+  };
+  assert.equal(
+    classifyToolEvidenceNecessity({
+      mission: m,
+      item: item as any,
+      call: { tool: "git.status", args: {} }
+    }),
+    "required"
+  );
+  assert.equal(shouldAttachOptionalContextLabel(m, item as any, "GIT STATUS"), true);
 });
 
 test("buildRoleSpecificUserPromptCoreLines: validator mentions VALIDATION STATE", () => {

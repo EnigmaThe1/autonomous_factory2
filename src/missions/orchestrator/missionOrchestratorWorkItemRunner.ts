@@ -47,12 +47,14 @@ import { buildFailureInvestigationWave } from "../failureInvestigationEnqueue";
 import { resolveActiveStatusForWorkItem } from "../workItemLifecycle";
 import { READONLY_MISSION_TOOL_IDS } from "../readonlyMissionToolIds";
 import { persistArtifactRootFromSummaryIfNew } from "../missionArtifactRootBinding";
+import { resolveExpectedDeliverableRelPathsForImplementer } from "../implementerDeliverableContract";
 import {
   buildReviewerValidatorReadScope,
   isReadPathAllowedInReviewScope,
   normalizeWorkspaceRelPath
 } from "../missionReviewReadScope";
 import { findMissingExpectedDeliverablePaths } from "../implementerDeliverableVerification";
+import { classifyToolEvidenceNecessity } from "../missionEvidenceContract";
 import {
   missionWorkItemContextKeywords,
   filterChatContextForWorkItem,
@@ -295,6 +297,7 @@ export class MissionOrchestratorWorkItemRunner {
         isReadonlyTool,
         isMutatingTool,
         readonlyBudgetRemaining,
+        toolNecessity: classifyToolEvidenceNecessity({ mission, item, call: callWithMeta }),
         isReadFileMissing: effectiveReadFileMissing,
         transientMutatingBudgetRemaining,
         runCommandProbeBudgetRemaining,
@@ -329,6 +332,8 @@ export class MissionOrchestratorWorkItemRunner {
           switch (decision.category) {
             case "recoverable_readonly":
               return this.recoveryBudget.peek(budgetKey);
+            case "optional_probe_degraded":
+              return undefined;
             case "transient_mutating":
               return this.recoveryBudget.peek(transientKey);
             case "run_command_probe":
@@ -353,6 +358,7 @@ export class MissionOrchestratorWorkItemRunner {
             role: item.role,
             tool: callWithMeta.tool,
             category: decision.category,
+            necessity: classifyToolEvidenceNecessity({ mission, item, call: callWithMeta }),
             attempt: recoveryAttemptNumber
           }
         });
@@ -1754,14 +1760,20 @@ export class MissionOrchestratorWorkItemRunner {
     );
 
     let terminalWorkStatus = result.markStatus || "done";
+    const expectedDeliverableRelPaths = resolveExpectedDeliverableRelPathsForImplementer({
+      mission,
+      item,
+      summary: result.summary
+    });
     const completionWorkPatch: Partial<WorkItem> = {
       status: terminalWorkStatus,
       output: result.summary,
       activeMutatingToolCall: undefined,
+      ...(expectedDeliverableRelPaths.length ? { expectedDeliverableRelPaths } : {}),
       ...(workCompletionKind ? { completionKind: workCompletionKind } : {})
     };
-    if (item.role === "implementer" && terminalWorkStatus === "done" && item.expectedDeliverableRelPaths?.length) {
-      const missingDeliv = await findMissingExpectedDeliverablePaths(item.expectedDeliverableRelPaths);
+    if (item.role === "implementer" && terminalWorkStatus === "done" && expectedDeliverableRelPaths.length) {
+      const missingDeliv = await findMissingExpectedDeliverablePaths(expectedDeliverableRelPaths);
       if (missingDeliv.length) {
         terminalWorkStatus = "failed";
         completionWorkPatch.status = "failed";

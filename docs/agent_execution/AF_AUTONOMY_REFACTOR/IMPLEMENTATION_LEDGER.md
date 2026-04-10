@@ -297,3 +297,46 @@ The extension had no pre-existing `IMPLEMENTATION_LEDGER.md`. This file is the c
 - Tighter allowlist rules if operators need stricter “only these files” without `filesModified` warming up.
 
 **Checkpoint commit:** `ff01d1a` — `[Phase 9][P9-T-001] Mission artifact root binding, review read scope, deliverable guard, premature-read recovery.`
+
+## Phase 10 — Optional probe resilience & generalized deliverable guards (2026-04-10)
+
+**Status:** DONE
+
+**Problem addressed**
+
+- Reviewer / validator could still block on optional readonly probes such as `git.status` because the control plane had no required-vs-optional evidence signal and git probes were not fully classified as readonly runtime tools.
+- Non-blueprint implementer work could still reach `done` without strong artifact proof because deliverable guards only fired when `expectedDeliverableRelPaths` had already been populated.
+
+**Files changed**
+
+- `src/missions/missionEvidenceContract.ts`
+- `src/missions/implementerDeliverableContract.ts`
+- `src/missions/agentDispatch/roleContextBuilder.ts`
+- `src/missions/agentDispatch/roleToolPromptLines.ts`
+- `src/missions/readonlyMissionToolIds.ts`
+- `src/missions/orchestrator/toolOutcomeClassifier.ts`
+- `src/missions/orchestrator/missionOrchestratorWorkItemRunner.ts`
+- `src/test/agentDispatch.test.ts`
+- `src/test/toolOutcomeClassifier.test.ts`
+- `src/test/implementerDeliverableContract.test.ts`
+- `src/test/missionScenarioMatrix.test.ts`
+
+**Design decision summary**
+
+- Added a canonical evidence-contract layer that classifies review / validation tools as `required`, `preferred`, or `optional`.
+- Reviewer / validator now default to artifact-root / current-phase evidence, and git probes are treated as optional unless the work-item contract explicitly asks for git evidence.
+- Optional readonly probe failures now degrade in the runner instead of automatically becoming mission blockers.
+- Added generalized implementer deliverable resolution for non-blueprint work by combining current-step prompt / summary evidence with phase-structured mission text and optional `<MISSION_ROOT>` resolution.
+- Preserved autonomy defaults, protected-path gating, and outside-workspace / host-risk denials.
+
+**Validation summary**
+
+- `npm run compile` — PASS
+- targeted regression suites — PASS
+- `npm test` — PASS
+  - 908 dist tests + 78 webview smoke tests passed
+
+**Residual follow-ups**
+
+- Planner-emitted explicit evidence / deliverable contracts would further reduce reliance on prompt-text inference for generic missions.
+- Optional future improvement: expose the resolved evidence contract in inspector / mission event presentation for easier operator debugging.

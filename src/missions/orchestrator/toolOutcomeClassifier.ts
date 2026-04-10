@@ -1,10 +1,12 @@
 import type { ToolCall } from "../../types";
 import type { ToolResult } from "../../tools/ToolRegistry";
+import type { ToolEvidenceNecessity } from "../missionEvidenceContract";
 
 export type ToolOutcomeCategory =
   | "approval_required"
   | "policy_denied"
   | "recoverable_readonly"
+  | "optional_probe_degraded"
   | "recoverable_mutating"
   | "transient_mutating"
   | "run_command_probe"
@@ -49,6 +51,7 @@ export function classifyToolOutcome(input: {
   isReadonlyTool: boolean;
   isMutatingTool: boolean;
   readonlyBudgetRemaining: boolean;
+  toolNecessity?: ToolEvidenceNecessity;
   isReadFileMissing: boolean;
   transientMutatingBudgetRemaining?: boolean;
   runCommandProbeBudgetRemaining?: boolean;
@@ -91,6 +94,16 @@ export function classifyToolOutcome(input: {
         tags: ["non_fatal", "run_command_missing_path"],
         hintLines: [
           "[hint] Shell command failed with a missing-path style error. Re-list the real directory (e.g. ls docs/autonomy_factory_stress_test*), do not trust MEMORY that names paths you have not listed this turn, then retry with paths that exist."
+        ]
+      };
+    }
+    if (input.toolNecessity === "optional" && isReadonlyTool) {
+      return {
+        kind: "continue",
+        category: "optional_probe_degraded",
+        tags: ["non_fatal", "optional_probe_failure", "degraded_evidence"],
+        hintLines: [
+          "[hint] This probe is optional for the current work item. Continue with remaining scoped evidence (artifact-root fileTree/listFiles/readFile, diagnostics, tests) and do not block only because this probe failed."
         ]
       };
     }
@@ -181,4 +194,3 @@ export function classifyToolOutcome(input: {
 
   return { kind: "continue", category: isMutatingTool ? "recoverable_mutating" : "recoverable_readonly" };
 }
-

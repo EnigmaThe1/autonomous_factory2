@@ -11,7 +11,11 @@ export const READONLY_MISSION_TOOL_IDS = new Set<string>([
   "getDiagnostics",
   "listTools",
   "listMcpTools",
-  "findRelevantFiles"
+  "findRelevantFiles",
+  "git.status",
+  "git.diff",
+  "git.log",
+  "git.blame"
 ]);
 
 export function isReadonlyMissionToolId(tool: string): boolean {

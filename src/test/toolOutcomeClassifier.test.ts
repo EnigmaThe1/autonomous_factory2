@@ -69,6 +69,41 @@ test("classifyToolOutcome: runCommand missing-path failure continues when probe 
   }
 });
 
+test("classifyToolOutcome: optional readonly probe failure degrades instead of blocking", () => {
+  const decision = classifyToolOutcome({
+    call: { tool: "git.status", args: {} },
+    result: {
+      ok: false,
+      summary: "fatal: not a git repository"
+    },
+    isReadonlyTool: true,
+    isMutatingTool: false,
+    readonlyBudgetRemaining: false,
+    toolNecessity: "optional",
+    isReadFileMissing: false
+  });
+  assert.equal(decision.kind, "continue");
+  if (decision.kind === "continue") {
+    assert.equal(decision.category, "optional_probe_degraded");
+  }
+});
+
+test("classifyToolOutcome: required readonly probe failure still blocks when readonly recovery is exhausted", () => {
+  const decision = classifyToolOutcome({
+    call: { tool: "git.status", args: {} },
+    result: {
+      ok: false,
+      summary: "fatal: not a git repository"
+    },
+    isReadonlyTool: true,
+    isMutatingTool: false,
+    readonlyBudgetRemaining: false,
+    toolNecessity: "required",
+    isReadFileMissing: false
+  });
+  assert.equal(decision.kind, "blocked");
+});
+
 test("classifyToolOutcome: runCommand missing-path failure falls through to agent retry when probe exhausted but agent retry budget remains", () => {
   const decision = classifyToolOutcome({
     call: { tool: "runCommand", args: {} },

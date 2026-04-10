@@ -109,6 +109,176 @@ test("matrix: failure investigation can enqueue recovery wave instead of termina
   }
 });
 
+test("matrix: optional reviewer git probe failure degrades and review continues on artifact evidence", async () => {
+  const policy = {
+    ...balancedIntegrationPolicy,
+    minCompletedWorkItems: 2,
+    requireImplementerBeforeComplete: false
+  };
+  const tool = async (_mid: string, call: ToolCall) => {
+    if (call.tool === "git.status") {
+      return { ok: false, summary: "fatal: not a git repository (or any of the parent directories): .git" };
+    }
+    if (call.tool === "listFiles") {
+      return { ok: true, summary: "Listed mission-root files.", data: ["docs/run_optional/phase_outputs/phase2/04_current_phase_review.md"] };
+    }
+    if (call.tool === "readFile") {
+      return {
+        ok: true,
+        summary: `Read ${String(call.args.path || "")}`,
+        data: "# Current phase review\n\nOnly phase 0-2 artifacts were inspected.\n"
+      };
+    }
+    return { ok: true, summary: `noop:${call.tool}` };
+  };
+  const agent = roleScript({
+    reviewer: [
+      {
+        summary: "Reviewed current-phase artifact after optional git probe failed.",
+        toolCalls: [
+          { tool: "git.status", args: {} },
+          { tool: "listFiles", args: { glob: "docs/run_optional/**/*" } },
+          { tool: "readFile", args: { path: "docs/run_optional/phase_outputs/phase2/04_current_phase_review.md" } }
+        ]
+      }
+    ],
+    validator: [{ summary: "COMPLETE:", decision: "complete", toolCalls: [] }]
+  });
+  const { orchestrator, store } = await createOrchestrator(agent, tool as any);
+  const m = await store.create(
+    "matrix-optional-review-probe",
+    [
+      "Phase-scoped document review mission.",
+      "Only review docs/run_optional/phase_outputs/phase2/04_current_phase_review.md.",
+      "Do not depend on git unless the task explicitly requires repo state."
+    ].join("\n"),
+    "ollama",
+    undefined,
+    policy
+  );
+  await store.updateRuntime(m.id, { resolvedArtifactRootRelative: "docs/run_optional" });
+  await store.enqueue(m.id, [
+    {
+      id: "rev0",
+      title: "Review current phase artifacts",
+      role: "reviewer",
+      status: "todo",
+      prompt: "Review only docs/run_optional/phase_outputs/phase2/04_current_phase_review.md and stay inside the current mission root."
+    },
+    {
+      id: "val0",
+      title: "Validate review closure",
+      role: "validator",
+      status: "todo",
+      prompt: "Validate the document review."
+    }
+  ]);
+  await orchestrator.runMission(m.id);
+  const fin = store.get(m.id)!;
+  assert.equal(fin.status, "completed");
+  assert.notEqual(fin.blockReasonCode, "tool_failure");
+  assert.ok(fin.events.some((e) => {
+    const d = e.data as { category?: string } | undefined;
+    return d?.category === "optional_probe_degraded";
+  }));
+});
+
+test("matrix: explicit git-required reviewer probe failure still blocks", async () => {
+  const policy = {
+    ...balancedIntegrationPolicy,
+    minCompletedWorkItems: 1,
+    requireImplementerBeforeComplete: false,
+    requireValidatorBeforeComplete: false
+  };
+  const tool = async (_mid: string, call: ToolCall) => {
+    if (call.tool === "git.status") {
+      return { ok: false, summary: "fatal: not a git repository (or any of the parent directories): .git" };
+    }
+    return { ok: true, summary: "ok" };
+  };
+  const agent = roleScript({
+    reviewer: [
+      {
+        summary: "Tried to confirm repository state.",
+        toolCalls: [{ tool: "git.status", args: {} }]
+      }
+    ]
+  });
+  const { orchestrator, store } = await createOrchestrator(agent, tool as any);
+  const m = await store.create(
+    "matrix-required-review-git",
+    "Review repository git status and confirm whether the working tree is clean.",
+    "ollama",
+    undefined,
+    policy
+  );
+  await store.enqueue(m.id, [
+    {
+      id: "rev0",
+      title: "Review repo state",
+      role: "reviewer",
+      status: "todo",
+      prompt: "Use git status to confirm the repository state before approving."
+    }
+  ]);
+  await orchestrator.runMission(m.id);
+  const fin = store.get(m.id)!;
+  assert.equal(fin.status, "blocked");
+  assert.equal(fin.blockReasonCode, "tool_failure");
+});
+
+test("matrix: implementer deliverable inference blocks done when required phased files are still missing", async () => {
+  const policy = {
+    ...balancedIntegrationPolicy,
+    minCompletedWorkItems: 1,
+    requireReviewerBeforeComplete: false,
+    requireValidatorBeforeComplete: false
+  };
+  const agent = roleScript({
+    implementer: [
+      {
+        summary: [
+          "Complete Phase 0 and Phase 1 preparations.",
+          "mkdir -p docs/guard_run_17/plans",
+          "mkdir -p docs/guard_run_17/phase_outputs/phase1",
+          "mkdir -p docs/guard_run_17/logs"
+        ].join("\n"),
+        toolCalls: []
+      }
+    ]
+  });
+  const { orchestrator, store } = await createOrchestrator(agent, noopTool as any);
+  const m = await store.create(
+    "matrix-deliverable-guard",
+    [
+      "Phase 0 - Root binding",
+      "- <MISSION_ROOT>/00_run_binding.md",
+      "- <MISSION_ROOT>/00_scope_guard.md",
+      "Phase 1 - Initial outputs",
+      "- <MISSION_ROOT>/plans/01_execution_plan.md",
+      "- <MISSION_ROOT>/phase_outputs/phase1/01_root_resolution_report.md"
+    ].join("\n"),
+    "ollama",
+    undefined,
+    policy
+  );
+  await store.enqueue(m.id, [
+    {
+      id: "impl0",
+      title: "Implement phased artifacts",
+      role: "implementer",
+      status: "todo",
+      prompt: "Create the required Phase 0 and Phase 1 artifacts."
+    }
+  ]);
+  await orchestrator.runMission(m.id);
+  const fin = store.get(m.id)!;
+  const impl = fin.queue.find((w) => w.id === "impl0");
+  assert.equal(impl?.status, "failed");
+  assert.match(String(impl?.output || ""), /DELIVERABLE_GUARD/);
+  assert.match(String(impl?.output || ""), /docs\/guard_run_17\/00_run_binding\.md/);
+});
+
 test("matrix: non-readFile tool failure still blocks mission (safety)", async () => {
   const tool = async (_mid: string, call: ToolCall) => {
     // writeFile is mutating; failures should still block the mission.
@@ -507,4 +677,3 @@ test("matrix: applyPatch recoverable failure + tool follow-up in harness complet
     (vscode as VscodeTestApi).__setTestConfig?.("myAi.missions.maxToolFollowUpsWhenTestHarness", 0);
   }
 });
-

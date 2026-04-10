@@ -1,6 +1,10 @@
 import { trimText } from "../../util";
 import { MissionAgentRole, type AgentRole, type ChatContext, type Mission, type WorkItem } from "../../types";
 import { extractKeywords } from "../orchestrator/orchestratorLeafHelpers";
+import {
+  buildReviewerValidatorEvidenceContractLines,
+  workItemExplicitlyRequestsGitEvidence
+} from "../missionEvidenceContract";
 import { allowedToolIdsForRole } from "./roleAllowedTools";
 
 const OPTIONAL_LABELS = {
@@ -76,7 +80,12 @@ export function shouldAttachOptionalContextLabel(mission: Mission, item: WorkIte
       : item.role;
   if (r === MissionAgentRole.Implementer) return true;
   if (label === OPTIONAL_LABELS.missionMemory || label === OPTIONAL_LABELS.globalMemory) return true;
-  if (label === OPTIONAL_LABELS.gitStatus) return true;
+  if (label === OPTIONAL_LABELS.gitStatus) {
+    if (r === MissionAgentRole.Reviewer || r === MissionAgentRole.Validator) {
+      return workItemExplicitlyRequestsGitEvidence(mission, item);
+    }
+    return true;
+  }
   if (r === MissionAgentRole.Planner) {
     return (
       label === OPTIONAL_LABELS.projectOverview ||
@@ -166,7 +175,8 @@ export function buildRoleSpecificUserPromptCoreLines(mission: Mission, item: Wor
       item.validationScopeHint?.trim() ? `REVIEW SCOPE HINT:\n${item.validationScopeHint.trim()}` : "",
       mission.runtime?.resolvedArtifactRootRelative
         ? `BOUND ARTIFACT ROOT (workspace-relative): ${mission.runtime.resolvedArtifactRootRelative}`
-        : ""
+        : "",
+      ...buildReviewerValidatorEvidenceContractLines(mission, item)
     ].filter(Boolean);
   }
 
@@ -180,7 +190,8 @@ export function buildRoleSpecificUserPromptCoreLines(mission: Mission, item: Wor
         ? `CHANGED AREAS (hints):\n${trimText(changedFilesSummary(mission, item), 2000)}`
         : "",
       `TASK PROMPT:\n${item.prompt}`,
-      `Use runTests / runLinter / getDiagnostics as appropriate; require evidence before COMPLETE:.`
+      `Use runTests / runLinter / getDiagnostics as appropriate; require evidence before COMPLETE:.`,
+      ...buildReviewerValidatorEvidenceContractLines(mission, item)
     ].filter(Boolean);
   }
 

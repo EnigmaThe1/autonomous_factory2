@@ -40,14 +40,15 @@ function toolBulletsForRole(role: AgentRole): string[] {
     'TOOL:{"tool":"listFiles","args":{"glob":"**/*"}}',
     'TOOL:{"tool":"fileTree","args":{"maxDepth":3}}',
     'TOOL:{"tool":"findRelevantFiles","args":{"query":"..."}}',
-    'TOOL:{"tool":"git.status","args":{}}',
-    'TOOL:{"tool":"git.diff","args":{"staged":false,"path":"..."}}',
-    'TOOL:{"tool":"git.log","args":{"count":10}}',
     'TOOL:{"tool":"listTools","args":{}}',
     'TOOL:{"tool":"listMcpTools","args":{}}'
   ];
   if (r === MissionAgentRole.Planner) {
-    return [...read, 'TOOL:{"tool":"getDiagnostics","args":{}}'];
+    return [
+      ...read,
+      'TOOL:{"tool":"getDiagnostics","args":{}}',
+      "Optional repo-history probes when the task explicitly requires them: git.status / git.diff / git.log via listTools."
+    ];
   }
   if (r === MissionAgentRole.Researcher) {
     return [
@@ -55,18 +56,24 @@ function toolBulletsForRole(role: AgentRole): string[] {
       'TOOL:{"tool":"getDiagnostics","args":{}}',
       'TOOL:{"tool":"webSearch","args":{"query":"..."}}',
       'TOOL:{"tool":"fetchWebPage","args":{"url":"https://..."}}',
-      'TOOL:{"tool":"runCommand","args":{"command":"...","cwd":"..."}}'
+      'TOOL:{"tool":"runCommand","args":{"command":"...","cwd":"..."}}',
+      "Optional repo-history probes when the task explicitly requires them: git.status / git.diff / git.log / git.blame via listTools."
     ];
   }
   if (r === MissionAgentRole.Reviewer) {
-    return [...read, 'TOOL:{"tool":"getDiagnostics","args":{}}', 'TOOL:{"tool":"git.blame","args":{"path":"...","startLine":1,"endLine":20}}'];
+    return [
+      ...read,
+      'TOOL:{"tool":"getDiagnostics","args":{}}',
+      "Repo-level git probes are optional by default for review. Use git.status / git.diff / git.log / git.blame only when the review contract explicitly needs git evidence."
+    ];
   }
   if (r === MissionAgentRole.Validator) {
     return [
       ...read,
       'TOOL:{"tool":"getDiagnostics","args":{}}',
       'TOOL:{"tool":"runLinter","args":{}}',
-      'TOOL:{"tool":"runTests","args":{}}'
+      'TOOL:{"tool":"runTests","args":{}}',
+      "Repo-level git probes are optional by default for validation. Prefer direct artifact evidence unless validation explicitly requires git state."
     ];
   }
   // implementer — full catalog hint via listTools
@@ -77,6 +84,9 @@ function toolBulletsForRole(role: AgentRole): string[] {
     'TOOL:{"tool":"runCommand","args":{"command":"...","cwd":"..."}}',
     'TOOL:{"tool":"runLinter","args":{}}',
     'TOOL:{"tool":"runTests","args":{}}',
+    'TOOL:{"tool":"git.status","args":{}}',
+    'TOOL:{"tool":"git.diff","args":{"staged":false,"path":"..."}}',
+    'TOOL:{"tool":"git.log","args":{"count":10}}',
     "Other mutating or infra tools: use listTools / listMcpTools when needed."
   ];
 }
