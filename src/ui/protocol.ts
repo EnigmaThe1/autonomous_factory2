@@ -26,8 +26,14 @@ export interface SidebarSettingsSummary {
   defaultModel: string;
   autoResumeOnStartup: boolean;
   heartbeatSeconds: number;
+  maxStepsPerRun: number;
+  unlimitedStepsPerRun: boolean;
   allowTerminal: boolean;
   requireWriteApproval: boolean;
+  /** Workspace `myAi.tools.requireApprovalForNonImplementerMutations`. */
+  requireApprovalForNonImplementerMutations: boolean;
+  /** Workspace `myAi.tools.autoApproveAllToolRequests` — bypass tool approval queue (dangerous). */
+  autoApproveAllToolRequests: boolean;
   useNativeChatParticipant: boolean;
   mcpConfigPath: string;
   autoRevealOnActivation: boolean;
@@ -288,7 +294,20 @@ export type UiToExtMessage =
   | { type: "revertLazyDiscoveryPreset" }
   | { type: "searchGlobalMemory"; query: string }
   | { type: "generateMissionReport"; missionId: string }
-  | { type: "saveQuickSettings"; defaultProvider: string; defaultModel: string; heartbeatSeconds: number; allowTerminal: boolean; requireWriteApproval: boolean; autoRevealOnActivation: boolean; defaultTab: string }
+  | {
+      type: "saveQuickSettings";
+      defaultProvider: string;
+      defaultModel: string;
+      heartbeatSeconds: number;
+      maxStepsPerRun: number;
+      unlimitedStepsPerRun: boolean;
+      allowTerminal: boolean;
+      requireWriteApproval: boolean;
+      requireApprovalForNonImplementerMutations: boolean;
+      autoApproveAllToolRequests: boolean;
+      autoRevealOnActivation: boolean;
+      defaultTab: string;
+    }
   | { type: "saveProviderCredential"; providerId: string; apiKey: string }
   | { type: "clearProviderCredential"; providerId: string }
   | { type: "saveProviderBaseUrl"; providerId: string; baseUrl: string }

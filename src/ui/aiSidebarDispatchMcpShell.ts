@@ -72,9 +72,18 @@ export async function dispatchUi_openSettings(
    */
   const run = () => {
     try {
+      // Prefer opening workspace settings JSON to avoid Settings UI hangs (observed in Cursor).
+      // This is still searchable/editable and keeps the extension host responsive.
+      void vscode.commands.executeCommand("workbench.action.openWorkspaceSettingsFile");
+      // Also kick the Settings UI search (best-effort) after yielding; if the host can render it,
+      // it helps discoverability, but workspace settings file is the reliable path.
       void vscode.commands.executeCommand("workbench.action.openSettings", q);
     } catch {
-      /* missing command in minimal hosts */
+      try {
+        void vscode.commands.executeCommand("workbench.action.openSettingsJson");
+      } catch {
+        /* missing command in minimal hosts */
+      }
     }
   };
   if (typeof globalThis.setImmediate === "function") {

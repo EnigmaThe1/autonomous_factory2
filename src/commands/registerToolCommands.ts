@@ -50,6 +50,8 @@ export function registerToolCommands(
 
   disposables.push(
     vscode.commands.registerCommand("myAi.openMissionSettings", () => {
+      // Prefer JSON workspace settings to avoid Settings UI hangs in some hosts.
+      void vscode.commands.executeCommand("workbench.action.openWorkspaceSettingsFile");
       void vscode.commands.executeCommand("workbench.action.openSettings", MISSION_SETTINGS_SEARCH_QUERY);
     })
   );

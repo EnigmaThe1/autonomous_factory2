@@ -27,6 +27,10 @@ export function shouldAutoRetry(
     return { shouldRetry: false, reason: "Item is not failed" };
   }
 
+  if (item.suppressAutoRetry) {
+    return { shouldRetry: false, reason: "Auto-retry suppressed (structured recovery already enqueued)" };
+  }
+
   if (item.hardStopClass && NON_RETRYABLE_HARD_STOPS.has(item.hardStopClass)) {
     return { shouldRetry: false, reason: `Hard-stop class ${item.hardStopClass} requires human intervention` };
   }

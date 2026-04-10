@@ -1,5 +1,6 @@
 import type { Mission } from "../types";
 import { isKnownImplementerHardStopClassValue } from "./implementerHardStopClassInvariant";
+import { isFailedWorkItemSupersededBySuccessfulRetry } from "./requiredWork";
 
 /** Mapped to mission/UI "unknown" downstream-gating bucket (`unknown_hard_stop` is work-item storage). */
 export type ImplementerHardStopFailureClass =
@@ -35,7 +36,8 @@ export function classifyImplementerHardStopDownstreamGate(mission: Mission): Imp
     (w) =>
       w.role === "implementer" &&
       (w.status === "blocked" || w.status === "failed") &&
-      w.requiredForCompletion !== false
+      w.requiredForCompletion !== false &&
+      !isFailedWorkItemSupersededBySuccessfulRetry(mission, w)
   );
   if (!requiredImpl.length) return { gate: false };
 

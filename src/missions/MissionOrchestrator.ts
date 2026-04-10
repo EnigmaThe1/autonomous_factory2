@@ -14,6 +14,7 @@ import {
   recoverInterruptedQueueItems,
   requeueOperatorStreamAbortedWorkItems
 } from "./resumeRecovery";
+import { reconcileStaleApprovalPendingHardStops } from "./missionApprovalGateReconcile";
 import { enforceClosurePolicy } from "./missionClosurePolicy";
 import type { MissionFileTracker } from "./MissionFileTracker";
 import type {
@@ -197,8 +198,9 @@ export class MissionOrchestrator {
    * operator stream abort, then run the mission loop. Resolves when the `runMission` pass this call
    * cares about finishes: either the pass this invocation schedules, or — if a pass is already in
    * flight — that existing pass (join; no second pass, no resume side-effects while the loop runs).
-   * No-op for terminal missions, `awaiting_input` (except `blockReasonCode: post_validator_checkpoint` — then
-   * clears to `queued` and runs), or pending approvals (promise resolves immediately).
+   * No-op for terminal missions, `awaiting_input` (except `post_validator_checkpoint` and
+   * `approval_gate_stale` — those clear to `queued` and run; stale gate reconciles queue first), or
+   * pending approvals (promise resolves immediately).
    * A `queued` mission after `maxStepsPerRun` is normal: awaiting this method completes only that pass,
    * not full terminal completion unless policy/queue allow it in one pass.
    * For “idle and terminal lifecycle” in one call, see `whenMissionReachesTerminalLifecycleStatus`.
@@ -227,16 +229,36 @@ export class MissionOrchestrator {
           "Operator resumed after mission failure; status reset to queued for a salvage pass. Review recent events and queue before relying on automatic execution."
       });
     }
-    if (
-      mission.status === "awaiting_input" &&
-      mission.blockReasonCode !== "post_validator_checkpoint"
-    ) {
+    const awaitingInputResumable =
+      mission.blockReasonCode === "post_validator_checkpoint" ||
+      mission.blockReasonCode === "approval_gate_stale";
+    if (mission.status === "awaiting_input" && !awaitingInputResumable) {
       return { kind: "gated_awaiting_input", missionId: id };
     }
     if (mission.approvals.some((a) => a.status === "pending")) {
       return { kind: "gated_pending_approval", missionId: id };
     }
-    const recovered = recoverInterruptedQueueItems(mission.queue);
+    let queueForRecovery = mission.queue;
+    if (mission.blockReasonCode === "approval_gate_stale") {
+      const { queue: reconciled, changedIds } = reconcileStaleApprovalPendingHardStops(mission.queue, mission.approvals);
+      queueForRecovery = reconciled;
+      if (changedIds.length > 0) {
+        await this.store.saveEvent(id, {
+          level: "info",
+          source: "orchestrator",
+          message: `Reconciled approval_gate_stale: cleared stale approval_pending on work item(s): ${changedIds.join(", ")}.`,
+          data: { workItemIds: changedIds }
+        });
+      } else {
+        await this.store.saveEvent(id, {
+          level: "warn",
+          source: "orchestrator",
+          message:
+            "Resume on approval_gate_stale: no queue rows had stale approval_pending (continuing with recovery pass)."
+        });
+      }
+    }
+    const recovered = recoverInterruptedQueueItems(queueForRecovery);
     const queueAfterAbortRequeue = requeueOperatorStreamAbortedWorkItems(recovered.queue);
     const operatorAbortRequeues = countOperatorStreamAbortRequeues(mission.queue, queueAfterAbortRequeue);
     await this.store.updateMission(id, {

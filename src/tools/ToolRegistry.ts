@@ -8,6 +8,7 @@ import { ExternalToolAdapterRegistry } from "./ExternalToolAdapterRegistry";
 import { McpRegistry } from "./McpRegistry";
 import { TrustPolicyEngine } from "../security/TrustPolicyEngine";
 import { redactSensitiveObject } from "../security/SecretRedaction";
+import { classifyRecoverySpineTarget } from "../security/RecoverySpinePolicy";
 import { isApplyPatchNoopBecauseReplaceAlreadyPresent } from "./applyPatchNoOpPolicy";
 import { runCommand } from "./CommandRunner";
 import { ripgrepSearch, fileTree } from "./RipgrepSearch";
@@ -138,6 +139,19 @@ export class ToolRegistry {
     return { ok: false, summary: reason, blockedByPolicy: true };
   }
 
+  /**
+   * When true (Quick Settings / `myAi.tools.autoApproveAllToolRequests`), treat tool calls as operator-approved
+   * for all human-in-the-loop gates. Policy `allowed: false` and recovery-spine override rules are unchanged.
+   */
+  private autoApproveAllToolRequests(): boolean {
+    return vscode.workspace.getConfiguration().get<boolean>("myAi.tools.autoApproveAllToolRequests", false);
+  }
+
+  /** True if the call was explicitly approved or workspace auto-approve-all is enabled. */
+  private effectiveApproved(call: ToolCall): boolean {
+    return Boolean(call.args?.__approved) || this.autoApproveAllToolRequests();
+  }
+
   private resolveWorkspacePath(inputPath: string): string {
     if (path.isAbsolute(inputPath)) return inputPath;
     const root = vscode.workspace.workspaceFolders?.[0]?.uri.fsPath;
@@ -165,6 +179,11 @@ export class ToolRegistry {
     title: string,
     details: string
   ): Promise<ToolResult | undefined> {
+    const requireNonImpl = vscode.workspace
+      .getConfiguration()
+      .get<boolean>("myAi.tools.requireApprovalForNonImplementerMutations", true);
+    if (!requireNonImpl) return undefined;
+
     const attributed = this.getAttributedWorkItem(missionId, call);
     if (!attributed) return undefined;
     if (attributed.item.role === "implementer") return undefined;
@@ -197,6 +216,8 @@ export class ToolRegistry {
     readFile: (mid, c) => this.readFile(mid, String(c.args.path || "")),
     writeFile: (mid, c) => this.writeFile(mid, c),
     applyPatch: (mid, c) => this.applyPatch(mid, c),
+    deleteFile: (mid, c) => this.deleteFile(mid, c),
+    renameFile: (mid, c) => this.renameFile(mid, c),
     searchFiles: (mid, c) => this.searchFiles(mid, String(c.args.glob || "**/*"), String(c.args.query || "")),
     listFiles: (mid, c) => this.listFiles(mid, String(c.args.glob || "**/*")),
     getDiagnostics: (mid) => this.getDiagnostics(mid),
@@ -206,20 +227,29 @@ export class ToolRegistry {
     fileTree: (mid, c) => this.fileTreeTool(mid, c.args.maxDepth ? Number(c.args.maxDepth) : undefined),
     runTests: (mid, c) => this.runTestsTool(mid, c.args.command ? String(c.args.command) : undefined),
     runLinter: (mid, c) => this.runLinterTool(mid, c.args.command ? String(c.args.command) : undefined),
-    httpRequest: (mid, c) => this.httpRequestTool(mid, String(c.args.method || "GET"), String(c.args.url || ""), c.args.headers as Record<string, string> | undefined, c.args.body ? String(c.args.body) : undefined, Boolean(c.args.__approved)),
-    webSearch: (mid, c) => this.webSearchTool(mid, String(c.args.query || ""), Boolean(c.args.__approved), c),
-    fetchWebPage: (mid, c) => this.fetchWebPageTool(mid, String(c.args.url || ""), Boolean(c.args.__approved), c),
-    browserCapture: (mid, c) => this.browserCaptureTool(mid, String(c.args.url || ""), Boolean(c.args.__approved)),
+    httpRequest: (mid, c) =>
+      this.httpRequestTool(
+        mid,
+        String(c.args.method || "GET"),
+        String(c.args.url || ""),
+        c.args.headers as Record<string, string> | undefined,
+        c.args.body ? String(c.args.body) : undefined,
+        this.effectiveApproved(c)
+      ),
+    webSearch: (mid, c) => this.webSearchTool(mid, String(c.args.query || ""), this.effectiveApproved(c), c),
+    fetchWebPage: (mid, c) => this.fetchWebPageTool(mid, String(c.args.url || ""), this.effectiveApproved(c), c),
+    browserCapture: (mid, c) => this.browserCaptureTool(mid, String(c.args.url || ""), this.effectiveApproved(c)),
     findRelevantFiles: (mid, c) => this.findRelevantFilesTool(mid, String(c.args.query || "")),
-    runTerminal: (mid, c) => this.runTerminal(mid, String(c.args.command || ""), Boolean(c.args.__approved), c),
-    runCommand: (mid, c) => this.runCommandTool(
-      mid,
-      String(c.args.command || ""),
-      c.args.cwd ? String(c.args.cwd) : undefined,
-      c.args.timeoutMs ? Number(c.args.timeoutMs) : undefined,
-      Boolean(c.args.__approved),
-      c
-    )
+    runTerminal: (mid, c) => this.runTerminal(mid, String(c.args.command || ""), this.effectiveApproved(c), c),
+    runCommand: (mid, c) =>
+      this.runCommandTool(
+        mid,
+        String(c.args.command || ""),
+        c.args.cwd ? String(c.args.cwd) : undefined,
+        c.args.timeoutMs ? Number(c.args.timeoutMs) : undefined,
+        this.effectiveApproved(c),
+        c
+      )
   };
 
   private hasWorkItemAttribution(call: ToolCall): boolean {
@@ -242,13 +272,13 @@ export class ToolRegistry {
     if (t.startsWith("git.")) return ToolRegistry.GIT_MUTATING.has(t);
     if (t.startsWith("docker.") || t.startsWith("db.")) return ToolRegistry.INFRA_MUTATING.has(t);
     // Builtins
-    return new Set(["writeFile", "applyPatch", "runTerminal", "runCommand"]).has(t);
+    return new Set(["writeFile", "applyPatch", "deleteFile", "renameFile", "runTerminal", "runCommand"]).has(t);
   }
 
   async execute(missionId: string, call: ToolCall): Promise<ToolResult> {
     this.invalidatePolicyCache();
 
-    const approved = Boolean(call.args?.__approved);
+    const approved = this.effectiveApproved(call);
     if (missionId !== "__system__" && this.isPotentiallyMutatingToolCall(call) && !this.hasWorkItemAttribution(call) && !approved) {
       const sanitizedArgs = redactSensitiveObject(call.args || {});
       const summary = `Approval required: unattributed mutating tool call (${call.tool})`;
@@ -659,11 +689,14 @@ export class ToolRegistry {
       return { ok: true, summary: `Read ${resolvedPath}`, data: trimText(text, 30000) };
     } catch (e) {
       const msg = e instanceof vscode.FileSystemError ? e.message : String(e);
-      const code = e instanceof vscode.FileSystemError ? e.code : "Unknown";
+      const codeRaw = e instanceof vscode.FileSystemError ? e.code : "Unknown";
       const notFound =
         (e instanceof vscode.FileSystemError &&
-          (code === "FileNotFound" || code === "EntryNotFound")) ||
+          (codeRaw === "FileNotFound" || codeRaw === "EntryNotFound")) ||
         /ENOENT|EntryNotFound|no such file|not found/i.test(msg);
+      // Normalize to a stable code so orchestrator policy can reason about it even when
+      // a provider/wrapper yields a generic error object with only an ENOENT message.
+      const code = notFound && codeRaw === "Unknown" ? "FileNotFound" : codeRaw;
       const hint = notFound
         ? " Use listFiles or grepSearch to locate the file (check subfolders and exact filename casing)."
         : "";
@@ -733,10 +766,46 @@ export class ToolRegistry {
   private async writeFile(missionId: string, call: ToolCall): Promise<ToolResult> {
     const fsPath = String(call.args.path || "");
     const content = String(call.args.content || "");
-    const approved = Boolean(call.args.__approved);
+    const approved = this.effectiveApproved(call);
     const fpv = validateFilePath(fsPath);
     if (!fpv.valid) return { ok: false, summary: `writeFile rejected: ${fpv.reason}` };
     const resolvedPath = this.resolveWorkspacePath(fsPath);
+    {
+      const spine = classifyRecoverySpineTarget(resolvedPath);
+      const override = Boolean((call.args as Record<string, unknown> | undefined)?.__recoverySpineOverride);
+      if (spine.protected) {
+        await this.missionStore.saveEvent(missionId, {
+          level: "warn",
+          source: "recovery-spine",
+          telemetryKind: "spine_guard",
+          message: `Recovery spine guard: writeFile blocked for ${spine.rel || resolvedPath}`,
+          data: { tool: "writeFile", path: spine.rel || resolvedPath, reason: spine.reason, override }
+        });
+        if (!approved) {
+          return pendingApprovalToolResult({
+            kind: "write_file",
+            summary: `Approval required: recovery spine protected write (${spine.rel || resolvedPath})`,
+            title: `Recovery spine protected write: ${spine.rel || resolvedPath}`,
+            details: [
+              spine.reason || "Recovery spine protected path.",
+              "",
+              "This path is part of the protected recovery spine (persistence/settings).",
+              "By default, the AI must not mutate it because it can break recovery/resume.",
+              "",
+              "To proceed intentionally:",
+              "- approve this action, AND",
+              "- re-issue writeFile with args.__recoverySpineOverride = true (explicit intent)."
+            ].join("\n"),
+            detailsMaxChars: 1600
+          });
+        }
+        if (!override) {
+          return this.policyBlocked(
+            `Recovery spine protected path: ${spine.rel || resolvedPath}. To override intentionally, set __recoverySpineOverride=true and request approval.`
+          );
+        }
+      }
+    }
 
     const attributed = this.getAttributedWorkItem(missionId, call);
     if (attributed) {
@@ -817,8 +886,50 @@ export class ToolRegistry {
     const fsPath = String(call.args.path || "");
     const search = String(call.args.search || "");
     const replace = String(call.args.replace || "");
-    const approved = Boolean(call.args.__approved);
+    const approved = this.effectiveApproved(call);
     const resolvedPath = this.resolveWorkspacePath(fsPath);
+    {
+      const spine = classifyRecoverySpineTarget(resolvedPath);
+      const override = Boolean((call.args as Record<string, unknown> | undefined)?.__recoverySpineOverride);
+      if (spine.protected) {
+        await this.missionStore.saveEvent(missionId, {
+          level: "warn",
+          source: "recovery-spine",
+          telemetryKind: "spine_guard",
+          message: `Recovery spine guard: applyPatch blocked for ${spine.rel || resolvedPath}`,
+          data: { tool: "applyPatch", path: spine.rel || resolvedPath, reason: spine.reason, override }
+        });
+        if (!approved) {
+          return pendingApprovalToolResult({
+            kind: "apply_patch",
+            summary: `Approval required: recovery spine protected patch (${spine.rel || resolvedPath})`,
+            title: `Recovery spine protected patch: ${spine.rel || resolvedPath}`,
+            details: [
+              spine.reason || "Recovery spine protected path.",
+              "",
+              "This path is part of the protected recovery spine (persistence/settings).",
+              "By default, the AI must not mutate it because it can break recovery/resume.",
+              "",
+              "To proceed intentionally:",
+              "- approve this action, AND",
+              "- re-issue applyPatch with args.__recoverySpineOverride = true (explicit intent).",
+              "",
+              "SEARCH (truncated):",
+              trimText(search, 600),
+              "",
+              "REPLACE (truncated):",
+              trimText(replace, 600)
+            ].join("\n"),
+            detailsMaxChars: 2000
+          });
+        }
+        if (!override) {
+          return this.policyBlocked(
+            `Recovery spine protected path: ${spine.rel || resolvedPath}. To override intentionally, set __recoverySpineOverride=true and request approval.`
+          );
+        }
+      }
+    }
 
     const attributed = this.getAttributedWorkItem(missionId, call);
     if (attributed) {
@@ -921,6 +1032,167 @@ export class ToolRegistry {
     this.fileTracker?.trackFile(missionId, resolvedPath);
     await this.missionStore.saveEvent(missionId, { level: "info", source: "tool:applyPatch", message: resolvedPath });
     return { ok: true, summary: `Patched ${resolvedPath}` };
+  }
+
+  private async deleteFile(missionId: string, call: ToolCall): Promise<ToolResult> {
+    const fsPath = String(call.args.path || "");
+    const approved = this.effectiveApproved(call);
+    const fpv = validateFilePath(fsPath);
+    if (!fpv.valid) return { ok: false, summary: `deleteFile rejected: ${fpv.reason}` };
+    const resolvedPath = this.resolveWorkspacePath(fsPath);
+    const useTrash = call.args.useTrash === undefined ? true : Boolean(call.args.useTrash);
+
+    {
+      const spine = classifyRecoverySpineTarget(resolvedPath);
+      const override = Boolean((call.args as Record<string, unknown> | undefined)?.__recoverySpineOverride);
+      if (spine.protected) {
+        await this.missionStore.saveEvent(missionId, {
+          level: "warn",
+          source: "recovery-spine",
+          telemetryKind: "spine_guard",
+          message: `Recovery spine guard: deleteFile blocked for ${spine.rel || resolvedPath}`,
+          data: { tool: "deleteFile", path: spine.rel || resolvedPath, reason: spine.reason, override }
+        });
+        if (!approved) {
+          return pendingApprovalToolResult({
+            kind: "delete_file",
+            summary: `Approval required: recovery spine protected delete (${spine.rel || resolvedPath})`,
+            title: `Recovery spine protected delete: ${spine.rel || resolvedPath}`,
+            details: [
+              spine.reason || "Recovery spine protected path.",
+              "",
+              "This path is part of the protected recovery spine (persistence/settings).",
+              "By default, the AI must not delete it because it can break recovery/resume.",
+              "",
+              "To proceed intentionally:",
+              "- approve this action, AND",
+              "- re-issue deleteFile with args.__recoverySpineOverride = true (explicit intent)."
+            ].join("\n"),
+            detailsMaxChars: 1600
+          });
+        }
+        if (!override) {
+          return this.policyBlocked(
+            `Recovery spine protected path: ${spine.rel || resolvedPath}. To override intentionally, set __recoverySpineOverride=true and request approval.`
+          );
+        }
+      }
+    }
+
+    const attributed = this.getAttributedWorkItem(missionId, call);
+    if (attributed) {
+      const drift = classifyScopeDriftForPath({
+        mission: attributed.mission,
+        item: attributed.item,
+        tool: call.tool,
+        resolvedPath
+      });
+      if (drift.kind === "hard_block") {
+        return this.policyBlocked(drift.reason);
+      }
+    }
+
+    const decision = this.policyEngine().decide({ action: "delete_file", targetPath: resolvedPath });
+    if (!decision.allowed) return this.policyBlocked(decision.reason);
+    if (decision.requiresApproval && !approved) {
+      return pendingApprovalToolResult({
+        kind: "delete_file",
+        summary: `Approval required before deleting ${resolvedPath}`,
+        title: `Delete file ${resolvedPath}`,
+        details: `Path: ${resolvedPath}\nuseTrash: ${useTrash}`,
+        detailsMaxChars: 1600
+      });
+    }
+    await vscode.workspace.fs.delete(vscode.Uri.file(resolvedPath), { recursive: false, useTrash });
+    await this.missionStore.saveEvent(missionId, { level: "info", source: "tool:deleteFile", message: resolvedPath });
+    return { ok: true, summary: `Deleted ${resolvedPath}${useTrash ? " (trash)" : ""}` };
+  }
+
+  private async renameFile(missionId: string, call: ToolCall): Promise<ToolResult> {
+    const from = String(call.args.from || "");
+    const to = String(call.args.to || "");
+    const approved = this.effectiveApproved(call);
+    const overwrite = Boolean(call.args.overwrite);
+    const vFrom = validateFilePath(from);
+    const vTo = validateFilePath(to);
+    if (!vFrom.valid) return { ok: false, summary: `renameFile rejected: from ${vFrom.reason}` };
+    if (!vTo.valid) return { ok: false, summary: `renameFile rejected: to ${vTo.reason}` };
+    const resolvedFrom = this.resolveWorkspacePath(from);
+    const resolvedTo = this.resolveWorkspacePath(to);
+
+    for (const p of [resolvedFrom, resolvedTo]) {
+      const spine = classifyRecoverySpineTarget(p);
+      const override = Boolean((call.args as Record<string, unknown> | undefined)?.__recoverySpineOverride);
+      if (spine.protected) {
+        await this.missionStore.saveEvent(missionId, {
+          level: "warn",
+          source: "recovery-spine",
+          telemetryKind: "spine_guard",
+          message: `Recovery spine guard: renameFile blocked for ${spine.rel || p}`,
+          data: { tool: "renameFile", path: spine.rel || p, reason: spine.reason, override }
+        });
+        if (!approved) {
+          return pendingApprovalToolResult({
+            kind: "rename_file",
+            summary: `Approval required: recovery spine protected rename (${spine.rel || p})`,
+            title: `Recovery spine protected rename`,
+            details: [
+              spine.reason || "Recovery spine protected path.",
+              "",
+              `From: ${resolvedFrom}`,
+              `To: ${resolvedTo}`,
+              "",
+              "This path is part of the protected recovery spine (persistence/settings).",
+              "By default, the AI must not rename/move it because it can break recovery/resume.",
+              "",
+              "To proceed intentionally:",
+              "- approve this action, AND",
+              "- re-issue renameFile with args.__recoverySpineOverride = true (explicit intent)."
+            ].join("\n"),
+            detailsMaxChars: 2000
+          });
+        }
+        if (!override) {
+          return this.policyBlocked(
+            `Recovery spine protected path: ${spine.rel || p}. To override intentionally, set __recoverySpineOverride=true and request approval.`
+          );
+        }
+      }
+    }
+
+    const attributed = this.getAttributedWorkItem(missionId, call);
+    if (attributed) {
+      const driftFrom = classifyScopeDriftForPath({
+        mission: attributed.mission,
+        item: attributed.item,
+        tool: call.tool,
+        resolvedPath: resolvedFrom
+      });
+      const driftTo = classifyScopeDriftForPath({
+        mission: attributed.mission,
+        item: attributed.item,
+        tool: call.tool,
+        resolvedPath: resolvedTo
+      });
+      if (driftFrom.kind === "hard_block") return this.policyBlocked(driftFrom.reason);
+      if (driftTo.kind === "hard_block") return this.policyBlocked(driftTo.reason);
+    }
+
+    const decision = this.policyEngine().decide({ action: "rename_file", targetPath: resolvedTo });
+    if (!decision.allowed) return this.policyBlocked(decision.reason);
+    if (decision.requiresApproval && !approved) {
+      return pendingApprovalToolResult({
+        kind: "rename_file",
+        summary: `Approval required before renaming ${resolvedFrom} → ${resolvedTo}`,
+        title: `Rename file ${path.basename(resolvedFrom)} → ${path.basename(resolvedTo)}`,
+        details: `From: ${resolvedFrom}\nTo: ${resolvedTo}\noverwrite: ${overwrite}`,
+        detailsMaxChars: 2000
+      });
+    }
+    await vscode.workspace.fs.rename(vscode.Uri.file(resolvedFrom), vscode.Uri.file(resolvedTo), { overwrite });
+    this.fileTracker?.trackFile(missionId, resolvedTo);
+    await this.missionStore.saveEvent(missionId, { level: "info", source: "tool:renameFile", message: `${resolvedFrom} -> ${resolvedTo}` });
+    return { ok: true, summary: `Renamed ${resolvedFrom} -> ${resolvedTo}` };
   }
 
   private async searchFiles(missionId: string, glob: string, query: string): Promise<ToolResult> {

@@ -714,12 +714,43 @@ export class AiSidebarProvider implements vscode.WebviewViewProvider {
       cfg.update("myAi.defaultProvider", msg.defaultProvider, target),
       cfg.update("myAi.defaultModel", msg.defaultModel, target),
       cfg.update("myAi.missions.heartbeatSeconds", msg.heartbeatSeconds, target),
+      cfg.update("myAi.missions.maxStepsPerRun", msg.maxStepsPerRun, target),
       cfg.update("myAi.tools.allowTerminal", msg.allowTerminal, target),
       cfg.update("myAi.tools.requireApprovalForWrite", msg.requireWriteApproval, target),
       cfg.update("myAi.ui.autoRevealOnActivation", msg.autoRevealOnActivation, target),
       cfg.update("myAi.ui.defaultTab", msg.defaultTab, target),
       extra
     ]);
+    // Section-scoped writes: if an older extension is loaded, unknown keys would fail the whole batch — isolate them.
+    try {
+      await vscode.workspace.getConfiguration("myAi.missions").update("unlimitedStepsPerRun", msg.unlimitedStepsPerRun, target);
+    } catch {
+      void vscode.window.showWarningMessage(
+        'Autonomous Factory: could not save "Unlimited steps per run" because myAi.missions.unlimitedStepsPerRun is not registered in the loaded extension. Reload the window after installing Autonomous Factory 2.0.33+ (or add the key manually in workspace settings JSON). Other quick settings were saved.'
+      );
+    }
+    try {
+      await vscode.workspace.getConfiguration("myAi.tools").update(
+        "requireApprovalForNonImplementerMutations",
+        msg.requireApprovalForNonImplementerMutations,
+        target
+      );
+    } catch {
+      void vscode.window.showWarningMessage(
+        'Autonomous Factory: could not save "non-implementer mutation approval" because this setting is missing from the loaded extension. Install Autonomous Factory 2.0.27 or newer (or reload the window after updating), then try again. You can set myAi.tools.requireApprovalForNonImplementerMutations in workspace settings JSON once the extension registers it.'
+      );
+    }
+    try {
+      await vscode.workspace.getConfiguration("myAi.tools").update(
+        "autoApproveAllToolRequests",
+        msg.autoApproveAllToolRequests,
+        target
+      );
+    } catch {
+      void vscode.window.showWarningMessage(
+        'Autonomous Factory: could not save "Auto-approve all tool requests" because myAi.tools.autoApproveAllToolRequests is not registered in the loaded extension. Install Autonomous Factory 2.0.36+ (or reload the window after installing the latest VSIX), or add `"myAi.tools.autoApproveAllToolRequests": true` to `.vscode/settings.json` / workspace settings JSON. Other quick settings were saved.'
+      );
+    }
   }
 
   private async refreshProviderModelCatalog(providerId: string): Promise<void> {

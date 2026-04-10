@@ -77,6 +77,8 @@ function minimalSidebarSnapshot() {
       heartbeatSeconds: 8,
       allowTerminal: true,
       requireWriteApproval: false,
+      requireApprovalForNonImplementerMutations: true,
+      autoApproveAllToolRequests: false,
       useNativeChatParticipant: false,
       mcpConfigPath: "",
       autoRevealOnActivation: true,
@@ -2253,6 +2255,8 @@ test("chat, settings, and routing save paths remain target-local", async () => {
     settingHeartbeatSeconds: { value: "8", addEventListener: () => {} },
     settingAllowTerminal: { checked: false, addEventListener: () => {} },
     settingRequireWriteApproval: { checked: true, addEventListener: () => {} },
+    settingRequireApprovalForNonImplementerMutations: { checked: true, addEventListener: () => {} },
+    settingAutoApproveAllToolRequests: { checked: false, addEventListener: () => {} },
     settingAutoRevealOnActivation: { checked: true, addEventListener: () => {} },
     settingDefaultTab: { value: "chat", addEventListener: () => {} },
     saveQuickSettings: { addEventListener(type, fn) { listeners.saveQuick = fn; } },
@@ -2377,6 +2381,8 @@ test("chat, settings, and routing save paths remain target-local", async () => {
   );
   assert.equal(quick.defaultProvider, "openai");
   assert.equal(quick.defaultModel, "gpt-4.1");
+  assert.equal(quick.requireApprovalForNonImplementerMutations, true);
+  assert.equal(quick.autoApproveAllToolRequests, false);
   assert.equal(routing.activeProviderId, "ollama");
   assert.equal(routing.activeModel, "qwen2.5-coder");
   assert.deepEqual(routing.roles[0], { role: "planner", providerId: "openai", model: "gpt-4.1" });

@@ -347,6 +347,7 @@ export function buildAiSidebarWebviewHtml(extensionUri: vscode.Uri, webview: vsc
               </div>
             </label>
             <label><span>Heartbeat seconds</span><input id="settingHeartbeatSeconds" type="number" min="1" step="1" /></label>
+            <label><span>Max steps per run</span><input id="settingMaxStepsPerRun" type="number" min="1" step="1" /></label>
             <label><span>Default tab</span><select id="settingDefaultTab">
               <option value="chat">chat</option>
               <option value="providers">providers</option>
@@ -366,7 +367,11 @@ export function buildAiSidebarWebviewHtml(extensionUri: vscode.Uri, webview: vsc
           <div class="toggle-grid">
             <label class="toggle"><input id="settingAllowTerminal" type="checkbox" /><span>Allow terminal tool</span></label>
             <label class="toggle"><input id="settingRequireWriteApproval" type="checkbox" /><span>Require write approval</span></label>
+            <label class="toggle"><input id="settingRequireApprovalForNonImplementerMutations" type="checkbox" /><span>Require non-implementer mutation approval</span></label>
+            <label class="toggle danger-toggle"><input id="settingAutoApproveAllToolRequests" type="checkbox" /><span>Auto-approve all tool requests (no approval queue)</span></label>
+            <p class="meta" style="margin:-4px 0 8px 2px;max-width:42rem;">When enabled, writes, terminal, MCP, HTTP, and other gated tools run without stopping in <strong>Approvals</strong>. Policy blocks and recovery-spine paths still apply. Does not auto-approve mission blueprints.</p>
             <label class="toggle"><input id="settingAutoRevealOnActivation" type="checkbox" /><span>Auto-reveal on activation</span></label>
+            <label class="toggle"><input id="settingUnlimitedStepsPerRun" type="checkbox" /><span>Unlimited steps per run</span></label>
           </div>
           <div class="row split">
             <button id="openSettings2" class="ghost">Open VS Code Settings</button>

@@ -14,6 +14,7 @@ import {
   copyMissionBlueprintMarkdownToClipboard,
   exportMissionBlueprintToWorkspaceFile
 } from "../missions/missionBlueprintExportActions";
+import { extractFixtureMissionPrompt } from "../fixtures/fixturePrompt";
 import { chooseMission, pickWorkItem, workItemQuickLabel } from "./commandHelpers";
 
 /** VS Code quick input supports `multiline` at runtime on recent builds; `@types/vscode` may omit it. */
@@ -192,6 +193,79 @@ export function registerMissionCommands(
   store: MissionStore
 ): vscode.Disposable[] {
   const disposables: vscode.Disposable[] = [];
+
+  disposables.push(
+    vscode.commands.registerCommand("myAi.runFixtureMission", async () => {
+      const root = vscode.workspace.workspaceFolders?.[0]?.uri.fsPath;
+      if (!root) {
+        void vscode.window.showErrorMessage("Autonomous Factory: no workspace folder is open.");
+        return;
+      }
+      const fixtureFile = vscode.Uri.joinPath(vscode.Uri.file(root), "MISSION_PROMPT.md");
+      let raw = "";
+      try {
+        raw = new TextDecoder("utf-8").decode(await vscode.workspace.fs.readFile(fixtureFile));
+      } catch {
+        void vscode.window.showErrorMessage(
+          'Autonomous Factory: this command expects a fixture workspace with "MISSION_PROMPT.md" at the root.'
+        );
+        return;
+      }
+      const prompt = extractFixtureMissionPrompt(raw);
+      if (!prompt.trim()) {
+        void vscode.window.showErrorMessage('Autonomous Factory: "MISSION_PROMPT.md" contained no usable prompt.');
+        return;
+      }
+
+      const cfg = vscode.workspace.getConfiguration();
+      const providerId = cfg.get<string>("myAi.defaultProvider", "ollama");
+      const model = resolveModelForProvider(providerId, undefined, (k, d) => cfg.get(k, d));
+      const fixtureName = root.split(/[\\/]/).filter(Boolean).pop() || "fixture";
+      const title = `fixture:${fixtureName}`;
+      const started = await orchestrator.startMission(title, prompt, providerId, model);
+      sidebar.reveal();
+      sidebar.focusMission(started.mission.id);
+      void vscode.window.setStatusBarMessage(`Started fixture mission: ${fixtureName}`, 4000);
+      // Best-effort: export a reproducible mission snapshot for this fixture run on terminal transition.
+      // This is intentionally "side effect only" and must never block the mission run loop.
+      void (async () => {
+        try {
+          await orchestrator.whenMissionReachesTerminalLifecycleStatus(started.mission.id, { timeoutMs: 10 * 60_000 });
+          const m = store.get(started.mission.id);
+          if (!m) return;
+          const outDir = vscode.Uri.joinPath(
+            vscode.Uri.file(root),
+            ".autonomous_factory",
+            "fixture-runs",
+            fixtureName,
+            `${new Date().toISOString().replace(/[:.]/g, "-")}__${started.mission.id}`
+          );
+          await vscode.workspace.fs.createDirectory(outDir);
+          const snap = buildMissionDiagnosticSnapshot(m);
+          await vscode.workspace.fs.writeFile(
+            vscode.Uri.joinPath(outDir, "mission.bundle.json"),
+            Buffer.from(JSON.stringify(m, null, 2), "utf8")
+          );
+          await vscode.workspace.fs.writeFile(
+            vscode.Uri.joinPath(outDir, "mission.diagnostic.json"),
+            Buffer.from(JSON.stringify(snap, null, 2), "utf8")
+          );
+          await vscode.workspace.fs.writeFile(
+            vscode.Uri.joinPath(outDir, "MISSION_PROMPT.md"),
+            Buffer.from(raw, "utf8")
+          );
+          void vscode.window.setStatusBarMessage(`Fixture run exported: ${fixtureName}`, 4000);
+        } catch {
+          // ignore export errors
+        }
+      })();
+      await saveOperatorActionMissionEventIfChanged({
+        store,
+        missionId: started.mission.id,
+        message: presentStartMissionOutcomeEvent(started)
+      });
+    })
+  );
 
   disposables.push(
     vscode.commands.registerCommand("myAi.startMission", async () => {

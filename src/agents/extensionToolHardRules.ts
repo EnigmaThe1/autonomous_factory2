@@ -19,7 +19,9 @@ export const EXTENSION_TOOL_HARD_RULES_MISSION = [
   "",
   "6) Tool failures: readFile and other tools return structured ok:false results; the mission may continue. Read the summary and data, then correct your approach — do not treat a missing file as a host crash.",
   "",
-  "7) runLinter: When output is ESLint JSON with 0 errors and 0 warnings, the extension may treat the run as passing even if the process exit code is non-zero; trust the reported error/warning counts."
+  "7) Missing output artifacts: If readFile fails with FileNotFound for an expected deliverable (e.g. report/plan/notes markdown), you should create the file via writeFile and include meaningful initial content (title + section headings + any known progress). Do NOT create an empty placeholder file just to satisfy existence.",
+  "",
+  "8) runLinter: When output is ESLint JSON with 0 errors and 0 warnings, the extension may treat the run as passing even if the process exit code is non-zero; trust the reported error/warning counts."
 ].join("\n");
 
 /** Shorter block for sidebar chat (no TOOL lines; still sets path expectations). */
@@ -32,5 +34,6 @@ export const EXTENSION_CHAT_WORKSPACE_RULES = [
 export const EXTENSION_TOOL_USER_PROMPT_BULLETS = [
   "WORKSPACE/TOOL RULES (fixed): paths are workspace-relative; names are case-sensitive; use fileTree/listFiles/grepSearch before guessing readFile targets.",
   "If readFile fails, read data.suggestedPaths and retry with one of those paths when present.",
+  "If readFile fails with FileNotFound for an expected deliverable artifact, create it with writeFile and meaningful content — do not create an empty placeholder.",
   "Do not assume pyproject.toml, docker-compose.yml, etc.; detect the stack from files that actually exist."
 ];

@@ -17,7 +17,7 @@
     "memory",
     "cursor"
   ],
-  "version": "2.0.26",
+  "version": "2.0.38",
   "publisher": "enigma-the",
   "repository": {
     "type": "git",
@@ -35,6 +35,7 @@
     "onView:myAi.sidebar",
     "onCommand:myAi.openChat",
     "onCommand:myAi.startMission",
+    "onCommand:myAi.runFixtureMission",
     "onCommand:myAi.showTraceLog",
     "onCommand:myAi.exportTraceLog",
     "onCommand:myAi.clearTraceLog",
@@ -59,6 +60,10 @@
       {
         "command": "myAi.openChat",
         "title": "Autonomous Factory: Open Chat"
+      },
+      {
+        "command": "myAi.runFixtureMission",
+        "title": "Autonomous Factory: Run Fixture Mission (MISSION_PROMPT.md)"
       },
       {
         "command": "myAi.startMission",
@@ -318,6 +323,16 @@
     "configuration": {
       "title": "Autonomous Factory",
       "properties": {
+        "myAi.recoverySpine.protectedPaths": {
+          "type": "array",
+          "default": [
+            ".my-ai-extension/**",
+            ".vscode/settings.json",
+            ".vscode/extensions.json",
+            ".vscode/tasks.json"
+          ],
+          "description": "Recovery spine guard: workspace-relative paths that must not be mutated by default because they are required for mission recovery/resume. Writes/patches to these paths require explicit approval plus args.__recoverySpineOverride=true."
+        },
         "myAi.defaultProvider": {
           "type": "string",
           "default": "ollama",
@@ -415,8 +430,15 @@
         },
         "myAi.missions.maxStepsPerRun": {
           "type": "number",
-          "default": 16,
-          "description": "Safety cap for autonomous steps in one run."
+          "default": 128,
+          "minimum": 1,
+          "maximum": 2000,
+          "description": "Safety cap for autonomous steps in one run pass. Higher reduces 'Paused after reaching the run step limit' interruptions; other safety systems still apply (maxAutoRounds, approvals, closure gates)."
+        },
+        "myAi.missions.unlimitedStepsPerRun": {
+          "type": "boolean",
+          "default": false,
+          "description": "When true, ignore myAi.missions.maxStepsPerRun and allow a very high step budget per run pass (still capped by an internal hard ceiling for stability)."
         },
         "myAi.missions.heartbeatSeconds": {
           "type": "number",
@@ -469,6 +491,16 @@
           "type": "boolean",
           "default": true,
           "description": "When true (default), workspace-path writeFile/applyPatch also require approval. Set false to allow autonomous in-workspace writes while restrictToWorkspace keeps paths bounded."
+        },
+        "myAi.tools.requireApprovalForNonImplementerMutations": {
+          "type": "boolean",
+          "default": true,
+          "description": "When true (default), mutating tools (e.g. runCommand, runTerminal, MCP writes) invoked from a non-implementer work item (researcher, reviewer, …) require operator approval in addition to normal write/terminal policy. Set false to rely only on requireApprovalForWrite, requireApprovalForTerminal, and TrustPolicyEngine."
+        },
+        "myAi.tools.autoApproveAllToolRequests": {
+          "type": "boolean",
+          "default": false,
+          "description": "When true, tool calls that would normally pause for operator approval (writes, patches, terminal, MCP, HTTP, scope-drift confirmations, trust-action gates, etc.) execute immediately without the Approvals queue. TrustPolicyEngine hard blocks (e.g. disallowed paths, terminal off) still apply. Protected recovery-spine paths still require __recoverySpineOverride. Does not auto-approve mission blueprint or pre-blueprint Q&A (use mission settings for those)."
         },
         "myAi.tools.requireApprovalForTerminal": {
           "type": "boolean",
@@ -698,6 +730,12 @@
           "maximum": 300000,
           "description": "Default timeout in milliseconds for runCommand tool calls. Individual calls can override this."
         },
+        "myAi.tools.runCommandUnixShell": {
+          "type": "string",
+          "default": "bash",
+          "enum": ["bash", "posix"],
+          "description": "On Linux/macOS, runCommand runs the script with /bin/bash -c when set to bash (default) so common agent snippets work (function keyword, [[ ]], etc.). Use posix to run via the system /bin/sh only (stricter, may reject bash-only syntax)."
+        },
         "myAi.providers.requestTimeoutMs": {
           "type": "number",
           "default": 30000,
@@ -745,6 +783,23 @@
           "type": "boolean",
           "default": true,
           "description": "When automatic retries are exhausted (or max is 0), mark the failed work item as dead letter, append operator guidance to output, and emit an error event."
+        },
+        "myAi.missions.failureInvestigation.enabled": {
+          "type": "boolean",
+          "default": false,
+          "description": "When a required work item ends in tool_failure (hard failure or unresolved recoverable batch), enqueue a structured wave (researcher → optional planner → retry clone) instead of only pausing the mission, until maxWavesPerMission is reached."
+        },
+        "myAi.missions.failureInvestigation.maxWavesPerMission": {
+          "type": "number",
+          "default": 2,
+          "minimum": 0,
+          "maximum": 10,
+          "description": "Maximum failure-investigation waves per mission (0 disables enqueue; mission then blocks as before when limits are hit)."
+        },
+        "myAi.missions.failureInvestigation.includePlannerStep": {
+          "type": "boolean",
+          "default": false,
+          "description": "When true, insert a planner work item between researcher diagnosis and the retry clone."
         },
         "myAi.missions.claimDiscipline": {
           "type": "boolean",
@@ -810,12 +865,67 @@
           "default": false,
           "description": "Automatically git-stash before implementer work items and restore on failure. Requires a git repository in the workspace."
         },
+        "myAi.missions.toolRecoveryAutonomyPreset": {
+          "type": "string",
+          "default": "standard",
+          "enum": ["standard", "exploratory"],
+          "description": "standard: use the numeric recovery settings below as configured. exploratory: raises effective tool follow-up turns and per-category recovery budgets (~1.75×, capped) so models can investigate failures and retry more before the mission hard-stops. Does not bypass policy, approvals, trust gates, or tool-layer crashes."
+        },
         "myAi.missions.maxToolFollowUpTurns": {
           "type": "number",
-          "default": 3,
+          "default": 10,
           "minimum": 0,
-          "maximum": 10,
-          "description": "Maximum number of follow-up turns where tool results are fed back to the agent for iterative refinement. Set to 0 to disable tool follow-up loops."
+          "maximum": 32,
+          "description": "Maximum follow-up turns where prior tool results are fed back to the same work item so the model can refine commands/paths. Set to 0 to disable. Exploratory preset scales this up further (capped at 32)."
+        },
+        "myAi.missions.maxRecoverableReadonlyFailuresPerWorkItem": {
+          "type": "number",
+          "default": 10,
+          "minimum": 0,
+          "maximum": 48,
+          "description": "Per work item, how many failed read-only tool calls (e.g. readFile, listFiles) may be treated as recoverable before halting. Exploratory preset increases the effective cap."
+        },
+        "myAi.missions.maxTransientMutatingFailuresPerWorkItem": {
+          "type": "number",
+          "default": 4,
+          "minimum": 0,
+          "maximum": 16,
+          "description": "Per work item, recoverable attempts for mutating tools whose error looks transient (timeout, rate limit, etc.). Exploratory preset increases the effective cap."
+        },
+        "myAi.missions.maxRunCommandProbeFailuresPerWorkItem": {
+          "type": "number",
+          "default": 12,
+          "minimum": 0,
+          "maximum": 48,
+          "description": "Per work item, missing-path style runCommand failures that can continue without blocking. Exploratory preset increases the effective cap."
+        },
+        "myAi.missions.maxRunCommandRecoveryAttemptsPerWorkItem": {
+          "type": "number",
+          "default": 12,
+          "minimum": 0,
+          "maximum": 48,
+          "description": "Per work item, failed runCommand executions that may continue for agent-driven retry (with hints). Set to 0 for strict halt. Exploratory preset increases the effective cap."
+        },
+        "myAi.missions.maxWriteFileRecoveryAttemptsPerWorkItem": {
+          "type": "number",
+          "default": 12,
+          "minimum": 0,
+          "maximum": 48,
+          "description": "Per work item, failed writeFile calls that may continue for agent-driven retry. Set to 0 for strict halt. Exploratory preset increases the effective cap."
+        },
+        "myAi.missions.maxApplyPatchRecoveryAttemptsPerWorkItem": {
+          "type": "number",
+          "default": 12,
+          "minimum": 0,
+          "maximum": 48,
+          "description": "Per work item, failed applyPatch calls that may continue for agent-driven retry. Set to 0 for strict halt. Exploratory preset increases the effective cap."
+        },
+        "myAi.missions.maxToolFollowUpsWhenTestHarness": {
+          "type": "number",
+          "default": 0,
+          "minimum": 0,
+          "maximum": 32,
+          "description": "When the orchestrator runs with agentRunForTest (headless tests), how many tool follow-up turns are allowed. Default 0 preserves deterministic tests. Not scaled by exploratory preset."
         },
         "myAi.mcp.persistSessions": {
           "type": "boolean",
@@ -1081,7 +1191,7 @@
   },
   "scripts": {
     "build": "npm run compile",
-    "vscode:prepublish": "npm run bundle:prod",
+    "vscode:prepublish": "npm run compile && npm run bundle:prod",
     "compile": "node ./node_modules/typescript/lib/tsc.js -p .",
     "bundle": "node esbuild.mjs",
     "bundle:prod": "node esbuild.mjs --production",

@@ -1,5 +1,6 @@
 import type { BlueprintReadinessVerdict } from "../blueprintReadinessGate";
 import type { ToolCall, WorkItem } from "../../types";
+import { READONLY_MISSION_TOOL_IDS } from "../readonlyMissionToolIds";
 
 export function readinessMessageText(readiness: BlueprintReadinessVerdict): string {
   const errs = readiness.report.errors.length ? `Errors:\n- ${readiness.report.errors.join("\n- ")}` : "";
@@ -9,9 +10,15 @@ export function readinessMessageText(readiness: BlueprintReadinessVerdict): stri
 
 /** Used when marking `activeMutatingToolCall` on the work item (orchestrator copy; keep aligned with tool naming). */
 export function isPotentiallyMutatingToolCall(call: ToolCall): boolean {
-  const readOnlyBuiltins = new Set(["readFile", "searchFiles", "listFiles", "getDiagnostics", "listTools", "listMcpTools"]);
-  if (readOnlyBuiltins.has(call.tool)) return false;
-  if (call.tool === "write_file" || call.tool === "apply_patch" || call.tool === "run_terminal") return true;
+  if (READONLY_MISSION_TOOL_IDS.has(call.tool)) return false;
+  if (
+    call.tool === "write_file" ||
+    call.tool === "apply_patch" ||
+    call.tool === "delete_file" ||
+    call.tool === "rename_file" ||
+    call.tool === "run_terminal"
+  )
+    return true;
   if (call.tool.startsWith("ext.") || call.tool.startsWith("mcp.")) return true;
   return true;
 }

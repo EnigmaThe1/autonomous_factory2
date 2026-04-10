@@ -6,6 +6,53 @@ export function isRequiredForCompletion(item: WorkItem): boolean {
   return item.requiredForCompletion !== false;
 }
 
+/**
+ * Normalizes titles like `Phase (retry 2)` → `Phase` for matching auto-retry follow-ups from
+ * `createRetryWorkItem` (`${title} (retry N)`).
+ */
+export function baseWorkItemTitleForRetryMatching(title: string): string {
+  let t = title.trim();
+  for (;;) {
+    const next = t.replace(/\s*\(retry\s+\d+\)\s*$/i, "").trim();
+    if (next === t) break;
+    t = next;
+  }
+  return t;
+}
+
+/**
+ * True when a **failed** row is followed by a **done** retry for the same role and logical title
+ * (same base after stripping `(retry N)` suffixes). Keeps the failed row in the queue for history
+ * while allowing completion to proceed.
+ */
+export function isFailedWorkItemSupersededBySuccessfulRetry(mission: Mission, item: WorkItem): boolean {
+  if (item.status !== "failed") return false;
+  const base = baseWorkItemTitleForRetryMatching(item.title);
+  return mission.queue.some((w) => {
+    if (w.id === item.id) return false;
+    if (w.role !== item.role) return false;
+    if (w.status !== "done") return false;
+    if (baseWorkItemTitleForRetryMatching(w.title) !== base) return false;
+    const doneLooksLikeRetry =
+      /\s*\(retry\s+\d+\)\s*$/i.test(w.title) || (typeof w.retryCount === "number" && w.retryCount > 0);
+    return doneLooksLikeRetry;
+  });
+}
+
+/**
+ * True if any queue row should prevent mission **completed** / collapse: required **blocked**, or
+ * required **failed** that is not superseded by a successful same-line retry (`isFailedWorkItemSupersededBySuccessfulRetry`).
+ * Non-required failed rows do not block (history only).
+ */
+export function queueHasCompletionBlockingFailedOrBlocked(mission: Mission): boolean {
+  return mission.queue.some((w) => {
+    if (!isRequiredForCompletion(w)) return false;
+    if (w.status === "blocked") return true;
+    if (w.status === "failed") return !isFailedWorkItemSupersededBySuccessfulRetry(mission, w);
+    return false;
+  });
+}
+
 /** Dependency edges treat skipped like done (work will not run). */
 export function dependencyEdgeSatisfied(status: WorkItem["status"] | undefined): boolean {
   return status === "done" || status === "skipped";
@@ -23,16 +70,13 @@ export function hasRequiredUnresolvedWork(mission: Mission): boolean {
  * `!hasRequiredUnresolvedWork` alone.
  */
 export function hasRequiredBlockingOrFailedWork(mission: Mission): boolean {
-  return mission.queue.some(
-    (w) => isRequiredForCompletion(w) && (w.status === "blocked" || w.status === "failed")
-  );
+  return queueHasCompletionBlockingFailedOrBlocked(mission);
 }
 
 /**
- * Every required queue item is `done` or `skipped` — no todo, running, blocked, or failed on the
- * **required** lane. Still does **not** imply mission `completed`: you still need `validationState`,
- * `closureRequired` / policy gates, and (for collapse) no **non-required** blocked/failed rows —
- * see `shouldCollapseToComplete` in `missionCompletionCollapse.ts`.
+ * Every required queue item is `done` or `skipped`, or `failed` only when superseded by a successful
+ * retry. Still does **not** imply mission `completed`: you still need `validationState`,
+ * `closureRequired` / policy gates, and `shouldCollapseToComplete` (no completion-blocking blocked rows).
  */
 export function isRequiredWorkSettledForCompletion(mission: Mission): boolean {
   return !hasRequiredUnresolvedWork(mission) && !hasRequiredBlockingOrFailedWork(mission);

@@ -98,6 +98,17 @@ export interface MissionRuntime {
   lastVerificationAt?: number;
   /** Count of web research tool calls (webSearch/fetchWebPage) during this mission. */
   webResearchCalls?: number;
+  /** How many structured failure-investigation waves (researcher → optional planner → retry) were enqueued. */
+  failureInvestigationWavesUsed?: number;
+  /**
+   * Promotion state: distinguishes experimentation from validated/promoted state.
+   * - experimental: mutations have occurred without a post-mutation verification signal
+   * - verified: verification evidence recorded after last mutation
+   * - promoted: explicit closure/promotion checkpoint reached (validator completion or operator promotion)
+   */
+  promotionState?: "experimental" | "verified" | "promoted";
+  /** Timestamp (ms) when promotionState last changed. */
+  promotionStateAt?: number;
 }
 
 /**
@@ -112,6 +123,8 @@ export type MissionTelemetryKind =
   | "approval_requested"
   | "scope_drift"
   | "verification_recorded"
+  | "recovery_attempt"
+  | "spine_guard"
   | "mission_blocked"
   | "stall_recovery_replan"
   | "stall_recovery_limit"
@@ -179,6 +192,8 @@ export interface WorkItem {
     tool: string;
     approved?: boolean;
     target?: string;
+    /** When tool is runCommand: bounded command text for interruption recovery heuristics. */
+    commandPreview?: string;
     startedAt: number;
   };
   /**
@@ -187,6 +202,11 @@ export interface WorkItem {
    */
   deadLetter?: boolean;
   deadLetterAt?: number;
+  /**
+   * When true, the orchestrator will not enqueue an additional auto-retry row for this failure
+   * (e.g. a failure-investigation wave already enqueued a structured retry).
+   */
+  suppressAutoRetry?: boolean;
   /** Number of times this work item has been retried after failure. */
   retryCount?: number;
   /** Error output from the previous failed attempt (injected on auto-retry). */
@@ -200,7 +220,10 @@ export interface WorkItem {
     | "blueprint_generate"
     | "blueprint_revise"
     | "pre_blueprint_clarify"
-    | "web_research_consolidate";
+    | "web_research_consolidate"
+    | "failure_investigation_diagnose"
+    | "failure_investigation_plan"
+    | "failure_recovery_retry";
   /** After synthesis, ties this row to `MissionBlueprint.steps[].id`. */
   blueprintStepId?: string;
 }
@@ -236,7 +259,7 @@ export interface ApprovalRequest {
   id: string;
   createdAt: number;
   missionId: string;
-  kind: "write_file" | "apply_patch" | "terminal" | "external_tool";
+  kind: "write_file" | "apply_patch" | "delete_file" | "rename_file" | "terminal" | "external_tool";
   title: string;
   details: string;
   toolCall: ToolCall;

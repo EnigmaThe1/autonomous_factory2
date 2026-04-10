@@ -450,6 +450,7 @@ Examples:
 
 - `myAi.tools.allowTerminal`
 - `myAi.tools.requireApprovalForWrite`
+- `myAi.tools.requireApprovalForNonImplementerMutations` (extra gate when researcher/reviewer/etc. invoke mutating tools; off = only normal write/terminal/MCP policy applies)
 - `myAi.tools.requireApprovalForTerminal`
 - `myAi.tools.requireApprovalForMcp`
 - `myAi.tools.requireApprovalForExternal`

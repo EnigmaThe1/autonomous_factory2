@@ -1,0 +1,206 @@
+{
+    "schema": "myAi.missionDiagnosticSnapshot/v1",
+    "exportedAt": "2026-04-09T09:11:57.129Z",
+    "mission": {
+      "id": "mission_c0rrsjtj_mnr99rh3",
+      "title": "2",
+      "status": "blocked",
+      "blockReasonCode": "tool_failure",
+      "blocker": "Mission halted after tool failure (readFile: readFile failed: Error: ENOENT: no such file or directory, open '/srv/autonomous_factory_v2/AUDIT_REPORT.md' Use listFiles or grepSearch to locate the file (check subfolders and exact filename casing).)",
+      "validationState": "failed",
+      "activeProviderId": "gemini",
+      "activeModel": "gemini-3.1-pro-preview",
+      "routing": {
+        "preset": "default",
+        "providerPerRole": {},
+        "modelPerRole": {}
+      },
+      "roundsCompleted": 2,
+      "runtime": {
+        "lastProgressAt": 1775725788686,
+        "lastRunnerHeartbeatAt": 1775725763330,
+        "stalledHeartbeats": 0,
+        "autoReplans": 0,
+        "loopGuardTrips": 0,
+        "runnerOwnerId": "runner_1hnek6ba_mnr71dx0",
+        "runnerLeaseExpiresAt": 1775725798796,
+        "webResearchCalls": 0
+      }
+    },
+    "queue": [
+      {
+        "id": "work_jh4btbxi_mnr99rj6",
+        "title": "Initial planning",
+        "role": "planner",
+        "status": "done",
+        "outputPreview": "DESTINATION - The workspace root must contain an `AUDIT_REPORT.md` file populated with a Title, Summary, bulleted Findings, Test plan / validation notes, and Open questions based on the actual `src/` directory contents. The system must not dead-end just because the file doesn't exist yet.\n\nROUTES - \n1. **Multi-stage (Research -> Implement -> Validate):** A dedicated researcher gathers real archite"
+      },
+      {
+        "id": "work_ve9769to_mnr9a79p",
+        "title": "Workspace research",
+        "role": "researcher",
+        "status": "failed",
+        "hardStopClass": "tool_failure",
+        "outputPreview": "DESTINATION - What must be true when this task succeeds?\nThe workspace root must contain an `AUDIT_REPORT.md` file populated with a Title, Summary, bulleted Findings, Test plan / validation notes, and Open questions based on the actual `src/` directory contents. The system must gracefully handle the initial missing state of `AUDIT_REPORT.md` and populate it rather than dead-ending.\n\nROUTES - Viabl"
+      },
+      {
+        "id": "work_dgykz91m_mnr9a79p",
+        "title": "Initial implementation",
+        "role": "implementer",
+        "status": "todo"
+      },
+      {
+        "id": "work_vijz343m_mnr9a79p",
+        "title": "Initial review",
+        "role": "reviewer",
+        "status": "todo"
+      },
+      {
+        "id": "work_g6r1s8d3_mnr9a79p",
+        "title": "Validation pass",
+        "role": "validator",
+        "status": "todo"
+      },
+      {
+        "id": "work_54ig9zy1_mnr9ab4v",
+        "title": "Gather Source Context",
+        "role": "researcher",
+        "status": "todo"
+      },
+      {
+        "id": "work_iu0qrpnr_mnr9ab4v",
+        "title": "Create Audit Report",
+        "role": "implementer",
+        "status": "todo"
+      },
+      {
+        "id": "work_yuuqitks_mnr9ab4v",
+        "title": "Verify Report Criteria",
+        "role": "validator",
+        "status": "todo"
+      }
+    ],
+    "pendingApprovals": [],
+    "recentEvents": [
+      {
+        "ts": 1775725762987,
+        "level": "info",
+        "source": "operator-action",
+        "message": "Mission start requested; execution was scheduled."
+      },
+      {
+        "ts": 1775725763325,
+        "level": "info",
+        "source": "agent:planner",
+        "message": "Starting Initial planning",
+        "telemetryKind": "work_started"
+      },
+      {
+        "ts": 1775725769457,
+        "level": "info",
+        "source": "agent:planner",
+        "message": "Starting Initial planning",
+        "telemetryKind": "work_started"
+      },
+      {
+        "ts": 1775725783632,
+        "level": "info",
+        "source": "orchestrator",
+        "message": "Finished work item \"Initial planning\" (done)",
+        "telemetryKind": "work_completed"
+      },
+      {
+        "ts": 1775725784244,
+        "level": "info",
+        "source": "agent:researcher",
+        "message": "Starting Workspace research",
+        "telemetryKind": "work_started"
+      },
+      {
+        "ts": 1775725788633,
+        "level": "info",
+        "source": "orchestrator",
+        "message": "Finished work item \"Initial planning\" (done)",
+        "telemetryKind": "work_completed"
+      },
+      {
+        "ts": 1775725789185,
+        "level": "info",
+        "source": "agent:researcher",
+        "message": "Starting Workspace research",
+        "telemetryKind": "work_started"
+      },
+      {
+        "ts": 1775725794684,
+        "level": "warn",
+        "source": "tool:readFile",
+        "message": "Failed: /srv/scp/AUDIT_REPORT.md"
+      },
+      {
+        "ts": 1775725794918,
+        "level": "warn",
+        "source": "orchestrator",
+        "message": "Mission paused: tool call failed (readFile: readFile failed: Error: ENOENT: no such file or directory, open '/srv/scp/AUDIT_REPORT.md' Use listFiles or grepSearch to locate the file (check subfolders and exact filename casing).)."
+      },
+      {
+        "ts": 1775725807933,
+        "level": "warn",
+        "source": "tool:readFile",
+        "message": "Failed: /srv/autonomous_factory_v2/AUDIT_REPORT.md"
+      },
+      {
+        "ts": 1775725808111,
+        "level": "warn",
+        "source": "orchestrator",
+        "message": "Mission paused: tool call failed (readFile: readFile failed: Error: ENOENT: no such file or directory, open '/srv/autonomous_factory_v2/AUDIT_REPORT.md' Use listFiles or grepSearch to locate the file (check subfolders and exact filename casing).)."
+      }
+    ],
+    "memoryHead": [
+      {
+        "id": "mem_1awudb2u_mnr99rh4",
+        "ts": 1775725762647,
+        "kind": "user",
+        "tags": [
+          "prompt"
+        ],
+        "textPreview": "# Fixture: missing-artifact\n\n## Goal\n\nValidate that when a mission **requires an artifact** and it is missing (e.g. `readFile` returns FileNotFound),\nthe mission does **not** dead-end into a blocked state. The agent should **create/populate"
+      },
+      {
+        "id": "mem_hexjl3b6_mnr9a79q",
+        "ts": 1775725783118,
+        "kind": "summary",
+        "tags": [
+          "plan"
+        ],
+        "textPreview": "DESTINATION\n1. Ensure the mission does not block when `AUDIT_REPORT.md` is missing.\n2. Produce `AUDIT_REPORT.md` containing Title, Summary, Findings, Test plan / validation notes, Open questions / next steps based on workspace analysis.\n\nRO"
+      },
+      {
+        "id": "mem_6lwm32ld_mnr9a7u1",
+        "ts": 1775725783849,
+        "kind": "checkpoint",
+        "tags": [
+          "checkpoint"
+        ],
+        "textPreview": "planner completed: Initial planning"
+      },
+      {
+        "id": "mem_mfroxaqy_mnr9ab4w",
+        "ts": 1775725788128,
+        "kind": "finding",
+        "tags": [
+          "claim:verified_file"
+        ],
+        "textPreview": "The mission requires creating `AUDIT_REPORT.md` if it doesn't exist and populating it with grounded facts from the `src/` directory."
+      },
+      {
+        "id": "mem_ny6fto2o_mnr9ab96",
+        "ts": 1775725788282,
+        "kind": "summary",
+        "tags": [
+          "plan"
+        ],
+        "textPreview": "DESTINATION - The workspace root must contain an `AUDIT_REPORT.md` file populated with a Title, Summary, bulleted Findings, Test plan / validation notes, and Open questions based on the actual `src/` directory contents. The system must not "
+      }
+    ],
+    "researchContradictionWarnings": []
+  }

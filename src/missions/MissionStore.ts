@@ -237,6 +237,19 @@ export class MissionStore {
     await this.upsert(mission);
   }
 
+  /** Insert work items immediately after `afterWorkItemId`, or append if id is missing. */
+  async enqueueAfterWorkItem(missionId: string, afterWorkItemId: string, items: WorkItem[]): Promise<void> {
+    const mission = this.requireMission(missionId);
+    const idx = mission.queue.findIndex((w) => w.id === afterWorkItemId);
+    if (idx < 0) {
+      mission.queue.push(...items);
+    } else {
+      mission.queue.splice(idx + 1, 0, ...items);
+    }
+    mission.updatedAt = Date.now();
+    await this.upsert(mission);
+  }
+
   async updateMission(missionId: string, patch: Partial<Mission>): Promise<void> {
     const mission = this.requireMission(missionId);
     if (patch.status && !isAllowedMissionStatusTransition(mission.status, patch.status)) {

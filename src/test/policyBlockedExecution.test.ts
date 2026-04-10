@@ -23,7 +23,9 @@ test("ToolRegistry defaults requireApprovalForInWorkspaceWrites to true (matches
 test("MissionOrchestrator blocks mission when tool is policy denied", () => {
   const p = path.join(__dirname, "..", "..", "src", "missions", "orchestrator", "missionOrchestratorWorkItemRunner.ts");
   const src = fs.readFileSync(p, "utf8");
-  assert.match(src, /if \(!toolResult\.ok && toolResult\.blockedByPolicy\)/);
+  // Policy-denied handling is routed via the tool outcome classifier.
+  assert.match(src, /classifyToolOutcome/);
+  assert.match(src, /decision\.category === "policy_denied"/);
   assert.match(src, /Policy blocked mission progress/);
   assert.match(src, /Mission paused: tool call blocked by policy/);
   assert.match(src, /blockReasonCode:\s*"policy_blocked"/);

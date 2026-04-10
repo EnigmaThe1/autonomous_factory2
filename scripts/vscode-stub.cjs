@@ -15,7 +15,9 @@ const configDefaults = {
   "myAi.sendSelection": false,
   "myAi.sendActiveFile": false,
   "myAi.sendDiagnostics": false,
-  "myAi.tools.requireApprovalForInWorkspaceWrites": true
+  "myAi.tools.requireApprovalForInWorkspaceWrites": true,
+  "myAi.missions.maxToolFollowUpsWhenTestHarness": 0,
+  "myAi.missions.failureInvestigation.enabled": false
 };
 
 function setConfig(key, value) {

@@ -10,7 +10,7 @@ import type { ToolResult } from "./ToolRegistry";
  * - **TrustPolicyEngine** (`policyEngine().decide`) sets `requiresApproval` per action:
  *   `write_file`, `apply_patch`, `run_terminal`, `run_command`, `call_mcp`, `call_external`, `http_request`.
  * - **File writes / patches** with diff preview use `ToolRegistry.buildFileApprovalResult` (not this helper).
- * - **Non-implementer mutations** use `requireApprovalForNonImplementerMutation` (terminal-shaped titles).
+ * - **Non-implementer mutations** use `requireApprovalForNonImplementerMutation` (terminal-shaped titles), unless `myAi.tools.requireApprovalForNonImplementerMutations` is false.
  * - **Trust-action gate** (`evaluateTrustActionGate`) supplies dynamic terminal titles/details for risky commands/patches.
  *
  * Kinds must match `ApprovalRequest["kind"]` / `ToolApproval.kind` consumed by the mission approval UI.

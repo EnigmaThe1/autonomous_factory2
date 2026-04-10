@@ -9,6 +9,8 @@ export const BUILTIN_TOOL_HINTS: Record<string, string> = {
     'args:{"path"} rel to ws; case-sensitive; grepSearch/fileTree; suggestedPaths if miss',
   writeFile: 'args: { "path", "content" } — often requires approval',
   applyPatch: 'args: { "path", "search", "replace" } — often requires approval',
+  deleteFile: 'args: { "path", "useTrash"? } — requires approval; workspace-only; recovery spine protected by default',
+  renameFile: 'args: { "from", "to", "overwrite"? } — requires approval; workspace-only; recovery spine protected by default',
   searchFiles: 'args: { "glob", "query" }',
   grepSearch: 'args: { "pattern", "glob"?, "maxResults"? }',
   listFiles: 'args: { "glob" }',

@@ -59,6 +59,20 @@ test("cross-surface: approval pending stays approval-paused across badge, summar
   assert.equal(currentNext.pausedOn.role, "implementer");
 });
 
+test("cross-surface: approval_gate_stale enables Resume when Approvals tab is empty", () => {
+  const m = mission({
+    status: "awaiting_input",
+    blockReasonCode: "approval_gate_stale",
+    blocker: "stale gate",
+    approvals: [],
+    queue: [{ id: "impl", status: "blocked", role: "implementer", title: "Implement tranche" }]
+  });
+  assert.match(formatMissionStatusBadgeLabel(m), /out of sync|approval/i);
+  const resume = getMissionResumeUiState(m);
+  assert.equal(resume.enabled, true);
+  assert.equal(resume.label, "Resume");
+});
+
 test("cross-surface: operator abort resumable stays resumable across badge, summary, note, action, and queue path", () => {
   const m = mission({
     status: "blocked",

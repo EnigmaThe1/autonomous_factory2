@@ -46,16 +46,16 @@ test("runMission: uncaught error reconciles running work item to failed (no stal
 test("executeWorkItemToolCalls path: tool execute throw becomes ok:false tool_failure (mission blocked)", async () => {
   const agent: MissionAgentRunForTest = async () => ({
     summary: "need file",
-    toolCalls: [{ tool: "readFile", args: { path: "nope.txt" } }]
+    toolCalls: [{ tool: "writeFile", args: { path: "x.txt", content: "y" } }]
   });
   const toolImpl: MissionToolExecutor["execute"] = async (_mid: string, call: ToolCall): Promise<ToolResult> => {
-    if (call.tool === "readFile") throw new Error("tool_layer_simulated_throw");
+    if (call.tool === "writeFile") throw new Error("tool_layer_simulated_throw");
     return { ok: true, summary: "noop" };
   };
   const { orchestrator, store } = await createOrchestrator(agent, toolImpl);
   const m = await store.create("reconcile-tool-throw", "p", "ollama", undefined, balancedIntegrationPolicy);
   await store.enqueue(m.id, [
-    { id: "wi-r2", title: "Research with tools", role: "researcher", status: "todo", prompt: "Use readFile." }
+    { id: "wi-r2", title: "Research with tools", role: "researcher", status: "todo", prompt: "Use writeFile." }
   ]);
   await orchestrator.runMission(m.id);
   const mid = store.get(m.id)!;

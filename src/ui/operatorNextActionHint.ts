@@ -9,7 +9,7 @@ export function operatorNextActionHint(mission: Mission | undefined): string | u
   const pending = (mission.approvals || []).filter((a) => a.status === "pending").length;
 
   if (blockReasonCode === "approval_gate_stale") {
-    return "Queue/approval mismatch — a work item still shows approval-pending, but the Approvals tab is empty. Inspect Focus (blocked implementer row) and Timeline; reset the work item or fix stale state, then Resume.";
+    return "Queue/approval mismatch — the Approvals tab is empty but a work item is stuck in approval-pending. Click Resume on the mission card (or Command Palette → Resume Mission): the extension clears the stale flag and re-queues that step. Inspect Timeline if the step fails again.";
   }
 
   if (status === "awaiting_input" || blockReasonCode === "approval_pending") {
@@ -38,6 +38,12 @@ export function operatorNextActionHint(mission: Mission | undefined): string | u
   if (status === "blocked") {
     if (blockReasonCode === "tool_failure" || blockReasonCode === "policy_blocked") {
       return "Blocked on tool/policy — review failed work items and events; adjust scope or fix errors, then Resume.";
+    }
+    if (blockReasonCode === "closure_not_satisfied") {
+      return "Closure pending — check the latest closure event (it lists what’s missing: implementer/reviewer/validator/evidence/minimum work). Resume will schedule the missing tranche(s).";
+    }
+    if (blockReasonCode === "required_work_open") {
+      return "Work still open — required items are still todo/running. Inspect the queue for stuck items, then Resume to continue.";
     }
     if (blockReasonCode === "approval_rejected") {
       return "Approval was rejected — change approach or re-submit work; pending approvals may need clearing.";

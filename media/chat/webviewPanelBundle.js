@@ -439,8 +439,12 @@ function renderSettings(snapshot, opts = {}) {
     <div class="setting-row"><span>Default model (saved)</span><strong>${escapeHtml(s.defaultModel)}</strong></div>
     <div class="setting-row"><span>Effective for provider</span><strong>${escapeHtml(snapshot.resolvedDefaultModel || '')}</strong></div>
     <div class="setting-row"><span>Heartbeat seconds</span><strong>${escapeHtml(String(s.heartbeatSeconds))}</strong></div>
+    <div class="setting-row"><span>Max steps per run</span><strong>${escapeHtml(String(s.maxStepsPerRun))}</strong></div>
+    <div class="setting-row"><span>Unlimited steps per run</span><strong>${s.unlimitedStepsPerRun ? 'yes' : 'no'}</strong></div>
     <div class="setting-row"><span>Allow terminal</span><strong>${s.allowTerminal ? 'yes' : 'no'}</strong></div>
     <div class="setting-row"><span>Require write approval</span><strong>${s.requireWriteApproval ? 'yes' : 'no'}</strong></div>
+    <div class="setting-row"><span>Non-implementer mutation approval</span><strong>${s.requireApprovalForNonImplementerMutations ? 'yes' : 'no'}</strong></div>
+    <div class="setting-row"><span>Auto-approve all tool requests</span><strong>${s.autoApproveAllToolRequests ? 'yes' : 'no'}</strong></div>
     <div class="setting-row"><span>Auto reveal on activation</span><strong>${s.autoRevealOnActivation ? 'yes' : 'no'}</strong></div>
     ${missionBlueprintSettingsRowsHtml(s)}
     <div class="setting-row"><span>Default tab</span><strong>${escapeHtml(s.defaultTab)}</strong></div>`;
@@ -467,17 +471,28 @@ function renderSettings(snapshot, opts = {}) {
   const modelEmpty = document.getElementById('settingDefaultModelCatalogEmpty');
   const modelList = document.getElementById('settingDefaultModelCatalogUl');
   const heartbeatInput = document.getElementById('settingHeartbeatSeconds');
+  const maxStepsInput = document.getElementById('settingMaxStepsPerRun');
   const allowTerminal = document.getElementById('settingAllowTerminal');
   const requireWrite = document.getElementById('settingRequireWriteApproval');
+  const requireNonImpl = document.getElementById('settingRequireApprovalForNonImplementerMutations');
+  const autoApproveAllTools = document.getElementById('settingAutoApproveAllToolRequests');
   const autoReveal = document.getElementById('settingAutoRevealOnActivation');
+  const unlimitedSteps = document.getElementById('settingUnlimitedStepsPerRun');
   const defaultTab = document.getElementById('settingDefaultTab');
   if (!state.dirty.quickSettings) {
     if (modelInput) modelInput.value = coherentModel;
     if (heartbeatInput) heartbeatInput.value = String(s.heartbeatSeconds || 12);
+    if (maxStepsInput) maxStepsInput.value = String(s.maxStepsPerRun || 128);
     if (allowTerminal) allowTerminal.checked = !!s.allowTerminal;
     if (requireWrite) requireWrite.checked = !!s.requireWriteApproval;
+    if (requireNonImpl) requireNonImpl.checked = !!s.requireApprovalForNonImplementerMutations;
+    if (autoApproveAllTools) autoApproveAllTools.checked = !!s.autoApproveAllToolRequests;
     if (autoReveal) autoReveal.checked = !!s.autoRevealOnActivation;
+    if (unlimitedSteps) unlimitedSteps.checked = !!s.unlimitedStepsPerRun;
     if (defaultTab) defaultTab.value = s.defaultTab || 'chat';
+  }
+  if (maxStepsInput && unlimitedSteps) {
+    maxStepsInput.disabled = !!unlimitedSteps.checked;
   }
   if (modelInput) modelInput.placeholder = 'Per-provider default when clean';
   syncProviderAwareModelPicker({

@@ -211,8 +211,14 @@ document.getElementById('saveQuickSettings')?.addEventListener('click', () => {
     defaultProvider: document.getElementById('settingDefaultProvider')?.value || (state.snapshot?.defaultProvider || 'ollama'),
     defaultModel: document.getElementById('settingDefaultModel')?.value || (state.snapshot?.defaultModel || ''),
     heartbeatSeconds: Number(document.getElementById('settingHeartbeatSeconds')?.value || 12),
+    maxStepsPerRun: Number(document.getElementById('settingMaxStepsPerRun')?.value || 128),
+    unlimitedStepsPerRun: !!document.getElementById('settingUnlimitedStepsPerRun')?.checked,
     allowTerminal: !!document.getElementById('settingAllowTerminal')?.checked,
     requireWriteApproval: !!document.getElementById('settingRequireWriteApproval')?.checked,
+    requireApprovalForNonImplementerMutations: !!document.getElementById(
+      'settingRequireApprovalForNonImplementerMutations'
+    )?.checked,
+    autoApproveAllToolRequests: !!document.getElementById('settingAutoApproveAllToolRequests')?.checked,
     autoRevealOnActivation: !!document.getElementById('settingAutoRevealOnActivation')?.checked,
     defaultTab: document.getElementById('settingDefaultTab')?.value || 'chat'
   });
@@ -231,11 +237,18 @@ function wireQuickSettingsDirtyTracking() {
     state.dirty.quickSettings = true;
     updateQuickDirtyBadge();
   };
-  ['settingDefaultModel', 'settingHeartbeatSeconds', 'settingDefaultTab'].forEach((id) => {
+  ['settingDefaultModel', 'settingHeartbeatSeconds', 'settingMaxStepsPerRun', 'settingDefaultTab'].forEach((id) => {
     document.getElementById(id)?.addEventListener('input', mark);
     document.getElementById(id)?.addEventListener('change', mark);
   });
-  ['settingAllowTerminal', 'settingRequireWriteApproval', 'settingAutoRevealOnActivation'].forEach((id) => {
+  [
+    'settingAllowTerminal',
+    'settingRequireWriteApproval',
+    'settingRequireApprovalForNonImplementerMutations',
+    'settingAutoApproveAllToolRequests',
+    'settingAutoRevealOnActivation',
+    'settingUnlimitedStepsPerRun'
+  ].forEach((id) => {
     document.getElementById(id)?.addEventListener('change', mark);
   });
   document.getElementById('settingDefaultProvider')?.addEventListener('change', (e) => {
@@ -249,6 +262,13 @@ function wireQuickSettingsDirtyTracking() {
 }
 
 wireQuickSettingsDirtyTracking();
+
+document.getElementById('settingUnlimitedStepsPerRun')?.addEventListener('change', () => {
+  const cb = document.getElementById('settingUnlimitedStepsPerRun');
+  const inp = document.getElementById('settingMaxStepsPerRun');
+  if (!cb || !inp) return;
+  inp.disabled = !!cb.checked;
+});
 
 els.panelBaseUrl?.addEventListener('input', () => {
   state.dirty.providersForm = true;

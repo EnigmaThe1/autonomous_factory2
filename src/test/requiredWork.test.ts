@@ -1,12 +1,15 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import {
+  baseWorkItemTitleForRetryMatching,
   dependencyEdgeSatisfied,
   hasRequiredBlockingOrFailedWork,
   hasRequiredUnresolvedWork,
+  isFailedWorkItemSupersededBySuccessfulRetry,
   isRequiredForCompletion,
   isRequiredWorkSettledForCompletion,
   obsolescentTodoSkipReason,
+  queueHasCompletionBlockingFailedOrBlocked,
   shouldAutoSkipObsolescentReviewerWork
 } from "../missions/requiredWork";
 import { shouldCollapseToComplete } from "../missions/missionCompletionCollapse";
@@ -126,6 +129,67 @@ test("terminal readiness vs shouldCollapseToComplete and resolveCompletionStatus
   assert.equal(hasRequiredBlockingOrFailedWork(bad), true);
   assert.equal(shouldCollapseToComplete(bad), false);
   assert.equal(resolveCompletionStatus(true, true, "passed"), "blocked");
+});
+
+test("baseWorkItemTitleForRetryMatching strips nested retry suffixes", () => {
+  assert.equal(baseWorkItemTitleForRetryMatching("Phase 4 and 5 (retry 1)"), "Phase 4 and 5");
+  assert.equal(baseWorkItemTitleForRetryMatching("Initial planning"), "Initial planning");
+});
+
+test("superseded failed row: history kept but does not block completion", () => {
+  const q: WorkItem[] = [
+    { id: "f1", title: "Initial planning", role: "planner", status: "failed", prompt: "p", output: "timeout" },
+    {
+      id: "d1",
+      title: "Initial planning (retry 1)",
+      role: "planner",
+      status: "done",
+      prompt: "p",
+      retryCount: 1
+    },
+    { id: "i", title: "impl", role: "implementer", status: "done", prompt: "p" },
+    { id: "r", title: "rev", role: "reviewer", status: "done", prompt: "p" },
+    { id: "v", title: "val", role: "validator", status: "done", prompt: "p" }
+  ];
+  const m = mission({ queue: q, validationState: "passed" });
+  assert.equal(isFailedWorkItemSupersededBySuccessfulRetry(m, q[0]), true);
+  assert.equal(queueHasCompletionBlockingFailedOrBlocked(m), false);
+  assert.equal(hasRequiredBlockingOrFailedWork(m), false);
+  assert.equal(isRequiredWorkSettledForCompletion(m), true);
+  assert.equal(shouldCollapseToComplete(m), true);
+  assert.equal(resolveCompletionStatus(false, true, "passed"), "completed");
+});
+
+test("failed row without successful retry still blocks", () => {
+  const q: WorkItem[] = [
+    { id: "bad", title: "Phase 2 and 3", role: "implementer", status: "failed", prompt: "p" },
+    { id: "i2", title: "later impl", role: "implementer", status: "done", prompt: "p" },
+    { id: "r", title: "rev", role: "reviewer", status: "done", prompt: "p" },
+    { id: "v", title: "val", role: "validator", status: "done", prompt: "p" }
+  ];
+  const m = mission({ queue: q, validationState: "passed" });
+  assert.equal(isFailedWorkItemSupersededBySuccessfulRetry(m, q[0]), false);
+  assert.equal(queueHasCompletionBlockingFailedOrBlocked(m), true);
+});
+
+test("non-required failed tail does not block completion", () => {
+  const q: WorkItem[] = [
+    { id: "p", title: "plan", role: "planner", status: "done", prompt: "p" },
+    { id: "i", title: "impl", role: "implementer", status: "done", prompt: "p" },
+    { id: "r", title: "rev", role: "reviewer", status: "done", prompt: "p" },
+    { id: "v", title: "val", role: "validator", status: "done", prompt: "p" },
+    {
+      id: "tail",
+      title: "optional probe",
+      role: "researcher",
+      status: "failed",
+      prompt: "p",
+      requiredForCompletion: false
+    }
+  ];
+  const m = mission({ queue: q, validationState: "passed" });
+  assert.equal(queueHasCompletionBlockingFailedOrBlocked(m), false);
+  assert.equal(shouldCollapseToComplete(m), true);
 });
 
 test("shouldAutoSkipObsolescentReviewerWork when prior reviewer done and passed", () => {

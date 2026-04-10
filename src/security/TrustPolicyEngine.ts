@@ -4,6 +4,8 @@ export type PolicyAction =
   | "read_file"
   | "write_file"
   | "apply_patch"
+  | "delete_file"
+  | "rename_file"
   | "run_terminal"
   | "run_command"
   | "http_request"
@@ -61,6 +63,15 @@ export class TrustPolicyEngine {
           this.settings.requireApprovalForWrite &&
           (!inWorkspace || this.settings.requireApprovalForInWorkspaceWrites);
         return { allowed: true, requiresApproval, reason: "Write policy evaluated." };
+      }
+      case "delete_file":
+      case "rename_file": {
+        const hasPath = Boolean(input.targetPath);
+        const inWorkspace = hasPath && isPathInWorkspace(this.workspaceRoot, input.targetPath!);
+        const requiresApproval =
+          this.settings.requireApprovalForWrite &&
+          (!inWorkspace || this.settings.requireApprovalForInWorkspaceWrites);
+        return { allowed: true, requiresApproval, reason: "Delete/rename policy evaluated." };
       }
       case "run_terminal":
         if (!this.settings.allowTerminal) return { allowed: false, requiresApproval: false, reason: "Terminal execution disabled by policy." };

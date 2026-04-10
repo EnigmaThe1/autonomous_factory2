@@ -67,4 +67,11 @@ describe("CommandRunner", () => {
     assert.equal(result.exitCode, 0);
     assert.match(result.stdout, /test_value_42/);
   });
+
+  it("accepts bash function syntax on Unix (not valid in POSIX /bin/sh)", async () => {
+    if (process.platform === "win32") return;
+    const result = await runCommand({ command: "function hi(){ echo ok; }; hi" });
+    assert.equal(result.exitCode, 0, `stderr: ${result.stderr}`);
+    assert.match(result.stdout, /ok/);
+  });
 });

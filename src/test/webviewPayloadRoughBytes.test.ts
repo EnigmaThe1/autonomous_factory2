@@ -27,6 +27,8 @@ function minimalSnapshot(overrides: Partial<SidebarSnapshot> = {}): SidebarSnaps
       heartbeatSeconds: 60,
       allowTerminal: false,
       requireWriteApproval: false,
+      requireApprovalForNonImplementerMutations: true,
+      autoApproveAllToolRequests: false,
       useNativeChatParticipant: false,
       mcpConfigPath: "",
       autoRevealOnActivation: false,

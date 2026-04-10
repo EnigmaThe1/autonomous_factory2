@@ -18,6 +18,7 @@ import type { GlobalMemoryStore } from "../../memory/GlobalMemoryStore";
 import { applyToolDrivenValidatorCompletion } from "../toolDrivenValidatorCompletion";
 import { shouldSkipRedundantValidatorWork } from "../redundantValidatorSkip";
 import { staleImplementerToolFailureRecoveryDecision } from "../staleEditRecovery";
+import { resolveMaxToolFollowUpTurns, resolveToolRecoveryLimits } from "./toolRecoveryAutonomyLimits";
 import { workCompletionKindFromSuccessfulToolSteps } from "../../tools/applyPatchNoOpPolicy";
 import { shouldHonorAlreadySatisfiedNoToolRun } from "../alreadySatisfiedWorkItem";
 import { shouldEnqueueReviewerAutoRemediation } from "../reviewerRemediationPolicy";
@@ -30,6 +31,10 @@ import { findDuplicateQueryResearchContradictions } from "../researchContradicti
 import { applyBlueprintStepStatusFromWorkItem } from "../blueprintStepSync";
 import { isRequiredImplementerWorkItem } from "../implementerHardStopWorkItemWrite";
 import { isKnownImplementerHardStopClassValue } from "../implementerHardStopClassInvariant";
+import { RecoveryBudget } from "./recoveryBudget";
+import { classifyToolOutcome } from "./toolOutcomeClassifier";
+import { buildFailureInvestigationWave } from "../failureInvestigationEnqueue";
+import { READONLY_MISSION_TOOL_IDS } from "../readonlyMissionToolIds";
 import {
   checkpointSummaryForTerminalWorkItem,
   extractKeywords,
@@ -66,6 +71,8 @@ export interface WorkItemRunnerHost {
 }
 
 export class MissionOrchestratorWorkItemRunner {
+  private readonly recoveryBudget = new RecoveryBudget();
+
   constructor(private readonly host: WorkItemRunnerHost) {}
 
   private async executeToolOrSyntheticFailure(
@@ -98,16 +105,35 @@ export class MissionOrchestratorWorkItemRunner {
     result: AgentTurnResult
   ): Promise<{
     earlyReturn?: "awaiting_input" | "blocked";
+    /** When set with `earlyReturn: "blocked"`, work item is already `failed`/`tool_failure`; mission not yet blocked until the runner resolves recovery vs terminal block. */
+    pendingToolFailureMissionBlock?: { blocker: string };
     derivedCompletionKind?: WorkItem["completionKind"];
     toolResultSummaries?: string[];
     hadMutatingSideEffect?: boolean;
+    /** Successful tool steps in this batch (ok results), used to detect unresolved recoverable failures after follow-ups. */
+    successfulToolStepsCount?: number;
+    /** Non–dry-run tool invocations attempted in this batch. */
+    attemptedToolInvocations?: number;
+    /** True if any tool failed but was classified recoverable (agent-retry / readonly / probe); stale_patch recovery does not set this. */
+    hadRecoverableFailureAwaitingFollowUp?: boolean;
   }> {
     if (!result.toolCalls?.length) return {};
 
     const MUTATING_TOOLS = new Set(["writeFile", "applyPatch", "runTerminal", "runCommand", "git.commit", "git.checkout_file", "git.stash_push", "git.stash_pop", "docker.exec", "db.query"]);
+    const READONLY_TOOLS = READONLY_MISSION_TOOL_IDS;
+    const cfg = vscode.workspace.getConfiguration();
+    const recoveryLimits = resolveToolRecoveryLimits(cfg);
+    const MAX_RECOVERABLE_READONLY_FAILURES_PER_WORK_ITEM = recoveryLimits.maxRecoverableReadonlyFailuresPerWorkItem;
+    const MAX_TRANSIENT_MUTATING_FAILURES_PER_WORK_ITEM = recoveryLimits.maxTransientMutatingFailuresPerWorkItem;
+    const MAX_RUN_COMMAND_PROBE_FAILURES_PER_WORK_ITEM = recoveryLimits.maxRunCommandProbeFailuresPerWorkItem;
+    const maxRunCommandAgentRetry = recoveryLimits.maxRunCommandAgentRetry;
+    const maxWriteFileAgentRetry = recoveryLimits.maxWriteFileAgentRetry;
+    const maxApplyPatchAgentRetry = recoveryLimits.maxApplyPatchAgentRetry;
     const successfulToolSteps: Array<{ tool: string; applyPatchNoop?: boolean }> = [];
     const toolResultSummaries: string[] = [];
     let hadMutatingSideEffect = false;
+    let attemptedToolInvocations = 0;
+    let hadRecoverableFailureAwaitingFollowUp = false;
     for (const call of result.toolCalls) {
       const callWithMeta: ToolCall = {
         ...call,
@@ -123,10 +149,172 @@ export class MissionOrchestratorWorkItemRunner {
         await this.host.store.saveEvent(mission.id, { level: "info", source: "orchestrator", message: `[DRY-RUN] Would execute: ${call.tool}` });
         continue;
       }
+      attemptedToolInvocations += 1;
       await this.markMutatingToolExecutionStarted(mission.id, item, callWithMeta);
       const toolResult = await this.executeToolOrSyntheticFailure(mission.id, callWithMeta, item.id);
 
-      if (!toolResult.ok && toolResult.blockedByPolicy) {
+      // Non-fatal readFile missing: allow the agent to handle by creating the file or choosing a different path
+      // in follow-up tool turns. Blocking the whole mission on ENOENT is counterproductive and leads to “stuck”
+      // states for expected output artifacts (e.g. AUDIT_REPORT.md).
+      const code = (toolResult.data as { code?: unknown } | undefined)?.code;
+      const summary = String(toolResult.summary || "");
+      const isReadFileMissing =
+        callWithMeta.tool === "readFile" &&
+        !toolResult.ok &&
+        !toolResult.requiresApproval &&
+        !toolResult.blockedByPolicy &&
+        (code === "FileNotFound" ||
+          code === "EntryNotFound" ||
+          code === "ENOENT" ||
+          /ENOENT|EntryNotFound|no such file|not found/i.test(summary));
+      const isReadonlyTool = READONLY_TOOLS.has(callWithMeta.tool);
+      const isMutatingTool = MUTATING_TOOLS.has(callWithMeta.tool);
+      const budgetKey = `${mission.id}:${item.id}:recoverable_readonly`;
+      const already = this.recoveryBudget.peek(budgetKey);
+      const readonlyBudgetRemaining = already < MAX_RECOVERABLE_READONLY_FAILURES_PER_WORK_ITEM;
+      const transientKey = `${mission.id}:${item.id}:transient_mutating`;
+      const transientAlready = this.recoveryBudget.peek(transientKey);
+      const transientMutatingBudgetRemaining = transientAlready < MAX_TRANSIENT_MUTATING_FAILURES_PER_WORK_ITEM;
+      const probeKey = `${mission.id}:${item.id}:run_command_probe`;
+      const probeAlready = this.recoveryBudget.peek(probeKey);
+      const runCommandProbeBudgetRemaining = probeAlready < MAX_RUN_COMMAND_PROBE_FAILURES_PER_WORK_ITEM;
+      const agentRetryKey = `${mission.id}:${item.id}:run_command_agent_retry`;
+      const agentRetryAlready = this.recoveryBudget.peek(agentRetryKey);
+      const runCommandAgentRetryBudgetRemaining =
+        maxRunCommandAgentRetry > 0 && agentRetryAlready < maxRunCommandAgentRetry;
+      const writeRetryKey = `${mission.id}:${item.id}:write_file_agent_retry`;
+      const writeRetryAlready = this.recoveryBudget.peek(writeRetryKey);
+      const writeFileAgentRetryBudgetRemaining =
+        maxWriteFileAgentRetry > 0 && writeRetryAlready < maxWriteFileAgentRetry;
+      const patchRetryKey = `${mission.id}:${item.id}:apply_patch_agent_retry`;
+      const patchRetryAlready = this.recoveryBudget.peek(patchRetryKey);
+      const applyPatchAgentRetryBudgetRemaining =
+        maxApplyPatchAgentRetry > 0 && patchRetryAlready < maxApplyPatchAgentRetry;
+
+      if (
+        !toolResult.ok &&
+        !toolResult.requiresApproval &&
+        !toolResult.blockedByPolicy
+      ) {
+        const latestForStale = this.host.store.get(mission.id)!;
+        if (
+          staleImplementerToolFailureRecoveryDecision(
+            item.role,
+            latestForStale,
+            callWithMeta,
+            toolResult.summary
+          ) === "recover_to_satisfied"
+        ) {
+          this.host.pendingCompletionReason.set(mission.id, "stale_patch_but_goal_already_met");
+          const blocker = `${callWithMeta.tool}: ${toolResult.summary}`;
+          await this.host.store.saveEvent(mission.id, {
+            level: "info",
+            source: "orchestrator",
+            message: `Stale edit skipped (${blocker}); validation already passed — no code change required (stale_patch_but_goal_already_met).`
+          });
+          const saved = await this.host.store.addMemory(mission.id, {
+            kind: "tool_result",
+            text: `${callWithMeta.tool}: ${toolResult.summary} [stale_patch_but_goal_already_met: validation already passed, patch skipped]`,
+            tags: [callWithMeta.tool, "stale_patch_recovery"],
+            sourceMissionId: mission.id
+          });
+          await this.host.globalMemory.add(saved);
+          await this.host.updateWorkItemWithHardStopInvariant(mission.id, item, { activeMutatingToolCall: undefined });
+          continue;
+        }
+      }
+
+      const decision = classifyToolOutcome({
+        call: callWithMeta,
+        result: toolResult,
+        isReadonlyTool,
+        isMutatingTool,
+        readonlyBudgetRemaining,
+        isReadFileMissing,
+        transientMutatingBudgetRemaining,
+        runCommandProbeBudgetRemaining,
+        runCommandAgentRetryBudgetRemaining,
+        writeFileAgentRetryBudgetRemaining,
+        applyPatchAgentRetryBudgetRemaining
+      });
+
+      if (decision.kind === "continue" && !toolResult.ok) {
+        hadRecoverableFailureAwaitingFollowUp = true;
+        // Consume budget only when we actually continue on a recoverable failure.
+        if (decision.category === "recoverable_readonly") {
+          this.recoveryBudget.consume(budgetKey, MAX_RECOVERABLE_READONLY_FAILURES_PER_WORK_ITEM);
+        }
+        if (decision.category === "transient_mutating") {
+          this.recoveryBudget.consume(transientKey, MAX_TRANSIENT_MUTATING_FAILURES_PER_WORK_ITEM);
+        }
+        if (decision.category === "run_command_probe") {
+          this.recoveryBudget.consume(probeKey, MAX_RUN_COMMAND_PROBE_FAILURES_PER_WORK_ITEM);
+        }
+        if (decision.category === "run_command_agent_retry") {
+          this.recoveryBudget.consume(agentRetryKey, maxRunCommandAgentRetry);
+        }
+        if (decision.category === "write_file_agent_retry") {
+          this.recoveryBudget.consume(writeRetryKey, maxWriteFileAgentRetry);
+        }
+        if (decision.category === "apply_patch_agent_retry") {
+          this.recoveryBudget.consume(patchRetryKey, maxApplyPatchAgentRetry);
+        }
+        const recoveryAttemptNumber = (() => {
+          switch (decision.category) {
+            case "recoverable_readonly":
+              return this.recoveryBudget.peek(budgetKey);
+            case "transient_mutating":
+              return this.recoveryBudget.peek(transientKey);
+            case "run_command_probe":
+              return this.recoveryBudget.peek(probeKey);
+            case "run_command_agent_retry":
+              return this.recoveryBudget.peek(agentRetryKey);
+            case "write_file_agent_retry":
+              return this.recoveryBudget.peek(writeRetryKey);
+            case "apply_patch_agent_retry":
+              return this.recoveryBudget.peek(patchRetryKey);
+            default:
+              return undefined;
+          }
+        })();
+        await this.host.store.saveEvent(mission.id, {
+          level: "info",
+          source: "orchestrator",
+          telemetryKind: "recovery_attempt",
+          message: `Recovery attempt (${decision.category}): ${callWithMeta.tool}`,
+          data: {
+            workItemId: item.id,
+            role: item.role,
+            tool: callWithMeta.tool,
+            category: decision.category,
+            attempt: recoveryAttemptNumber
+          }
+        });
+        toolResultSummaries.push(`[${callWithMeta.tool}] ${toolResult.summary}`);
+        for (const l of decision.hintLines || []) toolResultSummaries.push(l);
+        if (decision.category === "run_command_agent_retry") {
+          const d = toolResult.data as { stderr?: string; stdout?: string } | undefined;
+          const err = (d?.stderr || "").trim();
+          const out = (d?.stdout || "").trim();
+          if (err) toolResultSummaries.push(`[runCommand stderr]\n${err.slice(0, 6000)}`);
+          else if (out) toolResultSummaries.push(`[runCommand stdout]\n${out.slice(0, 4000)}`);
+        }
+        if (decision.category === "write_file_agent_retry") {
+          const p = String(callWithMeta.args.path || "");
+          if (p) toolResultSummaries.push(`[writeFile path] ${p}`);
+        }
+        if (decision.category === "apply_patch_agent_retry") {
+          const p = String(callWithMeta.args.path || "");
+          const se = String(callWithMeta.args.search || "");
+          if (p) toolResultSummaries.push(`[applyPatch path] ${p}`);
+          if (se) toolResultSummaries.push(`[applyPatch search (truncated)]\n${se.slice(0, 3000)}`);
+        }
+        await this.recordToolResultMemoryAndEvent(mission.id, callWithMeta, toolResult, decision.tags);
+        await this.host.updateWorkItemWithHardStopInvariant(mission.id, item, { activeMutatingToolCall: undefined });
+        continue;
+      }
+
+      if (decision.kind === "blocked" && decision.category === "policy_denied") {
         this.host.pendingCompletionReason.delete(mission.id);
         const blocker = `${callWithMeta.tool}: ${toolResult.summary}`;
         await this.host.updateWorkItemWithHardStopInvariant(mission.id, item, {
@@ -150,46 +338,18 @@ export class MissionOrchestratorWorkItemRunner {
       }
 
       if (!toolResult.ok && !toolResult.requiresApproval) {
-        const latestMission = this.host.store.get(mission.id)!;
-        if (
-          staleImplementerToolFailureRecoveryDecision(item.role, latestMission, callWithMeta, toolResult.summary) ===
-          "recover_to_satisfied"
-        ) {
-          this.host.pendingCompletionReason.set(mission.id, "stale_patch_but_goal_already_met");
-          const blocker = `${callWithMeta.tool}: ${toolResult.summary}`;
-          await this.host.store.saveEvent(mission.id, {
-            level: "info",
-            source: "orchestrator",
-            message: `Stale edit skipped (${blocker}); validation already passed — no code change required (stale_patch_but_goal_already_met).`
-          });
-          const saved = await this.host.store.addMemory(mission.id, {
-            kind: "tool_result",
-            text: `${callWithMeta.tool}: ${toolResult.summary} [stale_patch_but_goal_already_met: validation already passed, patch skipped]`,
-            tags: [callWithMeta.tool, "stale_patch_recovery"],
-            sourceMissionId: mission.id
-          });
-          await this.host.globalMemory.add(saved);
-          continue;
-        }
         this.host.pendingCompletionReason.delete(mission.id);
         const blocker = `${callWithMeta.tool}: ${toolResult.summary}`;
         await this.host.updateWorkItemWithHardStopInvariant(mission.id, item, {
           status: "failed",
           hardStopClass: "tool_failure",
+          activeMutatingToolCall: undefined,
           output: `${result.summary}\n\nTool execution failed: ${blocker}`
         });
-        await this.host.store.updateMission(mission.id, {
-          status: "blocked",
-          blocker: `Mission halted after tool failure (${blocker})`,
-          validationState: "failed",
-          blockReasonCode: "tool_failure"
-        });
-        await this.host.store.saveEvent(mission.id, {
-          level: "warn",
-          source: "orchestrator",
-          message: `Mission paused: tool call failed (${blocker}).`
-        });
-        return { earlyReturn: "blocked" };
+        return {
+          earlyReturn: "blocked",
+          pendingToolFailureMissionBlock: { blocker: `Mission halted after tool failure (${blocker})` }
+        };
       }
 
       if (toolResult.requiresApproval) {
@@ -241,19 +401,117 @@ export class MissionOrchestratorWorkItemRunner {
       const tags = isApplyPatchNoop ? [callWithMeta.tool, "apply_patch_noop"] : [callWithMeta.tool];
       const prefix = isApplyPatchNoop ? "[apply_patch_noop] " : "";
       await this.recordToolResultMemoryAndEvent(mission.id, callWithMeta, toolResult, tags, prefix);
+      await this.host.updateWorkItemWithHardStopInvariant(mission.id, item, { activeMutatingToolCall: undefined });
     }
 
     const derivedCompletionKind = workCompletionKindFromSuccessfulToolSteps(successfulToolSteps) || undefined;
-    return { derivedCompletionKind, toolResultSummaries, hadMutatingSideEffect };
+    return {
+      derivedCompletionKind,
+      toolResultSummaries,
+      hadMutatingSideEffect,
+      successfulToolStepsCount: successfulToolSteps.length,
+      attemptedToolInvocations,
+      hadRecoverableFailureAwaitingFollowUp
+    };
+  }
+
+  private async tryEnqueueFailureInvestigationWave(
+    missionId: string,
+    failedItemId: string,
+    missionBlock: { blocker: string }
+  ): Promise<boolean> {
+    const cfg = vscode.workspace.getConfiguration();
+    if (!cfg.get<boolean>("myAi.missions.failureInvestigation.enabled", false)) return false;
+
+    const maxWaves = Math.max(0, cfg.get<number>("myAi.missions.failureInvestigation.maxWavesPerMission", 2));
+    const includePlanner = cfg.get<boolean>("myAi.missions.failureInvestigation.includePlannerStep", false);
+
+    const mission = this.host.store.get(missionId);
+    if (!mission?.queue.length || mission.dryRun) return false;
+
+    const used = mission.runtime?.failureInvestigationWavesUsed ?? 0;
+    if (maxWaves === 0 || used >= maxWaves) return false;
+
+    const failedItem = mission.queue.find((w) => w.id === failedItemId);
+    if (!failedItem || failedItem.status !== "failed") return false;
+    if (failedItem.hardStopClass !== "tool_failure") return false;
+    if (failedItem.requiredForCompletion === false) return false;
+
+    const wave = buildFailureInvestigationWave(failedItem, {
+      includePlanner,
+      blockerSummary: missionBlock.blocker
+    });
+
+    await this.host.store.enqueueAfterWorkItem(missionId, failedItemId, wave);
+    await this.host.store.updateWorkItem(missionId, failedItemId, { suppressAutoRetry: true });
+    await this.host.store.updateRuntime(missionId, { failureInvestigationWavesUsed: used + 1 });
+    await this.host.store.updateMission(missionId, {
+      status: "queued",
+      blocker: undefined,
+      blockReasonCode: undefined
+    });
+    return true;
+  }
+
+  /**
+   * Resolves `executeWorkItemToolCalls` early exits: tool-failure blocks may enqueue a recovery wave
+   * instead of pausing the mission.
+   */
+  private async maybeResolveToolFailureBlockedEarlyReturn(
+    mission: Mission,
+    item: WorkItem,
+    toolExecResult: {
+      earlyReturn?: "awaiting_input" | "blocked";
+      pendingToolFailureMissionBlock?: { blocker: string };
+    }
+  ): Promise<"continue" | "awaiting_input" | "blocked" | undefined> {
+    if (!toolExecResult.earlyReturn) return undefined;
+    if (toolExecResult.earlyReturn === "awaiting_input") return "awaiting_input";
+    if (toolExecResult.earlyReturn === "blocked") {
+      if (toolExecResult.pendingToolFailureMissionBlock) {
+        const enqueued = await this.tryEnqueueFailureInvestigationWave(
+          mission.id,
+          item.id,
+          toolExecResult.pendingToolFailureMissionBlock
+        );
+        if (enqueued) {
+          await this.host.store.saveEvent(mission.id, {
+            level: "info",
+            source: "orchestrator",
+            message: "Failure investigation wave enqueued after tool failure (researcher → optional planner → retry)."
+          });
+          return "continue";
+        }
+        await this.host.store.updateMission(mission.id, {
+          status: "blocked",
+          blocker: toolExecResult.pendingToolFailureMissionBlock.blocker,
+          validationState: "failed",
+          blockReasonCode: "tool_failure"
+        });
+        await this.host.store.saveEvent(mission.id, {
+          level: "warn",
+          source: "orchestrator",
+          message: `Mission paused: tool call failed (${toolExecResult.pendingToolFailureMissionBlock.blocker.slice(0, 280)})`
+        });
+        return "blocked";
+      }
+      return "blocked";
+    }
+    return undefined;
   }
 
   public async markMutatingToolExecutionStarted(missionId: string, item: WorkItem, call: ToolCall): Promise<void> {
     if (!isPotentiallyMutatingToolCall(call)) return;
+    const cmd =
+      call.tool === "runCommand" && typeof call.args?.command === "string"
+        ? call.args.command.slice(0, 500)
+        : undefined;
     await this.host.updateWorkItemWithHardStopInvariant(missionId, item, {
       activeMutatingToolCall: {
         tool: call.tool,
         approved: Boolean(call.args?.__approved),
         target: mutatingToolTarget(call),
+        ...(cmd ? { commandPreview: cmd } : {}),
         startedAt: Date.now()
       }
     });
@@ -532,6 +790,7 @@ export class MissionOrchestratorWorkItemRunner {
         await this.host.updateWorkItemWithHardStopInvariant(mission.id, item, {
           status: workItemStatus,
           hardStopClass,
+          activeMutatingToolCall: undefined,
           output: outputMessage
         });
 
@@ -596,9 +855,10 @@ export class MissionOrchestratorWorkItemRunner {
     }
 
     let toolExecResult = await this.executeWorkItemToolCalls(mission, item, result);
-    if (toolExecResult.earlyReturn) return toolExecResult.earlyReturn;
+    const earlyResolved = await this.maybeResolveToolFailureBlockedEarlyReturn(mission, item, toolExecResult);
+    if (earlyResolved !== undefined) return earlyResolved;
 
-    const maxToolFollowUps = this.host.agentRunForTest ? 0 : vscode.workspace.getConfiguration().get<number>("myAi.missions.maxToolFollowUpTurns", 3);
+    const maxToolFollowUps = resolveMaxToolFollowUpTurns(vscode.workspace.getConfiguration(), Boolean(this.host.agentRunForTest));
     const toolLoopRoles: AgentRole[] = ["implementer", "researcher", "reviewer"];
     let followUpTurn = 0;
     while (
@@ -650,7 +910,47 @@ export class MissionOrchestratorWorkItemRunner {
 
       if (!followUpResult.toolCalls?.length) break;
       toolExecResult = await this.executeWorkItemToolCalls(mission, item, followUpResult);
-      if (toolExecResult.earlyReturn) return toolExecResult.earlyReturn;
+      const loopEarly = await this.maybeResolveToolFailureBlockedEarlyReturn(mission, item, toolExecResult);
+      if (loopEarly !== undefined) return loopEarly;
+    }
+
+    if (
+      toolLoopRoles.includes(item.role) &&
+      (toolExecResult.attemptedToolInvocations ?? 0) > 0 &&
+      (toolExecResult.successfulToolStepsCount ?? 0) === 0 &&
+      toolExecResult.hadRecoverableFailureAwaitingFollowUp === true
+    ) {
+      this.host.pendingCompletionReason.delete(mission.id);
+      await this.host.updateWorkItemWithHardStopInvariant(mission.id, item, {
+        status: "failed",
+        hardStopClass: "tool_failure",
+        activeMutatingToolCall: undefined,
+        output: `${result.summary}\n\nTool execution did not produce any successful tool results after follow-up turns. Inspect tool summaries in the mission timeline.`
+      });
+      const noSuccessBlock = {
+        blocker: "Mission halted: tools were invoked but none completed successfully for this work item."
+      };
+      const enqueued = await this.tryEnqueueFailureInvestigationWave(mission.id, item.id, noSuccessBlock);
+      if (enqueued) {
+        await this.host.store.saveEvent(mission.id, {
+          level: "info",
+          source: "orchestrator",
+          message: "Failure investigation wave enqueued after tool follow-up loop produced no successful tool results."
+        });
+        return "continue";
+      }
+      await this.host.store.updateMission(mission.id, {
+        status: "blocked",
+        blocker: noSuccessBlock.blocker,
+        validationState: "failed",
+        blockReasonCode: "tool_failure"
+      });
+      await this.host.store.saveEvent(mission.id, {
+        level: "warn",
+        source: "orchestrator",
+        message: "Mission paused: tool batch had no successful results after the tool follow-up loop."
+      });
+      return "blocked";
     }
 
     let workCompletionKind = alreadySatisfiedNoTool ? "already_satisfied" as WorkItem["completionKind"] : undefined;
@@ -876,6 +1176,10 @@ export class MissionOrchestratorWorkItemRunner {
           }
         }
         await this.host.store.updateRuntime(mission.id, { lastImplementerMutationAt: Date.now() });
+        await this.host.store.updateRuntime(mission.id, {
+          promotionState: "experimental",
+          promotionStateAt: Date.now()
+        });
         const runLinterObligation = vscode.workspace.getConfiguration().get<boolean>("myAi.missions.verification.autoRunLinterAfterMutations", true);
         const runTestsObligation = vscode.workspace.getConfiguration().get<boolean>("myAi.missions.verification.autoRunTestsAfterMutations", true);
         let ok = true;
@@ -895,6 +1199,10 @@ export class MissionOrchestratorWorkItemRunner {
         }
         if (ok && (runLinterObligation || runTestsObligation)) {
           await this.host.store.updateRuntime(mission.id, { lastVerificationAt: Date.now() });
+          await this.host.store.updateRuntime(mission.id, {
+            promotionState: "verified",
+            promotionStateAt: Date.now()
+          });
         }
       }
     }

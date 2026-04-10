@@ -7,7 +7,9 @@ import { shouldCollapseToComplete } from "../missionCompletionCollapse";
 import {
   dependencyEdgeSatisfied,
   hasRequiredUnresolvedWork,
+  isFailedWorkItemSupersededBySuccessfulRetry,
   obsolescentTodoSkipReason,
+  queueHasCompletionBlockingFailedOrBlocked,
   supersededReviewerTerminalSkipReason,
   supersededValidatorTerminalSkipReason
 } from "../requiredWork";
@@ -149,7 +151,13 @@ export class MissionOrchestratorRunLoop {
       let mission = this.host.store.get(id);
       if (!mission) return this.runPassOutcomeAfterStoreRead(id);
       await this.host.store.updateMission(id, { status: "running", blockReasonCode: undefined });
-      const maxSteps = Math.max(1, vscode.workspace.getConfiguration().get<number>("myAi.missions.maxStepsPerRun", 16));
+      const cfg = vscode.workspace.getConfiguration();
+      const unlimited = cfg.get<boolean>("myAi.missions.unlimitedStepsPerRun", false);
+      const configured = cfg.get<number>("myAi.missions.maxStepsPerRun", 128);
+      const hardCeiling = 2000;
+      const maxSteps = unlimited
+        ? hardCeiling
+        : Math.min(hardCeiling, Math.max(1, Math.floor(Number.isFinite(configured) ? configured : 128)));
 
       for (let step = 0; step < maxSteps; step++) {
         mission = this.host.store.get(id);
@@ -191,8 +199,13 @@ export class MissionOrchestratorRunLoop {
 
         const gate = classifyImplementerHardStopDownstreamGate(mission);
         await this.host.noteMalformedImplementerHardStopEvent(id, mission, gate);
-        const allowRoleWhileGated = (role: WorkItem["role"]): boolean =>
-          role === "implementer" || role === "planner" || role === "architect";
+        const allowRoleWhileGated = (role: WorkItem["role"]): boolean => {
+          if (role === "implementer" || role === "planner" || role === "architect") return true;
+          // Tool-failure gate: allow researcher for structured diagnosis while a failed row still gates closure.
+          // Reviewer/validator run once the gate clears (e.g. after a successful retry supersedes the failure).
+          if (role === "researcher" && gate.gate && gate.failureClass === "tool_failure") return true;
+          return false;
+        };
         const next = mission.queue.find(
           (w) =>
             w.status === "todo" &&
@@ -368,6 +381,40 @@ export class MissionOrchestratorRunLoop {
     const enforced = await this.host.ensureClosurePolicy(mission);
     if (enforced) return "continue";
 
+    // Machine-readable closure gap signal for the model: emit what would be required next if closure is blocked.
+    // This does not mutate the queue; it only increases observability and helps adaptive recovery.
+    {
+      const refreshed = this.host.store.get(id);
+      if (refreshed) {
+        const completedItems = refreshed.queue.filter((w) => w.status === "done" || w.status === "skipped").length;
+        const needsImplementer = refreshed.policy.requireImplementerBeforeComplete &&
+          !refreshed.queue.some((w) => w.role === "implementer" && w.status === "done");
+        const needsReviewer = refreshed.policy.requireReviewerBeforeComplete &&
+          !refreshed.queue.some((w) => w.role === "reviewer" && w.status === "done");
+        const needsValidator = refreshed.policy.requireValidatorBeforeComplete &&
+          refreshed.validationState !== "passed";
+        const needsVerificationEvidence = Boolean(refreshed.policy.requireValidationEvidence) &&
+          typeof refreshed.runtime?.lastImplementerMutationAt === "number" &&
+          (typeof refreshed.runtime?.lastVerificationAt !== "number" ||
+            (refreshed.runtime.lastVerificationAt < refreshed.runtime.lastImplementerMutationAt));
+        const gap = {
+          minCompletedWorkItems: refreshed.policy.minCompletedWorkItems,
+          completedItems,
+          needsImplementer,
+          needsReviewer,
+          needsValidator,
+          needsVerificationEvidence
+        };
+        await this.host.store.saveEvent(id, {
+          level: "info",
+          source: "closure",
+          telemetryKind: "mission_blocked",
+          message: "Closure policy evaluation snapshot (for adaptive recovery).",
+          data: gap
+        });
+      }
+    }
+
     await this.autoDemoteObsolescentQueueItems(id);
     await this.autoDemoteSupersededTerminalItems(id);
     let refreshed = this.host.store.get(id)!;
@@ -407,8 +454,12 @@ export class MissionOrchestratorRunLoop {
       return "terminal";
     }
 
-    const hasBlocked = refreshed.queue.some((w) => w.status === "blocked" || w.status === "failed");
-    let terminalStatus = resolveCompletionStatus(hasBlocked, refreshed.policy.closureRequired, refreshed.validationState);
+    const hasCompletionBlockingFailure = queueHasCompletionBlockingFailedOrBlocked(refreshed);
+    let terminalStatus = resolveCompletionStatus(
+      hasCompletionBlockingFailure,
+      refreshed.policy.closureRequired,
+      refreshed.validationState
+    );
     if (terminalStatus === "completed" && blueprintBlocksMissionCompletion(refreshed)) {
       await this.host.store.enqueue(id, [
         {
@@ -480,6 +531,9 @@ export class MissionOrchestratorRunLoop {
         .join("\n"),
       ...(terminalStatus === "completed" && terminalCompletionReason ? { completionReason: terminalCompletionReason } : {})
     });
+    if (terminalStatus === "completed") {
+      await this.host.store.updateRuntime(id, { promotionState: "promoted", promotionStateAt: Date.now() });
+    }
     this.host.onMissionTerminal?.(id, terminalStatus);
     return "terminal";
   }
@@ -498,16 +552,18 @@ export class MissionOrchestratorRunLoop {
    * - Approval-rejected / tool-failed / policy-blocked / operator-aborted implementer: same pass stops; later
    *   `runMission`/`resumeMission` may still run reviewer and validator todos (no `dependsOn` on standard queue).
    * - Timeout/system stream abort on implementer: item `failed`, mission continues in-pass (recovery path).
-   * - Terminal: `resolveCompletionStatus` keeps mission `blocked` (not `completed`) while any blocked/failed item
-   *   remains; if validator already set `validationState: "passed"`, UI must not equate that with shipped code —
-   *   see terminal warn event when implementer is still blocked/failed.
+   * - Terminal: `resolveCompletionStatus` keeps mission `blocked` (not `completed`) while any **completion-blocking**
+   *   blocked/failed item remains (failed rows superseded by a successful retry do not block); if validator already
+   *   set `validationState: "passed"`, UI must not equate that with shipped code — see terminal warn event when
+   *   implementer is still blocked or has a non-superseded failed row.
    */
   private hasBlockingImplementerOutcome(mission: Mission): boolean {
     return mission.queue.some(
       (w) =>
         w.role === "implementer" &&
         (w.status === "blocked" || w.status === "failed") &&
-        w.requiredForCompletion !== false
+        w.requiredForCompletion !== false &&
+        !(w.status === "failed" && isFailedWorkItemSupersededBySuccessfulRetry(mission, w))
     );
   }
 }

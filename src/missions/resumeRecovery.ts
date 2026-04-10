@@ -1,4 +1,6 @@
 import { WorkItem } from "../types";
+import { isReadonlyMissionToolId } from "./readonlyMissionToolIds";
+import { isRunCommandLikelyReadOnlyProbe } from "./runCommandReadOnlyProbe";
 
 export interface QueueRecoveryResult {
   queue: WorkItem[];
@@ -16,6 +18,30 @@ export function recoverInterruptedQueueItems(queue: WorkItem[]): QueueRecoveryRe
   const recoveredQueue = queue.map((item) => {
     if (item.status !== "running") return item;
     if (item.activeMutatingToolCall) {
+      const t = item.activeMutatingToolCall.tool;
+      if (isReadonlyMissionToolId(t)) {
+        recoveredCount += 1;
+        return {
+          ...item,
+          status: "todo" as const,
+          activeMutatingToolCall: undefined,
+          output:
+            (item.output || "Recovered after host interruption.").trim() +
+            "\n\nRe-queued: in-flight tool was read-only (no replay-risk guard)."
+        };
+      }
+      const preview = item.activeMutatingToolCall.commandPreview;
+      if (t === "runCommand" && preview && isRunCommandLikelyReadOnlyProbe(preview)) {
+        recoveredCount += 1;
+        return {
+          ...item,
+          status: "todo" as const,
+          activeMutatingToolCall: undefined,
+          output:
+            (item.output || "Recovered after host interruption.").trim() +
+            "\n\nRe-queued: in-flight runCommand matched read-only probe heuristics (no replay-risk guard)."
+        };
+      }
       replayRiskCount += 1;
       return {
         ...item,

@@ -289,5 +289,15 @@ test("downstream gating: implementer approval_pending without pending approvals 
   assert.equal(mid.status, "awaiting_input");
   assert.equal(mid.blockReasonCode, "approval_gate_stale");
   assert.ok(mid.events.some((e) => typeof e.message === "string" && e.message.includes("approval_gate_stale")));
+
+  const resume = await orchestrator.resumeMission(m.id);
+  assert.notEqual(resume.kind, "gated_awaiting_input");
+  const after = store.get(m.id)!;
+  assert.ok(
+    after.events.some((e) => typeof e.message === "string" && e.message.includes("Reconciled approval_gate_stale")),
+    "resume should log reconciliation"
+  );
+  const impl = after.queue.find((w) => w.role === "implementer");
+  assert.notEqual(impl?.hardStopClass, "approval_pending", "stale approval_pending should be cleared on resume");
 });
 

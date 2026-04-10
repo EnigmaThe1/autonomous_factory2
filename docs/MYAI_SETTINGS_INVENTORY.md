@@ -59,7 +59,7 @@ npm run docs:settings-inventory
 | `myAi.missions.blueprintMode` | boolean | `false` | When true, new missions start with a full JSON blueprint planner pass; approve before synthesized work runs. |
 | `myAi.missions.claimDiscipline` | boolean | `true` | Inject claim-discipline instructions so agents can record VERIFIED_* vs ASSUMPTION via MEMORY lines. |
 | `myAi.missions.closureRequired` | boolean | `true` | Keep missions alive until validation passes or a real blocker is recorded. |
-| `myAi.missions.diskStoreFolder` | string | `.my-ai-extension` | Workspace-relative folder for mission files and approval previews. |
+| `myAi.missions.diskStoreFolder` | string | `.my-ai-extension` | Workspace-relative folder for portable mission JSON (`missions/*.json`), approval previews, tool-result spills, MCP session file, global memory file, templates, and related artifacts. Does not replace extension globalState: the mission list still lives in VS Code globalState (`myAi.missions` key); see README “Mission persistence”. |
 | `myAi.missions.gitCheckpointBeforeImpl` | boolean | `false` | Automatically git-stash before implementer work items and restore on failure. Requires a git repository in the workspace. |
 | `myAi.missions.heartbeatSeconds` | number | `12` | Background runner heartbeat interval in seconds. |
 | `myAi.missions.markDeadLetterAfterRetryExhaustion` | boolean | `true` | When automatic retries are exhausted (or max is 0), mark the failed work item as dead letter, append operator guidance to output, and emit an error event. |
@@ -73,7 +73,7 @@ npm run docs:settings-inventory
 | `myAi.missions.minCompletedWorkItems` | number | `4` | Minimum completed work items before a closure-required mission may complete. |
 | `myAi.missions.pauseAfterEachValidator` | boolean | `false` | When true, after each validator work item completes successfully, pause the mission (awaiting_input) until the operator runs Autonomous Factory: Resume Mission. |
 | `myAi.missions.policyPreset` | string | `balanced` | Default closure policy preset for new missions. |
-| `myAi.missions.portableJson` | boolean | `true` | Persist missions as portable JSON files under the workspace folder. |
+| `myAi.missions.portableJson` | boolean | `true` | When true, each mission is also written under diskStoreFolder/missions/<id>.json on every change (for backup, git, multi-window merge on hydrate). When false, those writes are skipped but deleting a mission still removes an existing file to avoid stale re-import. The in-editor mission list remains in globalState either way. |
 | `myAi.missions.preBlueprintClarification` | boolean | `false` | When blueprint mode is on, run one planner pass first that outputs structured clarification questions; operator answers in the missions inspector (or command), then blueprint JSON is generated with Q&A in context. |
 | `myAi.missions.requireBlueprintApproval` | boolean | `true` | Pause after blueprint generation until operator approves (when blueprintMode is on). |
 | `myAi.missions.requireImplementerBeforeComplete` | boolean | `true` | Require at least one implementer step before closure-required missions can complete. |
@@ -91,7 +91,7 @@ npm run docs:settings-inventory
 | `myAi.missions.trustGates.manyModifiedFilesThreshold` | number | `12` | Mission filesModified count at or above which large patches trigger the trust gate (when enabled). |
 | `myAi.missions.verification.autoRunLinterAfterMutations` | boolean | `true` | When true, balanced/strict mission policy automatically runs the linter after implementer mutations (Verifier Mesh obligation). |
 | `myAi.missions.verification.autoRunTestsAfterMutations` | boolean | `true` | When true, balanced/strict mission policy automatically runs tests after implementer mutations (Verifier Mesh obligation). |
-| `myAi.models.anthropic` | string | `claude-sonnet-4-6` | Default Claude model id for the Anthropic provider. |
+| `myAi.models.anthropic` | string | `claude-sonnet-4-6` | Default Claude model id for the Anthropic provider (alias ids such as claude-sonnet-4-6 follow Anthropic docs). |
 | `myAi.models.gemini` | string | `gemini-1.5-flash` | Default Gemini model id. |
 | `myAi.models.ollama` | string | `llama3.1` | Default model when the Ollama provider is selected. |
 | `myAi.models.openai` | string | `gpt-4.1-mini` | Default model when the OpenAI provider is selected. |
@@ -123,6 +123,7 @@ npm run docs:settings-inventory
 | `myAi.tools.requireApprovalForHttp` | boolean | `true` | Require approval before httpRequest tool calls. |
 | `myAi.tools.requireApprovalForInWorkspaceWrites` | boolean | `true` | When true (default), workspace-path writeFile/applyPatch also require approval. Set false to allow autonomous in-workspace writes while restrictToWorkspace keeps paths bounded. |
 | `myAi.tools.requireApprovalForMcp` | boolean | `true` | Require approval before MCP tool calls. |
+| `myAi.tools.requireApprovalForNonImplementerMutations` | boolean | `true` | When true (default), mutating tools (e.g. runCommand, runTerminal, MCP writes) invoked from a non-implementer work item (researcher, reviewer, …) require operator approval in addition to normal write/terminal policy. Set false to rely only on requireApprovalForWrite, requireApprovalForTerminal, and TrustPolicyEngine. |
 | `myAi.tools.requireApprovalForTerminal` | boolean | `true` | Require approval before runTerminal tool calls. |
 | `myAi.tools.requireApprovalForWrite` | boolean | `true` | When true, mutating writeFile/applyPatch calls require operator approval before the tool runs (subject to requireApprovalForInWorkspaceWrites for paths inside the workspace). |
 | `myAi.tools.restrictToWorkspace` | boolean | `true` | Restrict file tools to workspace-contained paths. |

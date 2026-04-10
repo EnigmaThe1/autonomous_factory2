@@ -101,7 +101,7 @@ export const MISSION_BLOCK_REASON_NOTE_PRIMARY = Object.freeze({
   approval_rejected: EXACT_BLOCKER_NOTES["Tool request rejected"].primary,
   approval_pending: "Awaiting your approval — open the Approvals tab to continue.",
   approval_gate_stale:
-    "A work item still shows approval-pending, but nothing is listed under Approvals — state may be stale. Open Focus, inspect the blocked implementer row and Timeline; reset the work item or fix the queue, then Resume.",
+    "A work item still shows approval-pending, but nothing is listed under Approvals — state may be stale. Click Resume on the mission card (or Command Palette → Autonomous Factory: Resume Mission) to clear the stale flag and re-queue that step; inspect Timeline if it stalls again.",
   stall_recovery_limit: EXACT_BLOCKER_NOTES["Mission exceeded automatic recovery attempts"].primary,
   generic_blocked: "Blocked — review mission details and queue before continuing."
 });
@@ -156,6 +156,14 @@ export function getMissionResumeUiState(m) {
   if (status === "awaiting_input") {
     if (pendingApprovals > 0) {
       return { enabled: false, label: "Awaiting approval", title: "Open Approvals to continue this mission." };
+    }
+    if (code === "approval_gate_stale") {
+      return {
+        enabled: true,
+        label: "Resume",
+        title:
+          "Approvals list is empty but a work item is stuck in approval-pending. Resume clears that stale flag and re-queues the step to try again."
+      };
     }
     return { enabled: false, label: "Awaiting input", title: "Provide the required operator input before continuing." };
   }

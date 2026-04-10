@@ -32,6 +32,25 @@ test("recoverInterruptedQueueItems keeps non-running items unchanged", () => {
   assert.deepEqual(recovered.queue, queue);
 });
 
+test("recoverInterruptedQueueItems requeues running work when active tool marker is read-only (fileTree)", () => {
+  const queue: WorkItem[] = [
+    {
+      id: "w1",
+      title: "A",
+      role: "implementer",
+      status: "running",
+      prompt: "p1",
+      activeMutatingToolCall: { tool: "fileTree", startedAt: 123 }
+    }
+  ];
+  const recovered = recoverInterruptedQueueItems(queue);
+  assert.equal(recovered.recoveredCount, 1);
+  assert.equal(recovered.replayRiskCount, 0);
+  assert.equal(recovered.queue[0].status, "todo");
+  assert.equal(recovered.queue[0].activeMutatingToolCall, undefined);
+  assert.match(recovered.queue[0].output || "", /read-only/i);
+});
+
 test("recoverInterruptedQueueItems blocks replay when interrupted running work has active mutating tool marker", () => {
   const queue: WorkItem[] = [
     {
@@ -49,6 +68,62 @@ test("recoverInterruptedQueueItems blocks replay when interrupted running work h
   assert.equal(recovered.queue[0].status, "blocked");
   assert.equal(recovered.queue[0].hardStopClass, "unknown_hard_stop");
   assert.match(recovered.queue[0].output || "", /manual review/i);
+});
+
+test("recoverInterruptedQueueItems requeues runCommand when commandPreview is read-only probe", () => {
+  const queue: WorkItem[] = [
+    {
+      id: "w1",
+      title: "A",
+      role: "reviewer",
+      status: "running",
+      prompt: "p1",
+      activeMutatingToolCall: {
+        tool: "runCommand",
+        commandPreview: "ls -d docs/autonomy_factory_stress_test*",
+        startedAt: 123
+      }
+    }
+  ];
+  const recovered = recoverInterruptedQueueItems(queue);
+  assert.equal(recovered.recoveredCount, 1);
+  assert.equal(recovered.replayRiskCount, 0);
+  assert.equal(recovered.queue[0].status, "todo");
+  assert.equal(recovered.queue[0].activeMutatingToolCall, undefined);
+  assert.match(recovered.queue[0].output || "", /read-only probe heuristics/i);
+});
+
+test("recoverInterruptedQueueItems blocks runCommand without commandPreview (legacy)", () => {
+  const queue: WorkItem[] = [
+    {
+      id: "w1",
+      title: "A",
+      role: "implementer",
+      status: "running",
+      prompt: "p1",
+      activeMutatingToolCall: { tool: "runCommand", startedAt: 123 }
+    }
+  ];
+  const recovered = recoverInterruptedQueueItems(queue);
+  assert.equal(recovered.recoveredCount, 0);
+  assert.equal(recovered.replayRiskCount, 1);
+  assert.equal(recovered.queue[0].status, "blocked");
+});
+
+test("recoverInterruptedQueueItems blocks runCommand when preview looks mutating", () => {
+  const queue: WorkItem[] = [
+    {
+      id: "w1",
+      title: "A",
+      role: "implementer",
+      status: "running",
+      prompt: "p1",
+      activeMutatingToolCall: { tool: "runCommand", commandPreview: "mkdir -p x", startedAt: 123 }
+    }
+  ];
+  const recovered = recoverInterruptedQueueItems(queue);
+  assert.equal(recovered.recoveredCount, 0);
+  assert.equal(recovered.replayRiskCount, 1);
 });
 
 test("requeueOperatorStreamAbortedWorkItems only touches operator stream abort blocked items", () => {

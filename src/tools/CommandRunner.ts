@@ -1,5 +1,19 @@
 import * as child_process from "child_process";
+import * as fs from "fs";
 import * as vscode from "vscode";
+
+const BASH_CANDIDATES = ["/bin/bash", "/usr/bin/bash"] as const;
+
+function firstExistingBash(): string | null {
+  for (const p of BASH_CANDIDATES) {
+    try {
+      if (fs.existsSync(p)) return p;
+    } catch {
+      /* ignore */
+    }
+  }
+  return null;
+}
 
 export interface CommandRunnerOptions {
   command: string;
@@ -37,6 +51,11 @@ function truncateOutput(raw: string, maxBytes: number): string {
  * Unlike `runTerminal` (which fires into a VS Code terminal with no output
  * capture), this uses `child_process.spawn` so the agent can actually read
  * the command's output and react to it.
+ *
+ * On Linux/macOS, commands run under `/bin/bash -c` by default (see
+ * `myAi.tools.runCommandUnixShell`) so bash-only syntax such as `function`
+ * works; Node's `shell: true` would otherwise use `/bin/sh` (often dash),
+ * which exits 2 on those constructs.
  */
 export function runCommand(opts: CommandRunnerOptions): Promise<CommandRunnerResult> {
   const cfg = vscode.workspace.getConfiguration();
@@ -45,18 +64,30 @@ export function runCommand(opts: CommandRunnerOptions): Promise<CommandRunnerRes
   const workspaceRoot = vscode.workspace.workspaceFolders?.[0]?.uri.fsPath;
   const cwd = opts.cwd || workspaceRoot || process.cwd();
 
+  const unixShellMode = cfg.get<string>("myAi.tools.runCommandUnixShell", "bash");
+  const bashPath =
+    process.platform !== "win32" && unixShellMode !== "posix" ? firstExistingBash() : null;
+
   return new Promise((resolve) => {
     const start = Date.now();
     let timedOut = false;
     let killed = false;
 
-    const proc = child_process.spawn(opts.command, {
-      cwd,
-      shell: true,
-      detached: true,
-      env: { ...process.env, ...opts.env },
-      stdio: ["pipe", "pipe", "pipe"],
-    });
+    const proc =
+      bashPath
+        ? child_process.spawn(bashPath, ["-c", opts.command], {
+            cwd,
+            detached: true,
+            env: { ...process.env, ...opts.env },
+            stdio: ["pipe", "pipe", "pipe"],
+          })
+        : child_process.spawn(opts.command, {
+            cwd,
+            shell: true,
+            detached: true,
+            env: { ...process.env, ...opts.env },
+            stdio: ["pipe", "pipe", "pipe"],
+          });
 
     const stdoutChunks: Buffer[] = [];
     const stderrChunks: Buffer[] = [];
