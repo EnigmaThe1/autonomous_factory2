@@ -222,6 +222,8 @@ The extension had no pre-existing `IMPLEMENTATION_LEDGER.md`. This file is the c
 - `npm run compile` — PASS  
 - `npm test` — PASS (full log under evidence pack `07_validation/`).
 
+**Checkpoint commit:** `efe650b` — `[Phase 7][P7-T-001] Structured review/validator outcomes, routing, closure hardening`
+
 **Follow-ups**
 
 - Optional mission-level fields for last structured review/validation outcome; UI surfacing; docs refresh for new line protocols.
