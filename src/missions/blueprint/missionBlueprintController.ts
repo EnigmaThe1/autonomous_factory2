@@ -3,9 +3,10 @@
  * Planner remains the agent that emits blueprint JSON; this module owns host-side orchestration policy.
  */
 
-import type { MissionEvent, WorkItem } from "../../types";
+import type { WorkItem } from "../../types";
 import type { MissionBlueprint } from "../missionBlueprintTypes";
 import { validateBlueprintReadinessForApproval, type BlueprintReadinessVerdict } from "../blueprintReadinessGate";
+import { classifyBlueprintFailure } from "../failure";
 import { readinessMessageText } from "../orchestrator/orchestratorLeafHelpers";
 import { effectiveRequireBlueprintApproval, type MissionBlueprintMode } from "../missionBlueprintMode";
 import type { MissionStore } from "../MissionStore";
@@ -129,8 +130,16 @@ export async function finalizeParsedBlueprint(args: {
   const readiness = validateBlueprintReadinessForApproval(args.bp);
 
   if (!readiness.ok) {
+    const sfReadiness = classifyBlueprintFailure(readiness.report.errors);
     const revisionUnderCap = args.blueprintRevisionCount < args.maxBlueprintRevisions;
     const r = planReadinessFailureOutcome({ mode: args.mode, revisionUnderCap });
+    await args.store.saveEvent(args.missionId, {
+      level: "warn",
+      source: "blueprint-readiness",
+      telemetryKind: "recovery_attempt",
+      message: `Blueprint readiness failure classified: ${sfReadiness.class} (${sfReadiness.code}) → ${r}`,
+      data: { structuredFailure: sfReadiness, readinessOutcome: r }
+    });
     if (r === "schedule_revision") {
       const msg = `Blueprint readiness errors; scheduling revision.\n${readinessMessageText(readiness)}`;
       await args.store.saveEvent(args.missionId, { level: "warn", source: "blueprint-readiness", message: msg });

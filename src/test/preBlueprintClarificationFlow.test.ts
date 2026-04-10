@@ -28,7 +28,7 @@ const blueprintModelText = `Here is the plan:\n\`\`\`json\n${JSON.stringify({
 })}\n\`\`\``;
 
 test("preBlueprintClarification: clarify gate then submit enqueues blueprint awaiting approval", async () => {
-  (vscode as VscodeTestApi).__setTestConfig?.("myAi.missions.blueprintMode", true);
+  (vscode as VscodeTestApi).__setTestConfig?.("myAi.missions.blueprintMode", "hard");
   (vscode as VscodeTestApi).__setTestConfig?.("myAi.missions.preBlueprintClarification", true);
   (vscode as VscodeTestApi).__setTestConfig?.("myAi.missions.requireBlueprintApproval", true);
   (vscode as VscodeTestApi).__setTestConfig?.("myAi.missions.maxStepsPerRun", 24);

@@ -174,3 +174,28 @@ The extension had no pre-existing `IMPLEMENTATION_LEDGER.md`. This file is the c
 **Follow-ups**
 
 - Optional refactor: shared `pickNextRunnable` helper; consider not counting pure `continue` empty-queue iterations as steps toward `maxStepsPerRun`.
+
+## Phase 6 — Blueprint controller & enum modes (2026-04-10)
+
+**Status:** DONE
+
+**What changed**
+
+- `missionBlueprintMode.ts` + `blueprint/missionBlueprintController.ts`: `off` / `soft` / `hard`; soft parse/readiness exhaustion → dynamic decomposition; hard honors `requireBlueprintApproval` before synthesis.
+- `missionOrchestratorWorkItemRunner.ts`: blueprint planner path uses `planBlueprintParseFailureOutcome`, `buildBlueprintParseRecoveryWorkItem`, `buildDynamicDecompositionPlannerItem`, `finalizeParsedBlueprint` (removed inline readiness duplicate).
+- `finalizeParsedBlueprint`: readiness errors logged via **`classifyBlueprintFailure`** + `recovery_attempt` telemetry.
+- `package.json`: `myAi.missions.blueprintMode` **`oneOf`** string enum + legacy boolean.
+- Tests: `src/test/missionBlueprintController.integration.test.ts`; `preBlueprintClarificationFlow.test.ts` uses **`hard`** when testing approval gate.
+
+**Evidence pack (local, `.dev/` gitignored)**
+
+- `autonomous_factory/.dev/docs/_autogen/refactoring/refactoring__2026_04_10__AF_Autonomy_Phase6_Blueprint_Controller/` (`02_code_map`, `04_findings/BLOCKER_DIRTY_TREE.md`, `05_decisions`, `07_validation/01_blueprint_tests.txt`, `08_final_report/FINAL_REPORT.md`).
+
+**Validation**
+
+- `npm run typecheck` — PASS  
+- `npm test` — PASS (full log under evidence pack `07_validation/`).
+
+**Follow-ups**
+
+- Align operator docs / webview copy with `soft` vs `hard` semantics; optional `MYAI_SETTINGS_INVENTORY.md` refresh.

@@ -25,7 +25,6 @@ import { shouldEnqueueReviewerAutoRemediation } from "../reviewerRemediationPoli
 import { computePlannerCoverageItems } from "../missionClosurePolicy";
 import { parseBlueprintModelOutput } from "../blueprintParser";
 import { parsePreBlueprintClarificationOutput } from "../preBlueprintClarificationParser";
-import { validateBlueprintReadinessForApproval } from "../blueprintReadinessGate";
 import { findStaleResearchEvidenceMemories, formatResearchEvidenceFinding } from "../researchEvidence";
 import { findDuplicateQueryResearchContradictions } from "../researchContradiction";
 import { applyBlueprintStepStatusFromWorkItem } from "../blueprintStepSync";
@@ -57,8 +56,7 @@ import {
   checkpointSummaryForTerminalWorkItem,
   flattenSubItems,
   isPotentiallyMutatingToolCall,
-  mutatingToolTarget,
-  readinessMessageText
+  mutatingToolTarget
 } from "./orchestratorLeafHelpers";
 import { normalizeBlueprintModeSetting } from "../missionBlueprintMode";
 import {
@@ -1521,7 +1519,13 @@ export class MissionOrchestratorWorkItemRunner {
             recoveryStreak: stBp.streak
           }
         });
-        if (decBp.route === "replan" && (mission.blueprintRevisionCount || 0) < maxRevBp) {
+        const recoveryReplanAllowed =
+          decBp.route === "replan" && (mission.blueprintRevisionCount || 0) < maxRevBp;
+        const parseOutcome = planBlueprintParseFailureOutcome({
+          mode: blueprintMissionMode,
+          recoveryReplanAllowed
+        });
+        if (parseOutcome === "replan") {
           await this.host.updateWorkItemWithHardStopInvariant(mission.id, item, {
             status: "failed",
             output: parsed.errors.join("\n")
@@ -1533,21 +1537,30 @@ export class MissionOrchestratorWorkItemRunner {
             blockReasonCode: undefined
           });
           await this.host.store.enqueue(mission.id, [
-            {
-              id: uid("work"),
-              title: "Mission blueprint (parse recovery revision)",
-              role: "planner",
-              status: "todo",
-              workItemPurpose: "blueprint_revise",
-              prompt: [
-                "Revise the full mission blueprint as structured JSON.",
-                "The previous blueprint output failed parser validation with:",
-                parsed.errors.join("; ").slice(0, 8000),
-                "",
-                "Prior model output (reference, may be invalid JSON):",
-                result.summary.slice(0, 12_000)
-              ].join("\n\n")
-            }
+            buildBlueprintParseRecoveryWorkItem(uid("work"), parsed.errors, result.summary)
+          ]);
+          await this.host.store.noteProgress(mission.id);
+          return "continue";
+        }
+        if (parseOutcome === "soft_fallback") {
+          await this.host.updateWorkItemWithHardStopInvariant(mission.id, item, {
+            status: "failed",
+            output: parsed.errors.join("\n")
+          });
+          await this.host.store.saveEvent(mission.id, {
+            level: "warn",
+            source: "blueprint",
+            message: "Blueprint parse failed after recovery budget; falling back to dynamic decomposition (soft mode)."
+          });
+          await this.host.store.updateMission(mission.id, {
+            blueprint: undefined,
+            status: "queued",
+            blocker: undefined,
+            blockReasonCode: undefined
+          });
+          const mDyn = this.host.store.get(mission.id)!;
+          await this.host.store.enqueue(mission.id, [
+            buildDynamicDecompositionPlannerItem(uid("work"), mDyn.prompt)
           ]);
           await this.host.store.noteProgress(mission.id);
           return "continue";
@@ -1566,74 +1579,24 @@ export class MissionOrchestratorWorkItemRunner {
       }
 
       const bp = parsed.blueprint;
-      const requireApproval = vscode.workspace.getConfiguration().get<boolean>("myAi.missions.requireBlueprintApproval", true);
       result = { ...result, nextWorkItems: [] };
 
-      if (requireApproval) {
-        const readiness = validateBlueprintReadinessForApproval(bp);
-        if (!readiness.ok) {
-          const maxRev = vscode.workspace.getConfiguration().get<number>("myAi.missions.maxBlueprintRevisions", 3);
-          if ((mission.blueprintRevisionCount || 0) >= maxRev) {
-            const msg = `Blueprint readiness errors (revision limit reached):\n${readinessMessageText(readiness)}`;
-            await this.host.store.updateMission(mission.id, {
-              blueprint: { ...bp, status: "awaiting_approval" },
-              status: "awaiting_input",
-              blocker: "Blueprint has readiness errors and cannot be auto-revised further. Use Request Blueprint Revision or adjust the mission goal.",
-              blockReasonCode: "manual_review_required"
-            });
-            await this.host.store.saveEvent(mission.id, { level: "warn", source: "blueprint-readiness", message: msg });
-            blueprintAwaitingApproval = true;
-          } else {
-            const msg = `Blueprint readiness errors; scheduling revision.\n${readinessMessageText(readiness)}`;
-            await this.host.store.saveEvent(mission.id, { level: "warn", source: "blueprint-readiness", message: msg });
-            await this.host.store.updateMission(mission.id, {
-              blueprint: { ...bp, status: "draft" },
-              blueprintRevisionCount: (mission.blueprintRevisionCount || 0) + 1,
-              status: "queued",
-              blocker: undefined,
-              blockReasonCode: undefined
-            });
-            const prior = JSON.stringify({
-              requirementsSummary: bp.requirementsSummary,
-              architectureSummary: bp.architectureSummary,
-              goalEndState: bp.goalEndState,
-              approachOptions: bp.approachOptions,
-              chosenApproach: bp.chosenApproach,
-              steps: bp.steps
-            });
-            await this.host.store.enqueue(mission.id, [
-              {
-                id: uid("work"),
-                title: "Mission blueprint (readiness revision)",
-                role: "planner",
-                status: "todo",
-                workItemPurpose: "blueprint_revise",
-                prompt:
-                  `Revise the full mission blueprint as structured JSON.\n\nReadiness report:\n${readinessMessageText(readiness)}\n\nPrior plan (reference): ${prior.slice(0, 12_000)}`
-              }
-            ]);
-          }
-        } else {
-          const msg = readiness.report.warnings.length
-            ? `Blueprint readiness warnings:\n${readinessMessageText(readiness)}`
-            : "";
-          if (msg) await this.host.store.saveEvent(mission.id, { level: "warn", source: "blueprint-readiness", message: msg });
-          bp.status = "awaiting_approval";
-          await this.host.store.updateMission(mission.id, { blueprint: bp });
-          blueprintAwaitingApproval = true;
-        }
-      } else {
-        bp.status = "approved";
-        bp.approvedAt = Date.now();
-        await this.host.store.updateMission(mission.id, { blueprint: bp });
-        await this.host.enqueueSynthesizedBlueprintWork(mission.id);
-        await this.host.addBlueprintMemoryMirror(mission.id);
-        await this.host.store.saveEvent(mission.id, {
-          level: "info",
-          source: "blueprint",
-          message: "Blueprint auto-approved; synthesized work queue from blueprint."
-        });
-      }
+      const maxBlueprintRevisions = vscode.workspace.getConfiguration().get<number>("myAi.missions.maxBlueprintRevisions", 3);
+      const requireBlueprintApprovalFromConfig = vscode.workspace
+        .getConfiguration()
+        .get<boolean>("myAi.missions.requireBlueprintApproval", true);
+      const fin = await finalizeParsedBlueprint({
+        store: this.host.store,
+        missionId: mission.id,
+        mode: blueprintMissionMode,
+        bp,
+        blueprintRevisionCount: mission.blueprintRevisionCount || 0,
+        maxBlueprintRevisions,
+        requireBlueprintApprovalFromConfig,
+        enqueueSynthesizedBlueprintWork: (mid) => this.host.enqueueSynthesizedBlueprintWork(mid),
+        addBlueprintMemoryMirror: (mid) => this.host.addBlueprintMemoryMirror(mid)
+      });
+      blueprintAwaitingApproval = fin.blueprintAwaitingApproval;
     }
 
     if (result.nextWorkItems?.length) {

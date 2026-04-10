@@ -1084,9 +1084,18 @@
           "description": "Require planner-generated role coverage (implementer/reviewer/validator) before closure."
         },
         "myAi.missions.blueprintMode": {
-          "type": "boolean",
-          "default": false,
-          "description": "When true, new missions start with a full JSON blueprint planner pass; approve before synthesized work runs."
+          "default": "off",
+          "description": "Blueprint planning strategy: off (dynamic planner queue), soft (structured blueprint with bounded repair and optional fallback to dynamic decomposition), hard (structured blueprint; honor requireBlueprintApproval before synthesis). Legacy true maps to soft; false maps to off.",
+          "oneOf": [
+            {
+              "type": "string",
+              "enum": ["off", "soft", "hard"]
+            },
+            {
+              "type": "boolean",
+              "description": "Legacy: false = off, true = soft."
+            }
+          ]
         },
         "myAi.missions.preBlueprintClarification": {
           "type": "boolean",
