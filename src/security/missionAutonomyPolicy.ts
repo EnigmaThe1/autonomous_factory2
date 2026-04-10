@@ -18,8 +18,15 @@ import type {
 
 const CFG_PREFIX = "myAi.missions.autonomy.";
 
+function normalizeAutonomyMode(raw: string): AutonomyMode {
+  if (raw === "strict") return "strict";
+  if (raw === "workspace_autonomous") return "workspace_autonomous";
+  if (raw === "structured_autonomous") return "structured_autonomous";
+  return "workspace_coder";
+}
+
 export function loadMissionAutonomyPolicy(get: PolicyConfigGet): MissionAutonomyPolicy {
-  const mode = get<AutonomyMode>(`${CFG_PREFIX}mode`, "workspace_coder");
+  const mode = normalizeAutonomyMode(get<string>(`${CFG_PREFIX}mode`, "workspace_coder"));
   const blueprintPlanning = get<BlueprintPlanningMode>(`${CFG_PREFIX}blueprintPlanning`, "optional");
   const protectedPathGlobs = readStringArray(get, `${CFG_PREFIX}protectedPathGlobs`, []);
   const blockedPathGlobs = readStringArray(get, `${CFG_PREFIX}blockedPathGlobs`, []);
@@ -28,7 +35,7 @@ export function loadMissionAutonomyPolicy(get: PolicyConfigGet): MissionAutonomy
     extPol === "deny" ? "deny" : "require_approval";
 
   return {
-    mode: mode === "strict" ? "strict" : "workspace_coder",
+    mode,
     blueprintPlanning,
     autoApproveWorkspaceWrites: get<boolean>(`${CFG_PREFIX}autoApproveWorkspaceWrites`, true),
     autoApproveWorkspaceDeletes: get<boolean>(`${CFG_PREFIX}autoApproveWorkspaceDeletes`, true),

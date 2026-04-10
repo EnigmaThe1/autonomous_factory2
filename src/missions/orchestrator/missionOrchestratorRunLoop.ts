@@ -1,5 +1,5 @@
 import * as vscode from "vscode";
-import type { RunMissionPassOutcome } from "../missionActionResult";
+import type { MissionRunPassStopReason, RunMissionPassOutcome } from "../missionActionResult";
 import type { Mission, WorkItem } from "../../types";
 import { uid } from "../../util";
 import { resolveCompletionReasonForCompletedMission } from "../alreadySatisfiedWorkItem";
@@ -33,6 +33,8 @@ export interface RunLoopHost {
   inFlightRunPass: Map<string, { done: Promise<void>; finish: () => void }>;
   pendingCompletionReason: Map<string, NonNullable<Mission["completionReason"]>>;
   workItemRunner: MissionOrchestratorWorkItemRunner;
+  /** Queue normalization before picking work / before empty-queue terminal resolution (Phase 5). */
+  normalizeQueueBeforeRunStep(missionId: string): Promise<void>;
   onMissionTerminal?: (missionId: string, status: string) => void;
   updateWorkItemWithHardStopInvariant(
     missionId: string,
@@ -171,13 +173,17 @@ export class MissionOrchestratorRunLoop {
         mission = this.host.store.get(id);
         if (!mission) return this.runPassOutcomeAfterStoreRead(id);
 
+        await this.host.normalizeQueueBeforeRunStep(id);
+        mission = this.host.store.get(id);
+        if (!mission) return this.runPassOutcomeAfterStoreRead(id);
+
         if (mission.status === "cancelled") {
           this.host.abortMissionWork(id);
-          return this.runPassOutcomeAfterStoreRead(id);
+          return this.runPassOutcomeAfterStoreRead(id, "cancelled");
         }
 
         if (mission.status === "awaiting_input") {
-          return this.runPassOutcomeAfterStoreRead(id);
+          return this.runPassOutcomeAfterStoreRead(id, "awaiting_input_mission_status");
         }
 
         const effectiveMaxRounds = computeEffectiveMaxAutoRounds(mission, vscode.workspace.getConfiguration());
@@ -190,10 +196,10 @@ export class MissionOrchestratorRunLoop {
             blockReasonCode: "max_auto_rounds"
           });
           await this.host.store.updateRuntime(id, { loopGuardTrips: (mission.runtime?.loopGuardTrips || 0) + 1 });
-          return this.runPassOutcomeAfterStoreRead(id);
+          return this.runPassOutcomeAfterStoreRead(id, "max_auto_rounds");
         }
 
-        if (await this.tryCollapseMissionToCompleted(id)) return this.runPassOutcomeAfterStoreRead(id);
+        if (await this.tryCollapseMissionToCompleted(id)) return this.runPassOutcomeAfterStoreRead(id, "terminal_completed");
 
         const pendingApproval = mission.approvals.find((a) => a.status === "pending");
         if (pendingApproval) {
@@ -202,7 +208,7 @@ export class MissionOrchestratorRunLoop {
             blocker: pendingApproval.title,
             blockReasonCode: "approval_pending"
           });
-          return this.runPassOutcomeAfterStoreRead(id);
+          return this.runPassOutcomeAfterStoreRead(id, "awaiting_input_pending_approval");
         }
 
         const gate = classifyImplementerHardStopDownstreamGate(mission);
@@ -222,15 +228,27 @@ export class MissionOrchestratorRunLoop {
         );
 
         if (!next) {
-          const emptyQueueResult = await this.handleEmptyQueue(id, mission, gate);
+          await this.host.normalizeQueueBeforeRunStep(id);
+          const missionForEmpty = this.host.store.get(id)!;
+          const gateForEmpty = classifyImplementerHardStopDownstreamGate(missionForEmpty);
+          await this.host.noteMalformedImplementerHardStopEvent(id, missionForEmpty, gateForEmpty);
+          const emptyQueueResult = await this.handleEmptyQueue(id, missionForEmpty, gateForEmpty);
           if (emptyQueueResult === "continue") continue;
-          return this.runPassOutcomeAfterStoreRead(id);
+          const mTerm = this.host.store.get(id)!;
+          const emptySr = this.stopReasonAfterMissionUpdate(mTerm);
+          return this.runPassOutcomeAfterStoreRead(id, emptySr);
         }
 
         const outcome = await this.host.workItemRunner.runWorkItem(mission, next);
         const latest = this.host.store.get(id)!;
         await this.host.store.updateMission(id, { roundsCompleted: (latest.roundsCompleted || 0) + 1 });
-        if (outcome === "awaiting_input" || outcome === "blocked") return this.runPassOutcomeAfterStoreRead(id);
+        const progressed = latest.queue.find((w) => w.id === next.id);
+        if (progressed?.status === "done" || progressed?.status === "skipped") {
+          await this.host.store.updateRuntime(id, { autonomousStepCapChainCount: 0 });
+        }
+        if (outcome === "awaiting_input" || outcome === "blocked") {
+          return this.runPassOutcomeAfterStoreRead(id, "work_item_awaiting_input_or_blocked");
+        }
 
         const maxRetries = vscode.workspace.getConfiguration().get<number>("myAi.missions.maxAutoRetries", 2);
         const markDeadLetterAfterRetries = vscode.workspace
@@ -253,9 +271,49 @@ export class MissionOrchestratorRunLoop {
           }
         }
 
-        if (await this.tryCollapseMissionToCompleted(id)) return this.runPassOutcomeAfterStoreRead(id);
+        if (await this.tryCollapseMissionToCompleted(id)) return this.runPassOutcomeAfterStoreRead(id, "terminal_completed");
       }
 
+      /**
+       * Step cap: the for-loop exits when `step === maxSteps` without another header iteration, so the
+       * mission can sit with no eligible `next` while all work is already done. Normalize + try terminal
+       * resolution once before treating this as a bounded pass boundary (Phase 5 + correctness).
+       */
+      await this.host.normalizeQueueBeforeRunStep(id);
+      if (await this.tryCollapseMissionToCompleted(id)) {
+        return this.runPassOutcomeAfterStoreRead(id, "terminal_completed");
+      }
+      let missionPost = this.host.store.get(id);
+      if (!missionPost) return this.runPassOutcomeAfterStoreRead(id);
+      const gatePost = classifyImplementerHardStopDownstreamGate(missionPost);
+      await this.host.noteMalformedImplementerHardStopEvent(id, missionPost, gatePost);
+      const allowRolePost = (role: WorkItem["role"]): boolean => {
+        if (role === "implementer" || role === "planner" || role === "architect") return true;
+        if (role === "researcher" && gatePost.gate && gatePost.failureClass === "tool_failure") return true;
+        return false;
+      };
+      const nextPost = missionPost.queue.find(
+        (w) =>
+          isRunnableWorkItemStatus(w.status) &&
+          this.dependenciesMet(missionPost, w) &&
+          (!gatePost.gate || allowRolePost(w.role))
+      );
+      if (!nextPost) {
+        await this.host.normalizeQueueBeforeRunStep(id);
+        const missionForCapEmpty = this.host.store.get(id)!;
+        const gateForCapEmpty = classifyImplementerHardStopDownstreamGate(missionForCapEmpty);
+        await this.host.noteMalformedImplementerHardStopEvent(id, missionForCapEmpty, gateForCapEmpty);
+        const emptyAtCap = await this.handleEmptyQueue(id, missionForCapEmpty, gateForCapEmpty);
+        if (emptyAtCap === "terminal") {
+          const mTerm = this.host.store.get(id)!;
+          return this.runPassOutcomeAfterStoreRead(id, this.stopReasonAfterMissionUpdate(mTerm));
+        }
+      }
+
+      const snapCap = this.host.store.get(id)!;
+      await this.host.store.updateRuntime(id, {
+        autonomousStepCapChainCount: (snapCap.runtime?.autonomousStepCapChainCount ?? 0) + 1
+      });
       await this.host.store.saveEvent(id, {
         level: "warn",
         source: "orchestrator",
@@ -263,7 +321,7 @@ export class MissionOrchestratorRunLoop {
       });
       this.host.pendingCompletionReason.delete(id);
       await this.host.store.updateMission(id, { status: "queued", blockReasonCode: undefined });
-      return this.runPassOutcomeAfterStoreRead(id);
+      return this.runPassOutcomeAfterStoreRead(id, "max_steps_per_run");
     } catch (err) {
       this.host.pendingCompletionReason.delete(id);
       const detail = err instanceof Error ? err.stack || err.message : String(err);
@@ -302,7 +360,7 @@ export class MissionOrchestratorRunLoop {
         source: "orchestrator",
         message: detail
       });
-      return this.runPassOutcomeAfterStoreRead(id);
+      return this.runPassOutcomeAfterStoreRead(id, "terminal_failed");
     } finally {
       const pass = this.host.inFlightRunPass.get(id);
       this.host.running.delete(id);
@@ -315,10 +373,20 @@ export class MissionOrchestratorRunLoop {
     }
   }
 
-  private runPassOutcomeAfterStoreRead(missionId: string): RunMissionPassOutcome {
+  private stopReasonAfterMissionUpdate(m: Mission): MissionRunPassStopReason {
+    if (m.status === "completed") return "terminal_completed";
+    if (m.status === "failed") return "terminal_failed";
+    if (m.status === "cancelled") return "cancelled";
+    if (m.status === "awaiting_input") return "awaiting_input_mission_status";
+    return "terminal_blocked";
+  }
+
+  private runPassOutcomeAfterStoreRead(missionId: string, stopReason?: MissionRunPassStopReason): RunMissionPassOutcome {
     const m = this.host.store.get(missionId);
     if (!m) return { kind: "noop_missing_mission", missionId };
-    return { kind: "ran_pass", missionId, statusAfterPass: m.status };
+    return stopReason
+      ? { kind: "ran_pass", missionId, statusAfterPass: m.status, stopReason }
+      : { kind: "ran_pass", missionId, statusAfterPass: m.status };
   }
 
   private async markDeadLetterAfterRetryExhaustion(

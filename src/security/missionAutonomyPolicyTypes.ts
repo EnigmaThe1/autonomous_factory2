@@ -3,8 +3,16 @@
  * Evaluator: missionAutonomyPolicy.ts — wired through TrustPolicyEngine + ToolRegistry.
  */
 
-/** Operator-facing autonomy preset: strict mirrors legacy approval-heavy defaults. */
-export type AutonomyMode = "strict" | "workspace_coder";
+/**
+ * Operator-facing autonomy preset:
+ * - strict: legacy approval-heavy defaults
+ * - workspace_coder / workspace_autonomous / structured_autonomous: workspace-trust tool policy (non-strict); runner may auto-chain passes in autonomous presets (see missionRunnerAutonomy)
+ */
+export type AutonomyMode =
+  | "strict"
+  | "workspace_coder"
+  | "workspace_autonomous"
+  | "structured_autonomous";
 
 /**
  * Blueprint as planning strategy (settings / UX); mission-level blueprint still uses myAi.missions.blueprintMode.

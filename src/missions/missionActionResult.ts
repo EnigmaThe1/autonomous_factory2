@@ -1,5 +1,18 @@
 import type { Mission, MissionStatus } from "../types";
 
+/** Why a `runMission` pass ended (Phase 5 runner observability + autonomous chaining). */
+export type MissionRunPassStopReason =
+  | "max_steps_per_run"
+  | "awaiting_input_pending_approval"
+  | "awaiting_input_mission_status"
+  | "work_item_awaiting_input_or_blocked"
+  | "terminal_completed"
+  | "terminal_blocked"
+  | "terminal_failed"
+  | "cancelled"
+  | "max_auto_rounds"
+  | "natural_pause";
+
 /**
  * Result of awaiting a `runMission` pass for this invocation: either this call ran a pass to its
  * natural end, joined another caller’s in-flight pass, or found no mission.
@@ -7,7 +20,12 @@ import type { Mission, MissionStatus } from "../types";
  */
 export type RunMissionPassOutcome =
   | { kind: "joined_in_flight_pass"; missionId: string }
-  | { kind: "ran_pass"; missionId: string; statusAfterPass: MissionStatus }
+  | {
+      kind: "ran_pass";
+      missionId: string;
+      statusAfterPass: MissionStatus;
+      stopReason?: MissionRunPassStopReason;
+    }
   | { kind: "noop_missing_mission"; missionId: string };
 
 /**

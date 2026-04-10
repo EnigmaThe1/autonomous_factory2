@@ -495,8 +495,15 @@
         "myAi.missions.autonomy.mode": {
           "type": "string",
           "default": "workspace_coder",
-          "enum": ["strict", "workspace_coder"],
-          "description": "Mission tool autonomy: workspace_coder auto-allows ordinary in-workspace file/shell actions per the autoApprove* settings; strict mirrors legacy approval-heavy behavior (also honors myAi.tools.requireApprovalForInWorkspaceWrites / requireApprovalForTerminal)."
+          "enum": ["strict", "workspace_coder", "workspace_autonomous", "structured_autonomous"],
+          "description": "Mission tool autonomy: workspace_coder / workspace_autonomous / structured_autonomous auto-allow ordinary in-workspace actions per autoApprove* settings and may auto-chain runMission passes after maxStepsPerRun; strict mirrors legacy approval-heavy behavior (also honors myAi.tools.requireApprovalForInWorkspaceWrites / requireApprovalForTerminal)."
+        },
+        "myAi.missions.autonomy.maxAutonomousStepCapChains": {
+          "type": "number",
+          "default": 2000,
+          "minimum": 1,
+          "maximum": 50000,
+          "description": "When autonomy mode allows it, cap how many consecutive maxStepsPerRun exits may auto-schedule another runMission pass without operator Resume (safety budget)."
         },
         "myAi.missions.autonomy.blueprintPlanning": {
           "type": "string",

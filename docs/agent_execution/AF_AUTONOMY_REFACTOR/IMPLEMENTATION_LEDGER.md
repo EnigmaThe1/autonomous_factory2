@@ -145,3 +145,32 @@ The extension had no pre-existing `IMPLEMENTATION_LEDGER.md`. This file is the c
 **Follow-ups**
 
 - Optional MCP read-vs-write classification; harness scripts for explicit validator-BLOCKER + multi-replan ordering assertions.
+
+## Phase 5 — Mission runner: autonomous pass chaining & stop reasons (2026-04-10)
+
+**Status:** DONE
+
+**What changed**
+
+- `missionActionResult.ts`: `MissionRunPassStopReason`; `ran_pass` may carry `stopReason`.
+- `missionOrchestratorRunLoop.ts`: `RunLoopHost.normalizeQueueBeforeRunStep`; per-iteration normalize; empty-queue path uses fresh gate; classified returns; `autonomousStepCapChainCount` increment on step-cap exit and reset on work-item `done`/`skipped`; **step-cap terminal probe** (normalize → tryCollapse → handleEmptyQueue once) before emitting `max_steps_per_run`.
+- `MissionOrchestrator.ts`: `normalizeQueueBeforeRunStep` via `normalizeMissionQueueForRunner`; `runMission` chains with autonomy policy + `maxAutonomousStepCapChains`; blueprint `scheduleRunMission` → `o.runMission`.
+- `missionQueueNormalize.ts`: `collapseDuplicateRetryBranches` + structural `mutated` flag; **does not** call `reconcileStaleApprovalPendingHardStops` (preserves `approval_gate_stale` / awaiting_input semantics).
+- `missionRunnerAutonomy.ts`: `autonomyModeAutoChainsRunPasses`.
+- `types.ts`: `MissionRuntime.autonomousStepCapChainCount`.
+- `missionAutonomyPolicy*.ts`: `workspace_autonomous` / `structured_autonomous` mode normalization.
+- `package.json`: autonomy mode enum + `myAi.missions.autonomy.maxAutonomousStepCapChains`.
+- Tests: `missionRunnerAutonomousChain.integration.test.ts`.
+
+**Evidence pack**
+
+- `autonomous_factory/.dev/docs/_autogen/refactoring/refactoring__2026_04_10__AF_Autonomy_Phase5_Mission_Runner/` (`02_code_map`, `05_decisions`, `07_validation/01_mission_runner_tests.txt`, `08_final_report/FINAL_REPORT.md`).
+
+**Validation**
+
+- `npm run compile` — PASS  
+- `npm test` — PASS (full log under evidence pack `07_validation/`).
+
+**Follow-ups**
+
+- Optional refactor: shared `pickNextRunnable` helper; consider not counting pure `continue` empty-queue iterations as steps toward `maxStepsPerRun`.

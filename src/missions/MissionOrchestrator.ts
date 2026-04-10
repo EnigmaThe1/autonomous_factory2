@@ -14,8 +14,11 @@ import {
   recoverInterruptedQueueItems,
   requeueOperatorStreamAbortedWorkItems
 } from "./resumeRecovery";
-import { isActiveWorkItemStatus } from "./workItemLifecycle";
+import { isActiveWorkItemStatus, isRunnableWorkItemStatus } from "./workItemLifecycle";
 import { reconcileStaleApprovalPendingHardStops } from "./missionApprovalGateReconcile";
+import { normalizeMissionQueueForRunner } from "./missionQueueNormalize";
+import { autonomyModeAutoChainsRunPasses } from "./missionRunnerAutonomy";
+import { loadMissionAutonomyPolicy } from "../security/missionAutonomyPolicy";
 import { enforceClosurePolicy } from "./missionClosurePolicy";
 import type { MissionFileTracker } from "./MissionFileTracker";
 import type {
@@ -107,7 +110,7 @@ export class MissionOrchestrator {
       store: o.store,
       globalMemory: o.globalMemory,
       fileTracker: o.fileTracker,
-      scheduleRunMission: (missionId) => void runLoopRef.runMission(missionId)
+      scheduleRunMission: (missionId) => void o.runMission(missionId)
     });
     this.workItemRunner = new MissionOrchestratorWorkItemRunner(this.createWorkItemRunnerHost());
     this.runLoop = runLoopRef = new MissionOrchestratorRunLoop(this.createRunLoopHost());
@@ -393,8 +396,30 @@ export class MissionOrchestrator {
       noteMalformedImplementerHardStopEvent: (missionId, mission, gate) =>
         o.hardStopTelemetry.noteMalformedImplementerHardStopEvent(missionId, mission, gate),
       ensureClosurePolicy: (mission) => o.ensureClosurePolicy(mission),
-      abortMissionWork: (missionId) => o.abortMissionWork(missionId)
+      abortMissionWork: (missionId) => o.abortMissionWork(missionId),
+      normalizeQueueBeforeRunStep: (missionId) => o.normalizeQueueBeforeRunStep(missionId)
     };
+  }
+
+  private async normalizeQueueBeforeRunStep(missionId: string): Promise<void> {
+    const m = this.store.get(missionId);
+    if (!m) return;
+    const { queue, staleApprovalIds, mutated } = normalizeMissionQueueForRunner(m.queue, m.approvals);
+    if (!mutated) return;
+    await this.store.updateMission(missionId, { queue });
+    if (staleApprovalIds.length) {
+      await this.store.saveEvent(missionId, {
+        level: "info",
+        source: "orchestrator",
+        message: `Queue normalized: reconciled ${staleApprovalIds.length} stale approval gate(s).`,
+        data: { workItemIds: staleApprovalIds }
+      });
+    }
+    await this.store.noteProgress(missionId);
+  }
+
+  private missionHasRunnableOrActiveWork(m: Mission): boolean {
+    return m.queue.some((w) => isRunnableWorkItemStatus(w.status) || isActiveWorkItemStatus(w.status));
   }
 
   private createApprovalResolverHost(): import("./orchestrator/missionOrchestratorApprovalResolver").ApprovalResolverHost {
@@ -415,7 +440,36 @@ export class MissionOrchestrator {
   }
 
   async runMission(id: string): Promise<RunMissionPassOutcome> {
-    return this.runLoop.runMission(id);
+    const outcome = await this.runLoop.runMission(id);
+    if (outcome.kind !== "ran_pass" || outcome.stopReason !== "max_steps_per_run") {
+      return outcome;
+    }
+    const cfg = vscode.workspace.getConfiguration();
+    const policy = loadMissionAutonomyPolicy((key, def) => cfg.get(key, def));
+    if (!autonomyModeAutoChainsRunPasses(policy.mode)) {
+      return outcome;
+    }
+    const maxChains = cfg.get<number>("myAi.missions.autonomy.maxAutonomousStepCapChains", 2000);
+    const m = this.store.get(id);
+    if (!m || m.status !== "queued") {
+      return outcome;
+    }
+    const chains = m.runtime?.autonomousStepCapChainCount ?? 0;
+    if (chains > maxChains) {
+      await this.store.saveEvent(id, {
+        level: "warn",
+        source: "orchestrator",
+        message: `Autonomous step-cap chaining stopped: exceeded myAi.missions.autonomy.maxAutonomousStepCapChains (${maxChains}).`
+      });
+      return outcome;
+    }
+    if (!this.missionHasRunnableOrActiveWork(m)) {
+      return outcome;
+    }
+    queueMicrotask(() => {
+      void this.runMission(id);
+    });
+    return outcome;
   }
 
 
