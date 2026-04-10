@@ -249,6 +249,8 @@ The extension had no pre-existing `IMPLEMENTATION_LEDGER.md`. This file is the c
 - `npm run compile` — PASS  
 - `npm test` — PASS (full log under evidence pack `07_validation/full_test_run.txt`).
 
+**Checkpoint commit:** `0959b4f` — `[Phase 8][P8-T-001] Settings UI: autonomy defaults, snapshot, inspector observability`
+
 **Follow-ups**
 
 - Inspector surfacing of structured recovery routes from events; operator doc refresh (`EXTENSION_GUIDANCE_PRINCIPLES`); optional mission-level autonomy overrides.
