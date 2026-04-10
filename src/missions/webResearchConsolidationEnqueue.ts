@@ -1,6 +1,7 @@
 import type { MissionStore } from "./MissionStore";
 import type { WorkItem } from "../types";
 import { uid } from "../util";
+import { isActiveWorkItemStatus } from "./workItemLifecycle";
 
 /**
  * When web research hits a configured per-mission cap, queue a single researcher pass to
@@ -15,7 +16,7 @@ export async function enqueueWebResearchConsolidationIfAbsent(
   if (!m) return false;
   const dup = m.queue.some(
     (w) =>
-      w.workItemPurpose === "web_research_consolidate" && (w.status === "todo" || w.status === "running")
+      w.workItemPurpose === "web_research_consolidate" && (w.status === "todo" || isActiveWorkItemStatus(w.status))
   );
   if (dup) return false;
 

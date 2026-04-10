@@ -158,11 +158,30 @@ export interface MemoryItem {
   embedding?: number[];
 }
 
+/**
+ * Work-item lifecycle states (Phase 3). `running` is legacy only — normalized to `in_progress` on load.
+ */
+export type WorkItemStatus =
+  | "todo"
+  | "in_progress"
+  | "running"
+  | "diagnosing"
+  | "repairing"
+  | "review_pending"
+  | "validation_pending"
+  | "retry_ready"
+  | "awaiting_approval"
+  | "blocked"
+  | "dead_letter"
+  | "failed"
+  | "skipped"
+  | "done";
+
 export interface WorkItem {
   id: string;
   title: string;
   role: AgentRole;
-  status: "todo" | "running" | "done" | "blocked" | "failed" | "skipped";
+  status: WorkItemStatus;
   prompt: string;
   /** When false, item does not block mission completion (optional / demoted tail). Omitted = required. */
   requiredForCompletion?: boolean;
@@ -219,6 +238,16 @@ export interface WorkItem {
   previousError?: string;
   /** Parent work item ID — set when this is a sub-item from DECOMPOSE. */
   parentWorkItemId?: string;
+  /** Work item whose failure triggered this recovery / retry row (Phase 3). */
+  spawnedFromFailureOf?: string;
+  /** Correlates diagnosis → retry → review → validate rows from one recovery episode. */
+  recoveryChainId?: string;
+  /** How many times this row has been started by the runner (incremented at runWorkItem entry). */
+  attemptCount?: number;
+  /** Optional paths touched during implementer work (for UI / audit). */
+  changedFiles?: string[];
+  /** Hint for validators (e.g. which checks matter for this tranche). */
+  validationScopeHint?: string;
   /** Sub-items decomposed from this work item. Parent completes only when all sub-items complete. */
   subItems?: WorkItem[];
   /** Blueprint mode: planner item that emits structured JSON plan; revision passes. */

@@ -8,10 +8,18 @@ function mapWorkStatusToBlueprint(status: WorkItem["status"]): BlueprintStepStat
       return status === "skipped" ? "skipped" : "done";
     case "failed":
     case "blocked":
+    case "dead_letter":
       return "blocked";
     case "running":
+    case "in_progress":
+    case "diagnosing":
+    case "repairing":
       return "in_progress";
     case "todo":
+    case "retry_ready":
+    case "review_pending":
+    case "validation_pending":
+    case "awaiting_approval":
       return "pending";
     default:
       return undefined;

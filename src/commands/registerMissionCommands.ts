@@ -72,9 +72,21 @@ function missionDependencyGraphMarkdown(mission: ReturnType<MissionStore["get"]>
     isolated || '- none',
     '',
     `## Status counts`,
-    ...["todo", "running", "done", "skipped", "blocked", "failed"].map(
-      (status) => `- ${status}: ${mission.queue.filter((w) => w.status === status).length}`
-    )
+    ...[
+      "todo",
+      "in_progress",
+      "diagnosing",
+      "repairing",
+      "retry_ready",
+      "review_pending",
+      "validation_pending",
+      "awaiting_approval",
+      "done",
+      "skipped",
+      "blocked",
+      "failed",
+      "dead_letter"
+    ].map((status) => `- ${status}: ${mission.queue.filter((w) => w.status === status).length}`)
   ].join("\n");
 }
 

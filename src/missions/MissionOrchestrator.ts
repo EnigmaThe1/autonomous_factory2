@@ -14,6 +14,7 @@ import {
   recoverInterruptedQueueItems,
   requeueOperatorStreamAbortedWorkItems
 } from "./resumeRecovery";
+import { isActiveWorkItemStatus } from "./workItemLifecycle";
 import { reconcileStaleApprovalPendingHardStops } from "./missionApprovalGateReconcile";
 import { enforceClosurePolicy } from "./missionClosurePolicy";
 import type { MissionFileTracker } from "./MissionFileTracker";
@@ -319,7 +320,7 @@ export class MissionOrchestrator {
       if (mission.status === "blocked") {
         const recoverableBlockedWork = mission.queue.some(
           (item) =>
-            item.status === "running" ||
+            isActiveWorkItemStatus(item.status) ||
             (item.status === "blocked" && item.hardStopClass === "operator_abort")
         );
         if (!recoverableBlockedWork) continue;

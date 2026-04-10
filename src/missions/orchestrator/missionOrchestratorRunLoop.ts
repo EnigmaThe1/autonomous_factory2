@@ -23,6 +23,7 @@ import { computeEffectiveMaxAutoRounds } from "../adaptiveMissionScaling";
 import { blueprintBlocksMissionCompletion, computeBlueprintProgress } from "../blueprintProgress";
 import { resolveCompletionStatus } from "../LifecycleRules";
 import { recoverInterruptedQueueItems } from "../resumeRecovery";
+import { isActiveWorkItemStatus, isRunnableWorkItemStatus } from "../workItemLifecycle";
 import type { MissionStore } from "../MissionStore";
 import type { MissionOrchestratorWorkItemRunner } from "./missionOrchestratorWorkItemRunner";
 
@@ -92,7 +93,14 @@ export class MissionOrchestratorRunLoop {
     for (;;) {
       const mission = this.host.store.get(missionId);
       if (!mission) return;
-      const todo = mission.queue.find((w) => w.status === "todo" && obsolescentTodoSkipReason(mission, w));
+      const todo = mission.queue.find(
+        (w) =>
+          (w.status === "todo" ||
+            w.status === "review_pending" ||
+            w.status === "validation_pending" ||
+            w.status === "retry_ready") &&
+          obsolescentTodoSkipReason(mission, w)
+      );
       if (!todo) return;
       const reason = obsolescentTodoSkipReason(mission, todo)!;
       await this.host.updateWorkItemWithHardStopInvariant(missionId, todo, { status: "skipped", output: reason });
@@ -208,7 +216,7 @@ export class MissionOrchestratorRunLoop {
         };
         const next = mission.queue.find(
           (w) =>
-            w.status === "todo" &&
+            isRunnableWorkItemStatus(w.status) &&
             this.dependenciesMet(mission!, w) &&
             (!gate.gate || allowRoleWhileGated(w.role))
         );
@@ -263,7 +271,7 @@ export class MissionOrchestratorRunLoop {
       try {
         const missionSnap = this.host.store.get(id);
         if (missionSnap) {
-          const running = missionSnap.queue.filter((w) => w.status === "running");
+          const running = missionSnap.queue.filter((w) => isActiveWorkItemStatus(w.status));
           for (const wi of running) {
             await this.host.updateWorkItemWithHardStopInvariant(id, wi, {
               status: "failed",
@@ -323,6 +331,7 @@ export class MissionOrchestratorRunLoop {
     await this.host.updateWorkItemWithHardStopInvariant(missionId, item, {
       deadLetter: true,
       deadLetterAt: Date.now(),
+      status: "dead_letter",
       output: `${item.output || ""}${note}`.trim()
     });
     await this.host.store.saveEvent(missionId, {
@@ -418,7 +427,7 @@ export class MissionOrchestratorRunLoop {
     await this.autoDemoteObsolescentQueueItems(id);
     await this.autoDemoteSupersededTerminalItems(id);
     let refreshed = this.host.store.get(id)!;
-    const stillRunning = refreshed.queue.some((w) => w.status === "running");
+    const stillRunning = refreshed.queue.some((w) => isActiveWorkItemStatus(w.status));
     if (stillRunning) {
       const normalized = recoverInterruptedQueueItems(refreshed.queue);
       if (normalized.recoveredCount > 0) {
@@ -444,7 +453,7 @@ export class MissionOrchestratorRunLoop {
     refreshed = this.host.store.get(id)!;
     if (
       refreshed.blueprint?.status === "awaiting_approval" &&
-      !refreshed.queue.some((w) => w.status === "todo" || w.status === "running")
+      !refreshed.queue.some((w) => isRunnableWorkItemStatus(w.status) || isActiveWorkItemStatus(w.status))
     ) {
       await this.host.store.updateMission(id, {
         status: "awaiting_input",
@@ -483,7 +492,7 @@ export class MissionOrchestratorRunLoop {
       this.host.pendingCompletionReason.delete(id);
       await this.host.store.updateMission(id, {
         status: terminalStatus,
-        blocker: "Mission cannot complete while required work items are still todo or running.",
+        blocker: "Mission cannot complete while required work items are still runnable or in progress.",
         blockReasonCode: "required_work_open",
         result: refreshed.memory
           .slice(-8)
@@ -561,7 +570,7 @@ export class MissionOrchestratorRunLoop {
     return mission.queue.some(
       (w) =>
         w.role === "implementer" &&
-        (w.status === "blocked" || w.status === "failed") &&
+        (w.status === "blocked" || w.status === "failed" || w.status === "dead_letter") &&
         w.requiredForCompletion !== false &&
         !(w.status === "failed" && isFailedWorkItemSupersededBySuccessfulRetry(mission, w))
     );

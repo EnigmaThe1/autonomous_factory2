@@ -5,17 +5,69 @@ import { createRetryWorkItem } from "./workItemAutoRetry";
 export interface BuildFailureInvestigationWaveOpts {
   includePlanner: boolean;
   blockerSummary: string;
+  /**
+   * When true (default), append recovery reviewer + validator after the retry implementer.
+   * Set false to preserve minimal waves (diagnosis + retry only).
+   */
+  enqueueReviewValidateChain?: boolean;
+}
+
+function recoveryReviewValidatorItems(
+  failedItem: WorkItem,
+  chainId: string,
+  shortTitle: string,
+  dependsOnRetryId: string
+): WorkItem[] {
+  const reviewId = uid("work");
+  const valId = uid("work");
+  const spawned = failedItem.id;
+  const reviewer: WorkItem = {
+    id: reviewId,
+    title: `Recovery review: ${shortTitle}`,
+    role: "reviewer",
+    status: "review_pending",
+    prompt: [
+      "This is a recovery-chain review after a tool failure and implementer retry.",
+      "Read MEMORY from the researcher diagnosis and compare the retry output to the failure context.",
+      "Confirm whether risks are addressed or emit concrete follow-up WORK: lines if not."
+    ].join("\n"),
+    dependsOn: [dependsOnRetryId],
+    workItemPurpose: undefined,
+    requiredForCompletion: failedItem.requiredForCompletion,
+    recoveryChainId: chainId,
+    spawnedFromFailureOf: spawned,
+    validationScopeHint: "Recovery tranche: focus on whether the tool failure root cause was addressed."
+  };
+  const validator: WorkItem = {
+    id: valId,
+    title: `Recovery validation: ${shortTitle}`,
+    role: "validator",
+    status: "validation_pending",
+    prompt: [
+      "Validate the recovery chain: diagnosis → retry → review. Decide COMPLETE: only if closure evidence is sound.",
+      "If verification tools are needed, use them and record results."
+    ].join("\n"),
+    dependsOn: [reviewId],
+    requiredForCompletion: failedItem.requiredForCompletion,
+    recoveryChainId: chainId,
+    spawnedFromFailureOf: spawned,
+    validationScopeHint: "Recovery tranche validation."
+  };
+  return [reviewer, validator];
 }
 
 /**
- * Builds researcher → optional planner → retry clone of the failed item, chained with `dependsOn`
- * so diagnosis and planning run before the retry executes.
+ * Builds researcher → optional planner → retry clone → reviewer → validator, chained with `dependsOn`
+ * so diagnosis and planning run before the retry executes, then review/validate reopen downstream checks.
  */
 export function buildFailureInvestigationWave(failedItem: WorkItem, opts: BuildFailureInvestigationWaveOpts): WorkItem[] {
+  const withTail = opts.enqueueReviewValidateChain !== false;
   const blocker = opts.blockerSummary.slice(0, 8000);
+  const chainId = uid("recovery");
   const resId = uid("work");
   const objectiveExcerpt = failedItem.prompt.slice(0, 4000);
   const shortTitle = failedItem.title.length > 70 ? `${failedItem.title.slice(0, 67)}…` : failedItem.title;
+  const spawned = failedItem.id;
 
   const researcher: WorkItem = {
     id: resId,
@@ -38,7 +90,9 @@ export function buildFailureInvestigationWave(failedItem: WorkItem, opts: BuildF
       "Do not execute mutating tools unless strictly necessary for read-only diagnosis."
     ].join("\n"),
     workItemPurpose: "failure_investigation_diagnose",
-    requiredForCompletion: failedItem.requiredForCompletion
+    requiredForCompletion: failedItem.requiredForCompletion,
+    recoveryChainId: chainId,
+    spawnedFromFailureOf: spawned
   };
 
   if (!opts.includePlanner) {
@@ -46,7 +100,11 @@ export function buildFailureInvestigationWave(failedItem: WorkItem, opts: BuildF
     retry.dependsOn = [resId];
     retry.workItemPurpose = "failure_recovery_retry";
     retry.requiredForCompletion = failedItem.requiredForCompletion;
-    return [researcher, retry];
+    retry.recoveryChainId = chainId;
+    retry.spawnedFromFailureOf = spawned;
+    retry.status = "retry_ready";
+    const tail = withTail ? recoveryReviewValidatorItems(failedItem, chainId, shortTitle, retry.id) : [];
+    return [researcher, retry, ...tail];
   }
 
   const planId = uid("work");
@@ -66,12 +124,18 @@ export function buildFailureInvestigationWave(failedItem: WorkItem, opts: BuildF
       `Original failed item title: "${failedItem.title}" (${failedItem.role}).`
     ].join("\n"),
     workItemPurpose: "failure_investigation_plan",
-    requiredForCompletion: failedItem.requiredForCompletion
+    requiredForCompletion: failedItem.requiredForCompletion,
+    recoveryChainId: chainId,
+    spawnedFromFailureOf: spawned
   };
 
   const retry = createRetryWorkItem(failedItem);
   retry.dependsOn = [planId];
   retry.workItemPurpose = "failure_recovery_retry";
   retry.requiredForCompletion = failedItem.requiredForCompletion;
-  return [researcher, planner, retry];
+  retry.recoveryChainId = chainId;
+  retry.spawnedFromFailureOf = spawned;
+  retry.status = "retry_ready";
+  const tail = withTail ? recoveryReviewValidatorItems(failedItem, chainId, shortTitle, retry.id) : [];
+  return [researcher, planner, retry, ...tail];
 }

@@ -26,7 +26,13 @@ export async function updateWorkItemWithImplementerHardStopInvariant(
   patch: Partial<WorkItem>
 ): Promise<void> {
   const nextStatus = effectiveStatus(itemBeforePatch, patch);
-  if (isRequiredImplementerWorkItem(itemBeforePatch) && (nextStatus === "blocked" || nextStatus === "failed")) {
+  if (
+    isRequiredImplementerWorkItem(itemBeforePatch) &&
+    (nextStatus === "blocked" ||
+      nextStatus === "failed" ||
+      nextStatus === "awaiting_approval" ||
+      nextStatus === "dead_letter")
+  ) {
     const hc = effectiveHardStopClass(itemBeforePatch, patch);
     if (!isKnownImplementerHardStopClassValue(hc)) {
       throw new Error(

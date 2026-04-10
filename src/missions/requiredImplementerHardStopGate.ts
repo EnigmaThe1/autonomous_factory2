@@ -35,7 +35,7 @@ export function classifyImplementerHardStopDownstreamGate(mission: Mission): Imp
   const requiredImpl = mission.queue.filter(
     (w) =>
       w.role === "implementer" &&
-      (w.status === "blocked" || w.status === "failed") &&
+      (w.status === "blocked" || w.status === "failed" || w.status === "awaiting_approval") &&
       w.requiredForCompletion !== false &&
       !isFailedWorkItemSupersededBySuccessfulRetry(mission, w)
   );

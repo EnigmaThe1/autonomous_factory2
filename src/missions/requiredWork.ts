@@ -1,5 +1,6 @@
 import { Mission, WorkItem } from "../types";
 import { shouldSkipRedundantValidatorWork } from "./redundantValidatorSkip";
+import { isActiveWorkItemStatus, isRunnableWorkItemStatus } from "./workItemLifecycle";
 
 /** Default for legacy missions: unset means required. */
 export function isRequiredForCompletion(item: WorkItem): boolean {
@@ -47,7 +48,7 @@ export function isFailedWorkItemSupersededBySuccessfulRetry(mission: Mission, it
 export function queueHasCompletionBlockingFailedOrBlocked(mission: Mission): boolean {
   return mission.queue.some((w) => {
     if (!isRequiredForCompletion(w)) return false;
-    if (w.status === "blocked") return true;
+    if (w.status === "blocked" || w.status === "dead_letter") return true;
     if (w.status === "failed") return !isFailedWorkItemSupersededBySuccessfulRetry(mission, w);
     return false;
   });
@@ -60,7 +61,10 @@ export function dependencyEdgeSatisfied(status: WorkItem["status"] | undefined):
 
 export function hasRequiredUnresolvedWork(mission: Mission): boolean {
   // `done` covers normal completion, `completionKind: "already_satisfied"`, and `apply_patch_noop`.
-  return mission.queue.some((w) => (w.status === "todo" || w.status === "running") && isRequiredForCompletion(w));
+  return mission.queue.some(
+    (w) =>
+      (isRunnableWorkItemStatus(w.status) || isActiveWorkItemStatus(w.status)) && isRequiredForCompletion(w)
+  );
 }
 
 /**
@@ -88,6 +92,7 @@ export function isRequiredWorkSettledForCompletion(mission: Mission): boolean {
  */
 export function shouldAutoSkipObsolescentReviewerWork(mission: Mission, item: WorkItem): boolean {
   if (item.role !== "reviewer") return false;
+  if (item.status !== "todo" && item.status !== "review_pending") return false;
   if (mission.validationState !== "passed") return false;
   if (!isRequiredForCompletion(item)) return false;
   return mission.queue.some((w) => w.role === "reviewer" && w.id !== item.id && w.status === "done");
@@ -129,11 +134,13 @@ export function obsolescentTodoSkipReason(mission: Mission, item: WorkItem): str
  * with a non-null `obsolescentTodoSkipReason` becomes `skipped` with that output until stable.
  * Used for regression tests; keep in sync with the orchestrator demotion loop.
  */
+const OBSOLESCENT_DEMOTABLE_STATUSES: WorkItem["status"][] = ["todo", "review_pending", "validation_pending", "retry_ready"];
+
 export function applyObsolescentTodoDemotions(mission: Mission, queue: WorkItem[]): WorkItem[] {
   let q = queue;
   for (;;) {
     const m: Mission = { ...mission, queue: q };
-    const todo = q.find((w) => w.status === "todo" && obsolescentTodoSkipReason(m, w));
+    const todo = q.find((w) => OBSOLESCENT_DEMOTABLE_STATUSES.includes(w.status) && obsolescentTodoSkipReason(m, w));
     if (!todo) return q;
     const reason = obsolescentTodoSkipReason(m, todo)!;
     q = q.map((w) => (w.id === todo.id ? { ...w, status: "skipped" as const, output: reason } : w));

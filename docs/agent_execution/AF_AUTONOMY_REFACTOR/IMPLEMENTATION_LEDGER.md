@@ -93,3 +93,30 @@ The extension had no pre-existing `IMPLEMENTATION_LEDGER.md`. This file is the c
 **Follow-ups**
 
 - Optional replan around selected `hard_deny` cases (setting-gated); validator summary-only failure routing; UI surfacing of structured recovery fields.
+
+## Phase 3 — Work-item lifecycle & recovery visibility (2026-04-10)
+
+**Status:** DONE
+
+**What changed**
+
+- Added `src/missions/workItemLifecycle.ts`: runnable vs active sets, `resolveActiveStatusForWorkItem`, `normalizeWorkItem` / `normalizeWorkItemQueue` (legacy `running` → `in_progress`; `deadLetter` → `dead_letter`), `canTransitionWorkItemStatus`, `displayLabelForWorkItemStatus`.
+- Extended `src/types.ts` with lifecycle statuses and metadata: `spawnedFromFailureOf`, `recoveryChainId`, `attemptCount`, `changedFiles`, `validationScopeHint` (plus existing `parentWorkItemId` / `retryCount`).
+- `MissionStore.normalizeMission` normalizes the queue through `normalizeWorkItemQueue`.
+- Orchestrator: run loop, work-item runner, approval resolver (approve → active resolve; reject → `blocked` + `approval_rejected`), failure investigation wave with optional reviewer/validator tail; `hasBlockingImplementerOutcome` includes `dead_letter` for terminal honesty signaling.
+- `package.json`: `myAi.missions.recovery.enqueueReviewValidateChain` (default `true`).
+- UI: `aiSidebarAgentPresentation` phase prefix for recovery-visible actives; mission progress stats / protocol updates for recovery-oriented visibility.
+- Tests: `workItemLifecycle.test.ts`, `failureInvestigationEnqueue.test.ts` (minimal vs full wave), `missionWorkItemRecoveryLifecycle.integration.test.ts`; orchestrator tests updated for `awaiting_approval` and `dead_letter` timeout path.
+
+**Evidence pack**
+
+- `autonomous_factory/.dev/docs/_autogen/refactoring/refactoring__2026_04_10__AF_Autonomy_Phase3_WorkItem_Lifecycle/` (`02_code_map`, `05_decisions`, `07_validation/01_lifecycle_tests.txt`, `08_final_report/FINAL_REPORT.md`).
+
+**Validation**
+
+- `npm run typecheck` — PASS  
+- `npm test` — PASS (log captured under evidence pack `07_validation/`).
+
+**Follow-ups**
+
+- Periodic audit for remaining hard-coded `status === "running"` outside lifecycle helpers; optional snapshot fields for recovery chains in additional UI surfaces.

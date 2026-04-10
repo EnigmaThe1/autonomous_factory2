@@ -23,6 +23,10 @@ export function shouldAutoRetry(
   item: WorkItem,
   maxRetries: number
 ): AutoRetryDecision {
+  if (item.status === "dead_letter") {
+    return { shouldRetry: false, reason: "Item is dead letter" };
+  }
+
   if (item.status !== "failed") {
     return { shouldRetry: false, reason: "Item is not failed" };
   }

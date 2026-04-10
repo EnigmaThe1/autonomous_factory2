@@ -60,7 +60,7 @@ test("operator flow: approval — status chain, approved tool, reviewer/validato
   const pending = mid.approvals.filter((a) => a.status === "pending");
   assert.equal(pending.length, 1);
   assert.equal(pending[0].title, "Confirm workspace write");
-  const implBlocked = mid.queue.find((w) => w.role === "implementer" && w.status === "blocked");
+  const implBlocked = mid.queue.find((w) => w.role === "implementer" && w.status === "awaiting_approval");
   assert.ok(implBlocked?.output?.includes("Pending approval"));
   assert.ok(hasRequiredUnresolvedWork(mid));
 

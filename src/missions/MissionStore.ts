@@ -5,6 +5,7 @@ import { DiskMissionPersistence } from "../storage/DiskMissionPersistence";
 import { isAllowedMissionStatusTransition } from "./LifecycleRules";
 import { canonicalizeStoredRouting, snapshotRoutingFromWorkspace } from "./missionRouting";
 import { isLikelyOperatorTestMission } from "./missionTestHeuristic";
+import { normalizeWorkItemQueue } from "./workItemLifecycle";
 
 const MISSIONS_KEY = "myAi.missions";
 const ACTIVE_IDS_KEY = "myAi.activeMissionIds";
@@ -433,7 +434,8 @@ export class MissionStore {
       roundsCompleted: mission.roundsCompleted || 0,
       runtime: { ...this.defaultRuntime(), ...(mission.runtime || {}) },
       routing: canonicalizeStoredRouting(mission.routing),
-      archivedAt: mission.archivedAt
+      archivedAt: mission.archivedAt,
+      queue: normalizeWorkItemQueue(mission.queue || [])
     };
   }
 }

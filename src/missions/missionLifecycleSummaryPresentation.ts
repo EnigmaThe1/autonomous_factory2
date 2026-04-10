@@ -1,4 +1,5 @@
 import type { Mission } from "../types";
+import { isActiveWorkItemStatus } from "./workItemLifecycle";
 import { classifyImplementerHardStopDownstreamGate } from "./requiredImplementerHardStopGate";
 
 /**
@@ -81,7 +82,7 @@ export function focusedMissionLifecycleSummary(mission: Mission): string {
   }
 
   if (status === "running") {
-    const run = mission.queue.find((w) => w.status === "running");
+    const run = mission.queue.find((w) => isActiveWorkItemStatus(w.status));
     if (run?.role) return `Running now; ${run.role} is active.`;
     return "Running now; automation is in progress.";
   }

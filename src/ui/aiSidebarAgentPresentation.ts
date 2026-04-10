@@ -3,6 +3,11 @@ import type { AgentRole, Mission } from "../types";
 import type { SidebarAgentLiveItem, SidebarAgentStatus, SidebarApprovalBundleSummary } from "./protocol";
 import { resolveModelForProvider } from "../providers/providerModelResolution";
 import { approvalBundleSummariesForMissionPending } from "./aiSidebarMissionDerivedPure";
+import {
+  displayLabelForWorkItemStatus,
+  isActiveWorkItemStatus,
+  isRunnableWorkItemStatus
+} from "../missions/workItemLifecycle";
 
 export function buildApprovalBundlesFromMissions(missions: Mission[]): SidebarApprovalBundleSummary[] {
   const parts: SidebarApprovalBundleSummary[] = [];
@@ -19,8 +24,8 @@ export function buildAgentLiveFromMission(mission: Mission | undefined): Sidebar
     return roles.map((role) => ({ role, status: "idle", recentEvents: [] }));
   }
   return roles.map((role) => {
-    const running = mission.queue.find((work) => work.role === role && work.status === "running");
-    const nextTodo = mission.queue.find((work) => work.role === role && work.status === "todo");
+    const running = mission.queue.find((work) => work.role === role && isActiveWorkItemStatus(work.status));
+    const nextTodo = mission.queue.find((work) => work.role === role && isRunnableWorkItemStatus(work.status));
     const recentEvents = (mission.events || [])
       .filter((event) => event.source === role || event.source.startsWith(`${role}:`) || event.message.toLowerCase().includes(role))
       .slice(-3)
@@ -31,9 +36,23 @@ export function buildAgentLiveFromMission(mission: Mission | undefined): Sidebar
       .slice(-3)
       .reverse()
       .map((event) => ({ ts: event.ts, message: event.message, level: event.level, source: event.source }));
+    const showPhasePrefix =
+      running &&
+      running.status !== "in_progress" &&
+      running.status !== "running" &&
+      (running.status === "diagnosing" ||
+        running.status === "repairing" ||
+        running.status === "review_pending" ||
+        running.status === "validation_pending" ||
+        running.status === "retry_ready" ||
+        running.status === "awaiting_approval");
+    const phase =
+      showPhasePrefix && running
+        ? `${displayLabelForWorkItemStatus(running.status)}: ${running.title}`
+        : running?.title;
     return {
       role,
-      currentWork: running?.title || nextTodo?.title,
+      currentWork: phase || nextTodo?.title,
       status: running ? "running" : nextTodo ? "queued" : "idle",
       recentEvents,
       recentToolEvents
@@ -66,11 +85,17 @@ export function buildAgentStatusFromMission(
     const resolvedModel = resolveModelForProvider(effProvider, roleModelRaw || undefined, (k, d) => cfg.get(k, d));
     return {
       role,
-      todo: items.filter((work) => work.status === "todo").length,
-      running: items.filter((work) => work.status === "running").length,
+      todo: items.filter((work) => isRunnableWorkItemStatus(work.status)).length,
+      running: items.filter((work) => isActiveWorkItemStatus(work.status)).length,
       done: items.filter((work) => work.status === "done").length,
       skipped: items.filter((work) => work.status === "skipped").length,
-      blocked: items.filter((work) => work.status === "blocked" || work.status === "failed").length,
+      blocked: items.filter(
+        (work) =>
+          work.status === "blocked" ||
+          work.status === "failed" ||
+          work.status === "awaiting_approval" ||
+          work.status === "dead_letter"
+      ).length,
       provider: effProvider,
       model: resolvedModel
     };

@@ -133,11 +133,17 @@ test("interruption: timeout-like stream abort — work item failed, same run sti
   await orchestrator.runMission(m.id);
   const fin = store.get(m.id)!;
   assert.equal(fin.status, "blocked");
-  assert.ok(fin.queue.some((w) => w.role === "implementer" && w.status === "failed"));
+  assert.ok(
+    fin.queue.some(
+      (w) => w.role === "implementer" && (w.status === "failed" || w.status === "dead_letter")
+    )
+  );
   assert.ok(fin.queue.some((w) => w.role === "reviewer" && w.status === "done"));
   assert.ok(fin.queue.some((w) => w.role === "validator" && w.status === "done"));
   assert.equal(fin.validationState, "passed");
-  const failedImp = fin.queue.filter((w) => w.role === "implementer" && w.status === "failed");
+  const failedImp = fin.queue.filter(
+    (w) => w.role === "implementer" && (w.status === "failed" || w.status === "dead_letter")
+  );
   assert.equal(failedImp.length, 1);
   assert.ok(failedImp[0].output?.includes("timeout"));
   assert.ok(fin.events.some((e) => e.message.includes("timeout")));

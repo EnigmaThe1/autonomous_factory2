@@ -866,6 +866,11 @@
           "default": false,
           "description": "When true, insert a planner work item between researcher diagnosis and the retry clone."
         },
+        "myAi.missions.recovery.enqueueReviewValidateChain": {
+          "type": "boolean",
+          "default": true,
+          "description": "When true, failure-investigation waves append recovery reviewer + validator rows after the retry implementer (same recoveryChainId)."
+        },
         "myAi.missions.claimDiscipline": {
           "type": "boolean",
           "default": true,

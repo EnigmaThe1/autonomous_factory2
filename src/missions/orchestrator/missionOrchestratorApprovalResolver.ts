@@ -1,6 +1,7 @@
 import type { ResolveApprovalOutcome } from "../missionActionResult";
 import type { Mission, ToolCall, WorkItem } from "../../types";
 import type { MissionStore } from "../MissionStore";
+import { resolveActiveStatusForWorkItem } from "../workItemLifecycle";
 import type { MissionOrchestratorWorkItemRunner } from "./missionOrchestratorWorkItemRunner";
 
 export interface ApprovalResolverHost {
@@ -55,7 +56,7 @@ export class MissionOrchestratorApprovalResolver {
         const wi = m?.queue.find((w) => w.id === approval.workItemId);
         if (wi) {
           await this.host.updateWorkItemWithHardStopInvariant(missionId, wi, {
-            status: "running",
+            status: resolveActiveStatusForWorkItem(wi),
             hardStopClass: undefined,
             output: `${wi.output || ""}\n\nApproved execution in progress.`.trim()
           });
@@ -90,7 +91,9 @@ export class MissionOrchestratorApprovalResolver {
       const wi = m?.queue.find((w) => w.id === approval.workItemId);
       if (wi) {
         await this.host.updateWorkItemWithHardStopInvariant(missionId, wi, {
-          hardStopClass: "approval_rejected"
+          status: "blocked",
+          hardStopClass: "approval_rejected",
+          activeMutatingToolCall: undefined
         });
       }
     }

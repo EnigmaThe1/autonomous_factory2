@@ -1,5 +1,6 @@
 import { Mission } from "../types";
 import { hasRequiredUnresolvedWork, queueHasCompletionBlockingFailedOrBlocked } from "./requiredWork";
+import { isActiveWorkItemStatus } from "./workItemLifecycle";
 
 /**
  * When closure is required, terminal completion needs validation passed, no **completion-blocking**
@@ -23,7 +24,7 @@ export function shouldCollapseToComplete(mission: Mission): boolean {
       if (typeof lastVer !== "number" || lastVer < lastMut) return false;
     }
   }
-  if (mission.queue.some((w) => w.status === "running")) return false;
+  if (mission.queue.some((w) => isActiveWorkItemStatus(w.status))) return false;
   if (queueHasCompletionBlockingFailedOrBlocked(mission)) return false;
   if (hasRequiredUnresolvedWork(mission)) return false;
   return true;

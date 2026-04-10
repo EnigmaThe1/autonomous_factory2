@@ -10,6 +10,15 @@ export interface MissionProgressStats {
   blocked: number;
   failed: number;
   skipped: number;
+  /** Phase 3 recovery / lifecycle visibility (0 when absent). */
+  diagnosing?: number;
+  repairing?: number;
+  retryReady?: number;
+  reviewPending?: number;
+  validationPending?: number;
+  awaitingApproval?: number;
+  deadLetter?: number;
+  inRecoveryChain?: number;
   completionPercent: number;
   roundsCompleted: number;
   maxAutoRounds: number;

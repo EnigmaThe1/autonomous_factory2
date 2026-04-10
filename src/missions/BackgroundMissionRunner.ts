@@ -76,7 +76,15 @@ export class BackgroundMissionRunner implements vscode.Disposable {
         const refreshedRuntime = refreshed?.runtime;
         if (!refreshed || !refreshedRuntime) continue;
 
-        const alreadyQueued = refreshed.queue.some((w) => w.title === "Runner recovery replan" && ["todo", "running"].includes(w.status));
+        const alreadyQueued = refreshed.queue.some(
+          (w) =>
+            w.title === "Runner recovery replan" &&
+            (w.status === "todo" ||
+              w.status === "in_progress" ||
+              w.status === "running" ||
+              w.status === "diagnosing" ||
+              w.status === "repairing")
+        );
         const recovery = decideStallRecovery({
           stalledHeartbeats: refreshedRuntime.stalledHeartbeats || 0,
           threshold,

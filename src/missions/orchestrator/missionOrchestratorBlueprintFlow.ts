@@ -34,7 +34,13 @@ export class MissionOrchestratorBlueprintFlow {
       const { drift, suspicious } = computePlanFidelityDrift(mission);
       if (!drift || !suspicious.length) return;
       const dupe = mission.queue.some(
-        (w) => w.title.startsWith("Plan fidelity") && (w.status === "todo" || w.status === "running")
+        (w) =>
+          w.title.startsWith("Plan fidelity") &&
+          (w.status === "todo" ||
+            w.status === "in_progress" ||
+            w.status === "running" ||
+            w.status === "diagnosing" ||
+            w.status === "repairing")
       );
       if (dupe) return;
       await this.host.store.enqueue(missionId, [

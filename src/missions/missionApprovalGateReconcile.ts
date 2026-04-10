@@ -25,7 +25,7 @@ export function reconcileStaleApprovalPendingHardStops(
       activeMutatingToolCall: undefined,
       output: `${w.output || ""}${note}`.trim()
     };
-    if (w.status === "blocked") {
+    if (w.status === "blocked" || w.status === "awaiting_approval") {
       next.status = "todo";
     }
     return next;

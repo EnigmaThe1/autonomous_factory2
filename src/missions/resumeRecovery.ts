@@ -1,6 +1,7 @@
 import { WorkItem } from "../types";
 import { isReadonlyMissionToolId } from "./readonlyMissionToolIds";
 import { isRunCommandLikelyReadOnlyProbe } from "./runCommandReadOnlyProbe";
+import { isActiveWorkItemStatus } from "./workItemLifecycle";
 
 export interface QueueRecoveryResult {
   queue: WorkItem[];
@@ -16,7 +17,7 @@ export function recoverInterruptedQueueItems(queue: WorkItem[]): QueueRecoveryRe
   let recoveredCount = 0;
   let replayRiskCount = 0;
   const recoveredQueue = queue.map((item) => {
-    if (item.status !== "running") return item;
+    if (!isActiveWorkItemStatus(item.status) && item.status !== "running") return item;
     if (item.activeMutatingToolCall) {
       const t = item.activeMutatingToolCall.tool;
       if (isReadonlyMissionToolId(t)) {

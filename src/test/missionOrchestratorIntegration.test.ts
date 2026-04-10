@@ -237,7 +237,7 @@ test("MissionOrchestrator: tool requires approval → awaiting_input; after appr
   assert.ok(pending);
   assert.equal(mid.approvals.filter((a) => a.status === "pending").length, 1);
   assert.notEqual(mid.status, "completed");
-  const wi = mid.queue.find((w) => w.role === "implementer" && w.status === "blocked");
+  const wi = mid.queue.find((w) => w.role === "implementer" && w.status === "awaiting_approval");
   assert.ok(wi?.output?.includes("Pending approval"));
   await orchestrator.resolveApproval(m.id, pending!.id, true);
   assert.equal(approved, true);

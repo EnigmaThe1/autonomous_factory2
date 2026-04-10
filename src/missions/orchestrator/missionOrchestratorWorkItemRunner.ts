@@ -45,6 +45,7 @@ import {
   type StructuredFailure
 } from "../failure";
 import { buildFailureInvestigationWave } from "../failureInvestigationEnqueue";
+import { resolveActiveStatusForWorkItem } from "../workItemLifecycle";
 import { READONLY_MISSION_TOOL_IDS } from "../readonlyMissionToolIds";
 import {
   checkpointSummaryForTerminalWorkItem,
@@ -433,7 +434,7 @@ export class MissionOrchestratorWorkItemRunner {
           blockReasonCode: "approval_pending"
         });
         await this.host.updateWorkItemWithHardStopInvariant(mission.id, item, {
-          status: "blocked",
+          status: "awaiting_approval",
           activeMutatingToolCall: undefined,
           hardStopClass: "approval_pending",
           output: `${result.summary}\n\nPending approval: ${req.title}`
@@ -492,13 +493,19 @@ export class MissionOrchestratorWorkItemRunner {
     if (failedItem.hardStopClass !== "tool_failure") return false;
     if (failedItem.requiredForCompletion === false) return false;
 
+    const enqueueRv = cfg.get<boolean>("myAi.missions.recovery.enqueueReviewValidateChain", true);
     const wave = buildFailureInvestigationWave(failedItem, {
       includePlanner,
-      blockerSummary: missionBlock.blocker
+      blockerSummary: missionBlock.blocker,
+      enqueueReviewValidateChain: enqueueRv
     });
 
+    const chainId = wave.find((w) => w.recoveryChainId)?.recoveryChainId;
     await this.host.store.enqueueAfterWorkItem(missionId, failedItemId, wave);
-    await this.host.store.updateWorkItem(missionId, failedItemId, { suppressAutoRetry: true });
+    await this.host.store.updateWorkItem(missionId, failedItemId, {
+      suppressAutoRetry: true,
+      ...(chainId ? { recoveryChainId: chainId } : {})
+    });
     await this.host.store.updateRuntime(missionId, { failureInvestigationWavesUsed: used + 1 });
     await this.host.store.updateMission(missionId, {
       status: "queued",
@@ -541,9 +548,11 @@ export class MissionOrchestratorWorkItemRunner {
       hardStopClass: "tool_failure",
       output: missionBlock.blocker
     };
+    const enqueueRv = cfg.get<boolean>("myAi.missions.recovery.enqueueReviewValidateChain", true);
     const wave = buildFailureInvestigationWave(syntheticFailed, {
       includePlanner,
-      blockerSummary: missionBlock.blocker
+      blockerSummary: missionBlock.blocker,
+      enqueueReviewValidateChain: enqueueRv
     });
     await this.host.store.enqueueAfterWorkItem(missionId, anchorItem.id, wave);
     await this.host.store.updateRuntime(missionId, { failureInvestigationWavesUsed: used + 1 });
@@ -1013,7 +1022,10 @@ export class MissionOrchestratorWorkItemRunner {
       return "continue";
     }
 
-    await this.host.updateWorkItemWithHardStopInvariant(mission.id, item, { status: "running" });
+    await this.host.updateWorkItemWithHardStopInvariant(mission.id, item, {
+      status: resolveActiveStatusForWorkItem(item),
+      attemptCount: (item.attemptCount ?? 0) + 1
+    });
     await this.host.store.saveEvent(mission.id, {
       level: "info",
       source: `agent:${item.role}`,

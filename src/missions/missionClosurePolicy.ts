@@ -3,6 +3,7 @@ import type { AgentRole, Mission, WorkItem } from "../types";
 import { uid } from "../util";
 import { shouldCollapseToComplete } from "./missionCompletionCollapse";
 import type { MissionStore } from "./MissionStore";
+import { isActiveWorkItemStatus, isRunnableWorkItemStatus } from "./workItemLifecycle";
 
 /**
  * Computes the set of work items missing for planner role coverage.
@@ -46,7 +47,9 @@ export async function enforceClosurePolicy(
     && computePlannerCoverageItems(current).length > 0;
 
   const enqueueIfMissing = async (role: AgentRole, title: string, prompt: string): Promise<boolean> => {
-    const hasPending = current.queue.some((w) => w.role === role && ["todo", "running"].includes(w.status));
+    const hasPending = current.queue.some(
+      (w) => w.role === role && (isRunnableWorkItemStatus(w.status) || isActiveWorkItemStatus(w.status))
+    );
     if (!hasPending) {
       await store.enqueue(current.id, [{ id: uid("work"), title, role, status: "todo" as const, prompt }]);
       await store.noteProgress(current.id);
