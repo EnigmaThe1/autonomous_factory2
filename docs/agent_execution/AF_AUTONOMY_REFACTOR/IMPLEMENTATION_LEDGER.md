@@ -296,4 +296,4 @@ The extension had no pre-existing `IMPLEMENTATION_LEDGER.md`. This file is the c
 - Optional ToolRegistry join with `resolvedArtifactRootRelative` for default-relative reads (not implemented; blast radius).
 - Tighter allowlist rules if operators need stricter “only these files” without `filesModified` warming up.
 
-**Checkpoint commit:** `12aca30` — `[Phase 9][P9-T-001] Mission artifact root binding, review read scope, deliverable guard, premature-read recovery.`
+**Checkpoint commit:** `ff01d1a` — `[Phase 9][P9-T-001] Mission artifact root binding, review read scope, deliverable guard, premature-read recovery.`
