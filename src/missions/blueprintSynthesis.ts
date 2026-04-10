@@ -67,7 +67,9 @@ export function synthesizeWorkItemsFromBlueprint(blueprint: MissionBlueprint): W
       prompt,
       dependsOn: dependsOn.length ? dependsOn : undefined,
       blueprintStepId: step.id,
-      requiredForCompletion: step.optional ? false : undefined
+      requiredForCompletion: step.optional ? false : undefined,
+      ...(step.scopeSummary?.trim() ? { scopeSummary: step.scopeSummary.trim().slice(0, 2000) } : {}),
+      ...(step.validationHint?.trim() ? { validationHint: step.validationHint.trim().slice(0, 2000) } : {})
     });
   }
   return items;

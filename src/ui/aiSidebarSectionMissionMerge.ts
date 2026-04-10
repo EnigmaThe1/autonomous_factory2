@@ -38,12 +38,18 @@ export function mergeMissionListIntoSnapshotForHost(
     allMissions
   );
   const agentLive = host.buildAgentLive(focusedMission);
+  const missionPrograms = host.programDirectory.list();
+  const focusedMissionProgram = focusedMission?.programId
+    ? host.programDirectory.get(focusedMission.programId) ?? null
+    : null;
   return {
     ...base,
     resolvedDefaultModel,
     missions,
     focusedMissionId: focusedMission?.id,
     focusedMission,
+    missionPrograms,
+    focusedMissionProgram,
     focusedMissionRequiredWorkHint: focusedMissionRequiredWorkHintForSnapshot(focusedMission),
     focusedMissionDownstreamGatingHint: focusedMissionDownstreamGatingHintForSnapshot(focusedMission),
     focusedMissionHardStopDataQualityHint: focusedMissionHardStopDataQualityHintForSnapshot(focusedMission),

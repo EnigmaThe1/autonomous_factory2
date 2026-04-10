@@ -54,6 +54,8 @@ export abstract class BaseAgent {
       `ROLE: ${item.role}`,
       `TASK: ${item.title}`,
       `TASK PROMPT: ${item.prompt}`,
+      item.scopeSummary?.trim() ? `SCOPE (in bounds): ${item.scopeSummary.trim()}` : "",
+      item.validationHint?.trim() ? `VALIDATION HINT: ${item.validationHint.trim()}` : "",
       item.retryCount
         ? `RETRY ATTEMPT: ${item.retryCount}. A previous attempt failed. Analyze the error below and try a DIFFERENT approach.`
         : "",

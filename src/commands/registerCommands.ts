@@ -3,6 +3,7 @@ import { AiSidebarProvider } from "../ui/AiSidebarProvider";
 import { MissionOrchestrator } from "../missions/MissionOrchestrator";
 import { MissionStore } from "../missions/MissionStore";
 import { MissionTemplateStore } from "../missions/MissionTemplateStore";
+import type { ProgramDirectory } from "../missions/ProgramDirectory";
 import { ToolRegistry } from "../tools/ToolRegistry";
 import { McpRegistry } from "../tools/McpRegistry";
 import { GlobalMemoryStore } from "../memory/GlobalMemoryStore";
@@ -32,11 +33,12 @@ export function registerCommands(
   traceLogger: ExtensionTraceLogger,
   secrets: SecretStore,
   extensionUri: vscode.Uri,
-  templates?: MissionTemplateStore
+  templates?: MissionTemplateStore,
+  programDirectory?: ProgramDirectory
 ): vscode.Disposable {
   const disposables: vscode.Disposable[] = [
     vscode.commands.registerCommand("myAi.openChat", () => sidebar.reveal()),
-    ...registerMissionCommands(sidebar, orchestrator, store),
+    ...registerMissionCommands(sidebar, orchestrator, store, programDirectory),
     ...registerApprovalCommands(sidebar, orchestrator, store, tools),
     ...registerToolCommands(tools, mcp, globalMemory, secrets, extensionUri),
     ...registerTraceCommands(traceLogger),

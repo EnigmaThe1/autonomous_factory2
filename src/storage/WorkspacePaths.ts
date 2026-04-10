@@ -39,6 +39,12 @@ export class WorkspacePaths {
     return dir ? vscode.Uri.joinPath(dir, 'global-memory.json') : undefined;
   }
 
+  /** Cross-mission programs / roadmaps (workspace extension data). */
+  programsFile(): vscode.Uri | undefined {
+    const base = this.storageRoot();
+    return base ? vscode.Uri.joinPath(base, "programs.json") : undefined;
+  }
+
   mcpSessionsFile(): vscode.Uri | undefined {
     const dir = this.mcpDir();
     return dir ? vscode.Uri.joinPath(dir, 'sessions.json') : undefined;

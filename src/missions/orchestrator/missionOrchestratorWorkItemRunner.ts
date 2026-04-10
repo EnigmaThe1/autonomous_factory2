@@ -45,6 +45,7 @@ import {
 } from "./orchestratorLeafHelpers";
 import { normalizeRunCommandPreview } from "../runCommandPreviewNormalize";
 import { extractValidationVerdictFromSummary } from "../validatorVerdictExtract";
+import { maybeMissionGitCheckpointAfterWorkItem } from "../missionGitCheckpoint";
 import type { MissionAgentRunForTest, MissionToolExecutor } from "../missionOrchestratorContracts";
 import type { MissionStore } from "../MissionStore";
 
@@ -1147,6 +1148,24 @@ export class MissionOrchestratorWorkItemRunner {
     }
     await this.host.store.noteProgress(mission.id);
     await this.host.store.updateMission(mission.id, patch);
+
+    if (terminalWorkStatus === "done") {
+      void maybeMissionGitCheckpointAfterWorkItem({
+        role: item.role,
+        terminalStatus: terminalWorkStatus,
+        missionId: mission.id,
+        missionTitle: mission.title,
+        workItemId: item.id,
+        workItemTitle: item.title
+      }).then((ck) => {
+        if (!ck.ran) return;
+        void this.host.store.saveEvent(mission.id, {
+          level: ck.ok === false ? "warn" : "info",
+          source: "git-checkpoint",
+          message: ck.ok === false ? `Git checkpoint skipped or failed: ${ck.summary || ""}` : `Git checkpoint: ${ck.summary || "ok"}`
+        });
+      });
+    }
 
     // Phase 3 (Verifier Mesh obligations): after implementer mutation under balanced/strict, run deterministic checks.
     if (item.role === "implementer" && toolExecResult.hadMutatingSideEffect) {

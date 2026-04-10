@@ -63,6 +63,7 @@ test("mergeMissionListIntoSnapshotForHost: visible missions and total/archive co
   const host = {
     getWorkspaceConfiguration: () => ({ get: (_k: string, d: unknown) => d }),
     missionStore: { list: () => all },
+    programDirectory: { list: () => [], get: () => undefined },
     getIncludeArchivedMissions: () => false,
     resolveFocusedMission: (missions: typeof all) => missions[0],
     buildAgentStatus: () => [],
@@ -85,6 +86,7 @@ test("mergeMissionListIntoSnapshotForHost: includeArchived toggles list visibili
   const host = {
     getWorkspaceConfiguration: () => ({ get: (_k: string, d: unknown) => d }),
     missionStore: { list: () => all },
+    programDirectory: { list: () => [], get: () => undefined },
     getIncludeArchivedMissions: () => true,
     resolveFocusedMission: (missions: typeof all) => missions[1],
     buildAgentStatus: () => [],

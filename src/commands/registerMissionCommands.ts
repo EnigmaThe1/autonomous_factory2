@@ -16,6 +16,7 @@ import {
 } from "../missions/missionBlueprintExportActions";
 import { extractFixtureMissionPrompt } from "../fixtures/fixturePrompt";
 import { chooseMission, pickWorkItem, workItemQuickLabel } from "./commandHelpers";
+import type { ProgramDirectory } from "../missions/ProgramDirectory";
 
 /** VS Code quick input supports `multiline` at runtime on recent builds; `@types/vscode` may omit it. */
 type InputBoxOptionsMultiline = vscode.InputBoxOptions & { multiline?: boolean };
@@ -190,7 +191,8 @@ export async function editMissionDagForMission(store: MissionStore, missionId: s
 export function registerMissionCommands(
   sidebar: AiSidebarProvider,
   orchestrator: MissionOrchestrator,
-  store: MissionStore
+  store: MissionStore,
+  programDirectory?: ProgramDirectory
 ): vscode.Disposable[] {
   const disposables: vscode.Disposable[] = [];
 
@@ -592,6 +594,88 @@ export function registerMissionCommands(
       void vscode.window.showInformationMessage(`Mission report saved to ${target.fsPath}`);
     })
   );
+
+  if (programDirectory) {
+    type ProgramQuickPick = vscode.QuickPickItem & { pid: string };
+    disposables.push(
+      vscode.commands.registerCommand("myAi.createMissionProgram", async () => {
+        const title = await vscode.window.showInputBox({ prompt: "New program title" });
+        if (!title?.trim()) return;
+        const roadmap = await vscode.window.showInputBox({
+          prompt: "Roadmap / backlog notes (optional)",
+          ...( { multiline: true } as InputBoxOptionsMultiline )
+        });
+        await programDirectory.createProgram(title.trim(), roadmap?.trim());
+        void vscode.window.showInformationMessage(`Program created: ${title.trim()}`);
+        await sidebar.refreshDashboard(undefined, { source: "mission_program_create" });
+      })
+    );
+    disposables.push(
+      vscode.commands.registerCommand("myAi.linkMissionToProgram", async () => {
+        const picked = await chooseMission(store, "Select mission to link to a program");
+        if (!picked) return;
+        const programs = programDirectory.list();
+        const items: ProgramQuickPick[] = [
+          { label: "Clear program link", description: "Remove program association from this mission", pid: "__clear" },
+          { label: "Create new program…", description: "Create a program and link this mission", pid: "__new__" },
+          ...programs.map(
+            (p) =>
+              ({
+                label: p.title,
+                description: p.id,
+                pid: p.id
+              }) as ProgramQuickPick
+          )
+        ];
+        const sel = await vscode.window.showQuickPick(items, { placeHolder: "Program for this mission" });
+        if (!sel) return;
+        if (sel.pid === "__clear") {
+          await programDirectory.setMissionProgram(store, picked.missionId, undefined);
+        } else if (sel.pid === "__new__") {
+          const t = await vscode.window.showInputBox({ prompt: "New program title" });
+          if (!t?.trim()) return;
+          const np = await programDirectory.createProgram(t.trim());
+          await programDirectory.setMissionProgram(store, picked.missionId, np.id);
+        } else {
+          await programDirectory.setMissionProgram(store, picked.missionId, sel.pid);
+        }
+        void vscode.window.showInformationMessage("Mission program link updated.");
+        await sidebar.refreshDashboard(undefined, { source: "mission_program_link" });
+      })
+    );
+    disposables.push(
+      vscode.commands.registerCommand("myAi.editMissionProgramRoadmap", async () => {
+        const programs = programDirectory.list();
+        if (!programs.length) {
+          void vscode.window.showWarningMessage("No programs yet. Use “Create mission program” first.");
+          return;
+        }
+        type RP = vscode.QuickPickItem & { programId: string };
+        const sel = await vscode.window.showQuickPick(
+          programs.map(
+            (p) =>
+              ({
+                label: p.title,
+                description: p.id,
+                programId: p.id
+              }) as RP
+          ),
+          { placeHolder: "Select program to edit roadmap" }
+        );
+        if (!sel) return;
+        const p = programDirectory.get(sel.programId);
+        const roadmap = await vscode.window.showInputBox({
+          value: p?.roadmap || "",
+          prompt: "Roadmap / backlog (markdown ok)",
+          ...( { multiline: true } as InputBoxOptionsMultiline )
+        });
+        if (roadmap === undefined) return;
+        await programDirectory.updateProgramRoadmap(sel.programId, roadmap);
+        void vscode.window.showInformationMessage("Program roadmap updated.");
+        await sidebar.refreshDashboard(undefined, { source: "mission_program_roadmap" });
+      })
+    );
+  }
 
   return disposables;
 }

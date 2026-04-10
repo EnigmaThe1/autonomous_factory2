@@ -188,6 +188,10 @@ export function missionInspectorSig(snapshot, missionQuickFilter = "all", displa
   const frsKey = frs
     ? `${frs.completionPercent}|${frs.filesModifiedCount}|${frs.errorPatternCount}|${frs.retriedItems}|${frs.deadLetterItems ?? 0}`
     : "";
+  const mp = (snapshot.missionPrograms || []).map((p) => `${p.id}:${p.updatedAt}:${(p.missionIds || []).length}`);
+  const fmp = snapshot.focusedMissionProgram
+    ? `${snapshot.focusedMissionProgram.id}:${snapshot.focusedMissionProgram.updatedAt}:${String(snapshot.focusedMissionProgram.roadmap || "").length}`
+    : "";
   if (!m) {
     return JSON.stringify({
       empty: true,
@@ -203,7 +207,9 @@ export function missionInspectorSig(snapshot, missionQuickFilter = "all", displa
       oah: focusedMissionOperatorActionHeadlinesSigFragment(snapshot.focusedMissionOperatorActionHeadlines),
       frs: frsKey,
       rmc: reportCacheSig,
-      bpx: ""
+      bpx: "",
+      mp,
+      fmp
     });
   }
   const q = (m.queue || []).map((w) => ({
@@ -214,7 +220,9 @@ export function missionInspectorSig(snapshot, missionQuickFilter = "all", displa
     dep: (w.dependsOn || []).length,
     out: w.output != null ? String(w.output).slice(0, 280) : "",
     ck: w.completionKind || null,
-    hsc: w.hardStopClass || null
+    hsc: w.hardStopClass || null,
+    sc: w.scopeSummary != null && String(w.scopeSummary).trim() ? String(w.scopeSummary).slice(0, 240) : "",
+    vh: w.validationHint != null && String(w.validationHint).trim() ? String(w.validationHint).slice(0, 240) : ""
   }));
   const cps = (m.checkpoints || []).slice(-4).map((cp) => [cp.step, cp.ts, cp.summary]);
   const evs = (m.events || []).slice(-8).map((ev) => [ev.id, ev.ts, ev.level, ev.source, ev.message]);
@@ -259,6 +267,9 @@ export function missionInspectorSig(snapshot, missionQuickFilter = "all", displa
       ar: rt.autoReplans,
       lg: rt.loopGuardTrips
     },
-    bpx
+    bpx,
+    mp,
+    fmp,
+    mprog: m.programId || ""
   });
 }

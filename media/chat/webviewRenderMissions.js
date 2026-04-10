@@ -243,12 +243,21 @@ export function createMissionRenderer(deps) {
       } else {
         const queue =
           m.queue
-            .map(
-              (work) =>
-                `<div class="work-item ${work.status}"><div class="row split"><strong>${escapeHtml(work.title)}</strong><span class="badge ${work.status}">${escapeHtml(work.status)}</span></div><div class="meta">${escapeHtml(work.role)}${
-                  work.completionKind ? ` • ${escapeHtml(formatWorkItemCompletionKind(work.completionKind))}` : ""
-                }${work.dependsOn?.length ? ` • depends on ${work.dependsOn.length}` : ""}</div>${work.output ? `<div class="small-pre">${escapeHtml(String(work.output).slice(0, 280))}</div>` : ""}</div>`
-            )
+            .map((work) => {
+              const scope =
+                work.scopeSummary && String(work.scopeSummary).trim()
+                  ? `<div class="meta work-item-scope"><span class="section-title small">Scope</span> ${escapeHtml(String(work.scopeSummary).trim().slice(0, 900))}</div>`
+                  : "";
+              const valHint =
+                work.validationHint && String(work.validationHint).trim()
+                  ? `<div class="meta work-item-validation-hint"><span class="section-title small">Validation hint</span> ${escapeHtml(String(work.validationHint).trim().slice(0, 900))}</div>`
+                  : "";
+              return `<div class="work-item ${work.status}"><div class="row split"><strong>${escapeHtml(work.title)}</strong><span class="badge ${work.status}">${escapeHtml(work.status)}</span></div><div class="meta">${escapeHtml(work.role)}${
+                work.completionKind ? ` • ${escapeHtml(formatWorkItemCompletionKind(work.completionKind))}` : ""
+              }${work.dependsOn?.length ? ` • depends on ${work.dependsOn.length}` : ""}</div>${scope}${valHint}${
+                work.output ? `<div class="small-pre">${escapeHtml(String(work.output).slice(0, 280))}</div>` : ""
+              }</div>`;
+            })
             .join("") || '<div class="empty">No work items.</div>';
         const checkpoints =
           (m.checkpoints || [])
@@ -330,6 +339,40 @@ export function createMissionRenderer(deps) {
             )}">Submit answers — generate blueprint</button></div>
     </div>`
             : "";
+        const missionPrograms = snapshot.missionPrograms || [];
+        const focusedProgram = snapshot.focusedMissionProgram;
+        const inspectorProgram =
+          missionPrograms.length || focusedProgram
+            ? (() => {
+                let html = `<div class="inspector-section"><div class="section-title small">Program / roadmap</div>`;
+                if (focusedProgram) {
+                  html += `<div class="meta-block"><div><strong>${escapeHtml(focusedProgram.title)}</strong> <span class="meta">${escapeHtml(focusedProgram.id)}</span></div>`;
+                  if (focusedProgram.roadmap && String(focusedProgram.roadmap).trim()) {
+                    html += `<details style="margin-top:6px;"><summary>Roadmap</summary><pre class="small-pre" style="max-height:220px;overflow:auto;white-space:pre-wrap;word-break:break-word;">${escapeHtml(
+                      String(focusedProgram.roadmap).slice(0, 12000)
+                    )}</pre></details>`;
+                  } else {
+                    html += `<div class="meta" style="margin-top:6px;">No roadmap text yet. Command Palette → Edit Mission Program Roadmap.</div>`;
+                  }
+                  html += `</div>`;
+                } else {
+                  html += `<div class="meta mission-program-unlinked" style="margin-bottom:8px;">This mission is not linked to a program. Command Palette → Link Mission to Program.</div>`;
+                }
+                if (missionPrograms.length) {
+                  html += `<div class="meta" style="margin-top:8px;">Programs in workspace (${missionPrograms.length})</div><ul style="margin:4px 0;padding-left:1.1rem;font-size:0.92em;">`;
+                  for (const p of missionPrograms.slice(0, 14)) {
+                    const linked = Array.isArray(p.missionIds) && p.missionIds.includes(m.id) ? " — this mission" : "";
+                    html += `<li>${escapeHtml(p.title)}${linked} <span class="meta">${escapeHtml(p.id)}</span></li>`;
+                  }
+                  if (missionPrograms.length > 14) {
+                    html += `<li class="meta">…and ${missionPrograms.length - 14} more</li>`;
+                  }
+                  html += `</ul>`;
+                }
+                html += `</div>`;
+                return html;
+              })()
+            : "";
         const inspectorBlueprint = m.blueprint
           ? `<div class="inspector-section"><div class="section-title small">Mission blueprint</div>
       <div class="meta">Status: ${escapeHtml(m.blueprint.status)}${
@@ -383,6 +426,7 @@ export function createMissionRenderer(deps) {
       ${inspectorMps}
       ${inspectorPreBlueprint}
       ${inspectorBlueprint}
+      ${inspectorProgram}
       ${reportSummaryHtml}
       ${reportActions}
       ${reportPreviewHtml}

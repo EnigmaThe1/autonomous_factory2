@@ -52,7 +52,10 @@
     "onCommand:myAi.submitPreBlueprintClarification",
     "onCommand:myAi.exportMissionBlueprint",
     "onCommand:myAi.copyMissionBlueprint",
-    "onCommand:myAi.exportMissionDiagnosticSnapshot"
+    "onCommand:myAi.exportMissionDiagnosticSnapshot",
+    "onCommand:myAi.createMissionProgram",
+    "onCommand:myAi.linkMissionToProgram",
+    "onCommand:myAi.editMissionProgramRoadmap"
   ],
   "main": "./dist/extension.js",
   "contributes": {
@@ -163,6 +166,18 @@
       {
         "command": "myAi.copyMissionBlueprint",
         "title": "Autonomous Factory: Copy Mission Blueprint to Clipboard"
+      },
+      {
+        "command": "myAi.createMissionProgram",
+        "title": "Autonomous Factory: Create Mission Program"
+      },
+      {
+        "command": "myAi.linkMissionToProgram",
+        "title": "Autonomous Factory: Link Mission to Program"
+      },
+      {
+        "command": "myAi.editMissionProgramRoadmap",
+        "title": "Autonomous Factory: Edit Mission Program Roadmap"
       },
       {
         "command": "myAi.setBraveSearchApiKey",
@@ -864,6 +879,17 @@
           "type": "boolean",
           "default": false,
           "description": "Automatically git-stash before implementer work items and restore on failure. Requires a git repository in the workspace."
+        },
+        "myAi.missions.gitCheckpointMode": {
+          "type": "string",
+          "default": "off",
+          "enum": ["off", "implementer_only", "all_completed_roles"],
+          "enumDescriptions": [
+            "Do not create git commits when work items finish.",
+            "After each implementer work item reaches done, run `git add -u` and commit tracked changes (separate from in-mission checkpoints).",
+            "After any work item reaches done, commit tracked changes the same way."
+          ],
+          "description": "Optional per-work-item git commits for tracked files (`git add -u`). Intentionally separate from mission JSON checkpoints. Requires a git repository in the workspace."
         },
         "myAi.missions.toolRecoveryAutonomyPreset": {
           "type": "string",

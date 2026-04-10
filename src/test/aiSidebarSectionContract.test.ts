@@ -8,6 +8,7 @@ import type * as vscode from "vscode";
 import type { ExtensionTraceLogger } from "../diagnostics/ExtensionTraceLogger";
 import type { GlobalMemoryStore } from "../memory/GlobalMemoryStore";
 import type { MissionStore } from "../missions/MissionStore";
+import type { ProgramDirectory } from "../missions/ProgramDirectory";
 import type { Mission } from "../types";
 import type { ExtToUiMessage, SidebarSnapshot, SnapshotSectionId } from "../ui/protocol";
 import type { AiSidebarSectionPublishHost } from "../ui/aiSidebarSectionPublishHost";
@@ -131,11 +132,17 @@ function createSectionPublishHarness(opts: HarnessOptions = {}) {
 
   const webviewView = { webview: {} } as unknown as vscode.WebviewView;
 
+  const programDirectory = {
+    list: () => [],
+    get: () => undefined
+  } as unknown as ProgramDirectory;
+
   const host: AiSidebarSectionPublishHost = {
     traceLogger: traceRecorder().traceLogger,
     getWebviewView: () => webviewView,
     getLastPostedSnapshot: () => lastPosted,
     missionStore,
+    programDirectory,
     getIncludeArchivedMissions: () => false,
     resolveFocusedMission: (ms) => ms[0],
     buildAgentStatus: () => [],

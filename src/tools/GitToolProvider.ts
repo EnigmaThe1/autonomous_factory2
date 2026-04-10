@@ -92,6 +92,34 @@ export async function gitCommit(message: string, paths?: string[]): Promise<GitT
   return { ok: true, summary: r.stdout.trim().split("\n")[0] || "Committed" };
 }
 
+/**
+ * Stage updates to **tracked** files only (`git add -u`), then commit. Does not add new untracked files.
+ * Suitable for automatic per-work-item checkpoints without sweeping the whole tree into the index.
+ */
+export async function gitCommitTrackedChanges(message: string): Promise<GitToolResult> {
+  const cwd = workspaceRoot();
+  if (!cwd) return { ok: false, summary: "No workspace open" };
+
+  const st = await git("rev-parse --is-inside-work-tree", 3000);
+  if (st.exitCode !== 0 || !/true/i.test(st.stdout.trim())) {
+    return { ok: false, summary: "Not a git repository" };
+  }
+
+  const addResult = await git("add -u", 30_000);
+  if (addResult.exitCode !== 0) return { ok: false, summary: addResult.stderr || "git add -u failed" };
+
+  const safeMsg = message.replace(/"/g, '\\"');
+  const r = await git(`commit -m "${safeMsg}"`, 30_000);
+  const combined = `${r.stderr || ""}\n${r.stdout || ""}`.toLowerCase();
+  if (r.exitCode !== 0) {
+    if (combined.includes("nothing to commit") || combined.includes("no changes added to commit")) {
+      return { ok: true, summary: "Nothing to commit (no staged tracked changes)." };
+    }
+    return { ok: false, summary: r.stderr || r.stdout || "git commit failed" };
+  }
+  return { ok: true, summary: r.stdout.trim().split("\n")[0] || "Committed" };
+}
+
 export async function gitShow(ref: string): Promise<GitToolResult> {
   const r = await git(`show --stat ${ref}`);
   if (r.exitCode !== 0) return { ok: false, summary: r.stderr || "git show failed" };

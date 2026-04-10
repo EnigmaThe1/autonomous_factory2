@@ -1,6 +1,7 @@
 import type * as vscode from "vscode";
 import type { GlobalMemoryStore } from "../memory/GlobalMemoryStore";
 import type { MissionStore } from "../missions/MissionStore";
+import type { ProgramDirectory } from "../missions/ProgramDirectory";
 import type { ExtensionTraceLogger } from "../diagnostics/ExtensionTraceLogger";
 import type { Mission } from "../types";
 import type {
@@ -30,6 +31,7 @@ export type AiSidebarSectionPublishHost = {
   getLastPostedSnapshot: () => SidebarSnapshot | undefined;
 
   missionStore: MissionStore;
+  programDirectory: ProgramDirectory;
   getIncludeArchivedMissions: () => boolean;
   resolveFocusedMission: (missions: Mission[]) => Mission | undefined;
   buildAgentStatus: (

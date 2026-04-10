@@ -2,6 +2,7 @@ import * as vscode from "vscode";
 import { ProviderRegistry } from "../providers/ProviderRegistry";
 import { ContextCollector } from "../context/ContextCollector";
 import { MissionStore } from "../missions/MissionStore";
+import type { ProgramDirectory } from "../missions/ProgramDirectory";
 import { MissionOrchestrator } from "../missions/MissionOrchestrator";
 import { GlobalMemoryStore } from "../memory/GlobalMemoryStore";
 import { ToolRegistry } from "../tools/ToolRegistry";
@@ -209,6 +210,7 @@ export class AiSidebarProvider implements vscode.WebviewViewProvider {
     private readonly secrets: SecretStore,
     private readonly traceLogger: ExtensionTraceLogger,
     private readonly workspaceState: vscode.Memento,
+    private readonly programDirectory: ProgramDirectory,
     extensionContext: vscode.ExtensionContext
   ) {
     this.modelCatalogCache = new ProviderModelCatalogCache(extensionContext.globalStorageUri);
@@ -288,6 +290,7 @@ export class AiSidebarProvider implements vscode.WebviewViewProvider {
       resolveMcpAuxiliarySlice: (resolveFor, opts) => this.resolveMcpAuxiliarySlice(resolveFor, opts),
       globalMemory: this.globalMemory,
       missionStore: this.missionStore,
+      programDirectory: this.programDirectory,
       getIncludeArchivedMissions: () => this.includeArchivedMissions,
       resolveFocusedMission: (missions) => this.resolveFocusedMission(missions),
       buildAgentStatus: (m, dp, dm) => this.buildAgentStatus(m, dp, dm),
@@ -303,6 +306,7 @@ export class AiSidebarProvider implements vscode.WebviewViewProvider {
       getWebviewView: () => p.view,
       getLastPostedSnapshot: () => p.lastPostedSnapshot,
       missionStore: p.missionStore,
+      programDirectory: p.programDirectory,
       getIncludeArchivedMissions: () => p.includeArchivedMissions,
       resolveFocusedMission: (missions) => p.resolveFocusedMission(missions),
       buildAgentStatus: (m, dp, dm) => p.buildAgentStatus(m, dp, dm),

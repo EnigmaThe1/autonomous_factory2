@@ -139,6 +139,8 @@ export function parseBlueprintModelOutput(
     const dependsOn = Array.isArray(depRaw)
       ? depRaw.filter((x): x is string => typeof x === "string" && x.trim().length > 0).map((x) => x.trim())
       : undefined;
+    const scopeRaw = typeof r.scopeSummary === "string" ? r.scopeSummary.trim() : "";
+    const valRaw = typeof r.validationHint === "string" ? r.validationHint.trim() : "";
     steps.push({
       id,
       title: title.slice(0, maxField),
@@ -147,7 +149,9 @@ export function parseBlueprintModelOutput(
       dependsOn: dependsOn?.length ? dependsOn : undefined,
       acceptanceCriteria: acceptanceCriteria.map((c) => c.slice(0, 2000)),
       status: "pending",
-      optional: r.optional === true
+      optional: r.optional === true,
+      ...(scopeRaw ? { scopeSummary: scopeRaw.slice(0, 2000) } : {}),
+      ...(valRaw ? { validationHint: valRaw.slice(0, 2000) } : {})
     });
   }
 

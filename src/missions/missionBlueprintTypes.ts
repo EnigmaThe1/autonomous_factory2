@@ -17,6 +17,10 @@ export interface BlueprintStep {
   acceptanceCriteria: string[];
   status: BlueprintStepStatus;
   optional?: boolean;
+  /** Optional structured scope line for synthesized work items. */
+  scopeSummary?: string;
+  /** Optional validation hint for synthesized work items. */
+  validationHint?: string;
 }
 
 export interface BlueprintAmendment {

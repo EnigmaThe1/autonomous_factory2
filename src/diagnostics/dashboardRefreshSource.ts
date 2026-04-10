@@ -30,4 +30,8 @@ export type DashboardRefreshSource =
   /** Pre-blueprint Q&A answers submitted (command palette). */
   | "pre_blueprint_submit"
   /** Workspace settings that map into `SidebarSnapshot.settings` (e.g. trace auto-refresh interval, heartbeat). */
-  | "workspace_settings_sidebar_summary";
+  | "workspace_settings_sidebar_summary"
+  /** Mission program created / linked / roadmap edited from command palette. */
+  | "mission_program_create"
+  | "mission_program_link"
+  | "mission_program_roadmap";

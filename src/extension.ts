@@ -20,6 +20,7 @@ import { MissionTemplateStore } from "./missions/MissionTemplateStore";
 import { wireAgentStreamThrottle } from "./ui/agentStreamThrottle";
 import { WorkspaceIndex } from "./memory/WorkspaceIndex";
 import { MissionFileTracker } from "./missions/MissionFileTracker";
+import { ProgramDirectory } from "./missions/ProgramDirectory";
 
 export async function activate(context: vscode.ExtensionContext) {
   console.info(`[my-ai] activate ${context.extension.id}@${context.extension.packageJSON.version}`);
@@ -32,7 +33,8 @@ export async function activate(context: vscode.ExtensionContext) {
   await disk.ensureFolders();
   const globalMemory = new GlobalMemoryStore(context.globalState, disk);
   const missionStore = new MissionStore(context.globalState, context.workspaceState, disk);
-  await Promise.all([globalMemory.hydrateFromDisk(), missionStore.hydrateFromDisk()]);
+  const programDirectory = new ProgramDirectory(disk);
+  await Promise.all([globalMemory.hydrateFromDisk(), missionStore.hydrateFromDisk(), programDirectory.hydrate()]);
   const loadIssues = disk.getAndClearLoadIssues();
   if (loadIssues.length) {
     void vscode.window.showWarningMessage(`Autonomous Factory: detected ${loadIssues.length} persistence load issue(s). See logs for details.`);
@@ -74,6 +76,7 @@ export async function activate(context: vscode.ExtensionContext) {
     secrets,
     traceLogger,
     context.workspaceState,
+    programDirectory,
     context
   );
   await sidebar.hydrateModelCatalogFromDisk();
@@ -92,7 +95,19 @@ export async function activate(context: vscode.ExtensionContext) {
       }
     }),
     { dispose: () => wsIndex.dispose() },
-    registerCommands(sidebar, orchestrator, missionStore, tools, mcp, globalMemory, traceLogger, secrets, context.extensionUri, templates),
+    registerCommands(
+      sidebar,
+      orchestrator,
+      missionStore,
+      tools,
+      mcp,
+      globalMemory,
+      traceLogger,
+      secrets,
+      context.extensionUri,
+      templates,
+      programDirectory
+    ),
     runner,
     mcp,
     vscode.workspace.onDidChangeConfiguration((e) => {

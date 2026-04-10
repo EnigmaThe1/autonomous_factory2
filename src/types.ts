@@ -226,6 +226,21 @@ export interface WorkItem {
     | "failure_recovery_retry";
   /** After synthesis, ties this row to `MissionBlueprint.steps[].id`. */
   blueprintStepId?: string;
+  /** In-scope summary (optional; blueprint or operator). */
+  scopeSummary?: string;
+  /** How to validate this step (optional). */
+  validationHint?: string;
+}
+
+/** Cross-mission program / roadmap (persisted under workspace `.my-ai-extension`; missions link via `programId`). */
+export interface MissionProgram {
+  id: string;
+  title: string;
+  /** Roadmap / backlog notes (markdown ok). */
+  roadmap?: string;
+  missionIds: string[];
+  createdAt: number;
+  updatedAt: number;
 }
 
 export interface MissionCheckpoint {
@@ -336,6 +351,8 @@ export interface Mission {
   blueprintRevisionCount?: number;
   /** Pre-blueprint clarification (questions from planner; operator answers before blueprint JSON). */
   preBlueprintClarification?: PreBlueprintClarificationState;
+  /** Optional link to a persisted `MissionProgram` (multi-mission governance). */
+  programId?: string;
 }
 
 export interface ChatContext {

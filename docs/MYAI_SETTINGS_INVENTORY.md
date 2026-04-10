@@ -60,16 +60,27 @@ npm run docs:settings-inventory
 | `myAi.missions.claimDiscipline` | boolean | `true` | Inject claim-discipline instructions so agents can record VERIFIED_* vs ASSUMPTION via MEMORY lines. |
 | `myAi.missions.closureRequired` | boolean | `true` | Keep missions alive until validation passes or a real blocker is recorded. |
 | `myAi.missions.diskStoreFolder` | string | `.my-ai-extension` | Workspace-relative folder for portable mission JSON (`missions/*.json`), approval previews, tool-result spills, MCP session file, global memory file, templates, and related artifacts. Does not replace extension globalState: the mission list still lives in VS Code globalState (`myAi.missions` key); see README “Mission persistence”. |
+| `myAi.missions.failureInvestigation.enabled` | boolean | `false` | When a required work item ends in tool_failure (hard failure or unresolved recoverable batch), enqueue a structured wave (researcher → optional planner → retry clone) instead of only pausing the mission, until maxWavesPerMission is reached. |
+| `myAi.missions.failureInvestigation.includePlannerStep` | boolean | `false` | When true, insert a planner work item between researcher diagnosis and the retry clone. |
+| `myAi.missions.failureInvestigation.maxWavesPerMission` | number | `2` | Maximum failure-investigation waves per mission (0 disables enqueue; mission then blocks as before when limits are hit). |
 | `myAi.missions.gitCheckpointBeforeImpl` | boolean | `false` | Automatically git-stash before implementer work items and restore on failure. Requires a git repository in the workspace. |
+| `myAi.missions.gitCheckpointMode` | string | `off` | Optional per-work-item git commits for tracked files (`git add -u`). Intentionally separate from mission JSON checkpoints. Requires a git repository in the workspace. |
 | `myAi.missions.heartbeatSeconds` | number | `12` | Background runner heartbeat interval in seconds. |
 | `myAi.missions.markDeadLetterAfterRetryExhaustion` | boolean | `true` | When automatic retries are exhausted (or max is 0), mark the failed work item as dead letter, append operator guidance to output, and emit an error event. |
+| `myAi.missions.maxApplyPatchRecoveryAttemptsPerWorkItem` | number | `12` | Per work item, failed applyPatch calls that may continue for agent-driven retry. Set to 0 for strict halt. Exploratory preset increases the effective cap. |
 | `myAi.missions.maxAutoRetries` | number | `2` | Maximum automatic retries for failed work items. Set 0 to disable. Retries inject error context so the agent can try a different approach. |
 | `myAi.missions.maxAutoRounds` | number | `24` | Maximum autonomous rounds before the mission is paused as blocked for operator review. |
 | `myAi.missions.maxBlueprintRevisions` | number | `3` | Max operator-requested blueprint revision rounds per mission. |
 | `myAi.missions.maxBlueprintSteps` | number | `40` | Maximum steps accepted in a parsed mission blueprint. |
+| `myAi.missions.maxRecoverableReadonlyFailuresPerWorkItem` | number | `10` | Per work item, how many failed read-only tool calls (e.g. readFile, listFiles) may be treated as recoverable before halting. Exploratory preset increases the effective cap. |
+| `myAi.missions.maxRunCommandProbeFailuresPerWorkItem` | number | `12` | Per work item, missing-path style runCommand failures that can continue without blocking. Exploratory preset increases the effective cap. |
+| `myAi.missions.maxRunCommandRecoveryAttemptsPerWorkItem` | number | `12` | Per work item, failed runCommand executions that may continue for agent-driven retry (with hints). Set to 0 for strict halt. Exploratory preset increases the effective cap. |
 | `myAi.missions.maxStallAutoReplans` | number | `2` | Maximum automatic recovery replans before a mission is marked blocked for operator review. |
-| `myAi.missions.maxStepsPerRun` | number | `16` | Safety cap for autonomous steps in one run. |
-| `myAi.missions.maxToolFollowUpTurns` | number | `3` | Maximum number of follow-up turns where tool results are fed back to the agent for iterative refinement. Set to 0 to disable tool follow-up loops. |
+| `myAi.missions.maxStepsPerRun` | number | `128` | Safety cap for autonomous steps in one run pass. Higher reduces 'Paused after reaching the run step limit' interruptions; other safety systems still apply (maxAutoRounds, approvals, closure gates). |
+| `myAi.missions.maxToolFollowUpTurns` | number | `10` | Maximum follow-up turns where prior tool results are fed back to the same work item so the model can refine commands/paths. Set to 0 to disable. Exploratory preset scales this up further (capped at 32). |
+| `myAi.missions.maxToolFollowUpsWhenTestHarness` | number | `0` | When the orchestrator runs with agentRunForTest (headless tests), how many tool follow-up turns are allowed. Default 0 preserves deterministic tests. Not scaled by exploratory preset. |
+| `myAi.missions.maxTransientMutatingFailuresPerWorkItem` | number | `4` | Per work item, recoverable attempts for mutating tools whose error looks transient (timeout, rate limit, etc.). Exploratory preset increases the effective cap. |
+| `myAi.missions.maxWriteFileRecoveryAttemptsPerWorkItem` | number | `12` | Per work item, failed writeFile calls that may continue for agent-driven retry. Set to 0 for strict halt. Exploratory preset increases the effective cap. |
 | `myAi.missions.minCompletedWorkItems` | number | `4` | Minimum completed work items before a closure-required mission may complete. |
 | `myAi.missions.pauseAfterEachValidator` | boolean | `false` | When true, after each validator work item completes successfully, pause the mission (awaiting_input) until the operator runs Autonomous Factory: Resume Mission. |
 | `myAi.missions.policyPreset` | string | `balanced` | Default closure policy preset for new missions. |
@@ -84,11 +95,13 @@ npm run docs:settings-inventory
 | `myAi.missions.scalingMode` | string | `fixed` | How mission step/round limits scale. 'fixed' uses config values directly. 'adaptive' scales limits based on work item count. |
 | `myAi.missions.stallHeartbeatThreshold` | number | `3` | Number of heartbeats with no progress before the runner injects a recovery replan. |
 | `myAi.missions.stallReplanThreshold` | number | `3` | If too few todo items remain before closure, enqueue an automatic re-plan after this many rounds without progress. |
+| `myAi.missions.toolRecoveryAutonomyPreset` | string | `standard` | standard: use the numeric recovery settings below as configured. exploratory: raises effective tool follow-up turns and per-category recovery budgets (~1.75×, capped) so models can investigate failures and retry more before the mission hard-stops. Does not bypass policy, approvals, trust gates, or tool-layer crashes. |
 | `myAi.missions.toolResultSpill.enabled` | boolean | `true` | When true, large tool result payloads in mission events are written under the disk store folder and referenced inline to keep mission JSON smaller. |
 | `myAi.missions.toolResultSpill.maxInlineBytes` | number | `24000` | If serialized event data exceeds this UTF-8 byte size, spill to disk (when enabled and a workspace folder exists). |
 | `myAi.missions.trustGates.enabled` | boolean | `false` | When true, dependency-style shell commands and very large patches (after many file touches) require operator approval unless a recent verified MEMORY claim exists. |
 | `myAi.missions.trustGates.largePatchMinChars` | number | `8000` | Minimum search+replace character total to treat an applyPatch as 'large' for trust gating (with many files touched). |
 | `myAi.missions.trustGates.manyModifiedFilesThreshold` | number | `12` | Mission filesModified count at or above which large patches trigger the trust gate (when enabled). |
+| `myAi.missions.unlimitedStepsPerRun` | boolean | `false` | When true, ignore myAi.missions.maxStepsPerRun and allow a very high step budget per run pass (still capped by an internal hard ceiling for stability). |
 | `myAi.missions.verification.autoRunLinterAfterMutations` | boolean | `true` | When true, balanced/strict mission policy automatically runs the linter after implementer mutations (Verifier Mesh obligation). |
 | `myAi.missions.verification.autoRunTestsAfterMutations` | boolean | `true` | When true, balanced/strict mission policy automatically runs tests after implementer mutations (Verifier Mesh obligation). |
 | `myAi.models.anthropic` | string | `claude-sonnet-4-6` | Default Claude model id for the Anthropic provider (alias ids such as claude-sonnet-4-6 follow Anthropic docs). |
@@ -103,6 +116,7 @@ npm run docs:settings-inventory
 | `myAi.providers.maxRetries` | number | `1` | Maximum retry attempts for transient provider failures. |
 | `myAi.providers.requestTimeoutMs` | number | `30000` | Provider request timeout in milliseconds. |
 | `myAi.providers.retryDelayMs` | number | `400` | Base delay in milliseconds between provider retries. |
+| `myAi.recoverySpine.protectedPaths` | array | `[".my-ai-extension/**",".vscode/settings.json",".vscode/extensions.json",".vscode/tasks.json"]` | Recovery spine guard: workspace-relative paths that must not be mutated by default because they are required for mission recovery/resume. Writes/patches to these paths require explicit approval plus args.__recoverySpineOverride=true. |
 | `myAi.reviewers.autoCreateFixTasks` | boolean | `true` | When reviewer output reports issues without an implementer follow-up, automatically inject remediation/re-review/re-validation tasks. |
 | `myAi.sendActiveFile` | boolean | `true` |  |
 | `myAi.sendDiagnostics` | boolean | `true` |  |
@@ -113,6 +127,7 @@ npm run docs:settings-inventory
 | `myAi.skills.maxTotalChars` | number | `12000` | Maximum total characters injected from all skill files per agent turn. |
 | `myAi.tools.allowExternalAdapters` | boolean | `true` | Allow external HTTP-backed tool adapters. |
 | `myAi.tools.allowTerminal` | boolean | `false` | Allow terminal tool execution. |
+| `myAi.tools.autoApproveAllToolRequests` | boolean | `false` | When true, tool calls that would normally pause for operator approval (writes, patches, terminal, MCP, HTTP, scope-drift confirmations, trust-action gates, etc.) execute immediately without the Approvals queue. TrustPolicyEngine hard blocks (e.g. disallowed paths, terminal off) still apply. Protected recovery-spine paths still require __recoverySpineOverride. Does not auto-approve mission blueprint or pre-blueprint Q&A (use mission settings for those). |
 | `myAi.tools.commandOutputMaxBytes` | number | `8192` | Maximum bytes of stdout/stderr captured per runCommand invocation. Output beyond this limit is truncated. |
 | `myAi.tools.commandTimeoutMs` | number | `30000` | Default timeout in milliseconds for runCommand tool calls. Individual calls can override this. |
 | `myAi.tools.externalAdaptersFile` | string | `.my-ai-extension/tools/adapters.json` | Workspace-relative JSON file defining external tool adapters. |
@@ -127,6 +142,7 @@ npm run docs:settings-inventory
 | `myAi.tools.requireApprovalForTerminal` | boolean | `true` | Require approval before runTerminal tool calls. |
 | `myAi.tools.requireApprovalForWrite` | boolean | `true` | When true, mutating writeFile/applyPatch calls require operator approval before the tool runs (subject to requireApprovalForInWorkspaceWrites for paths inside the workspace). |
 | `myAi.tools.restrictToWorkspace` | boolean | `true` | Restrict file tools to workspace-contained paths. |
+| `myAi.tools.runCommandUnixShell` | string | `bash` | On Linux/macOS, runCommand runs the script with /bin/bash -c when set to bash (default) so common agent snippets work (function keyword, [[ ]], etc.). Use posix to run via the system /bin/sh only (stricter, may reject bash-only syntax). |
 | `myAi.tools.searchFilesMaxResults` | number | `50` | Max ripgrep matches per searchFiles / grepSearch tool call (agent requests are capped to this). |
 | `myAi.tools.showDiffBeforeApproval` | boolean | `true` | Open a diff preview before approving writeFile/applyPatch actions. |
 | `myAi.trace.level` | string | `info` | Maximum verbosity for the unified Autonomous Factory Trace output channel. error = errors only; info = operator-friendly; debug/trace = more host/webview detail. |

@@ -17,6 +17,7 @@ import { computeAllMissionProgressStats, computeMissionProgressStats } from "./m
 import { buildGlobalMemoryContextHostSlice, missionAllAndVisibleForFingerprint } from "./aiSidebarSnapshotMisc";
 import type { GlobalMemoryStore } from "../memory/GlobalMemoryStore";
 import type { MissionStore } from "../missions/MissionStore";
+import type { ProgramDirectory } from "../missions/ProgramDirectory";
 import type {
   SidebarAgentLiveItem,
   SidebarAgentStatus,
@@ -71,6 +72,7 @@ export type AiSidebarBuildSnapshotHost = {
   }>;
   globalMemory: GlobalMemoryStore;
   missionStore: MissionStore;
+  programDirectory: ProgramDirectory;
   getIncludeArchivedMissions: () => boolean;
   resolveFocusedMission: (missions: Mission[]) => Mission | undefined;
   buildAgentStatus: (
@@ -182,6 +184,8 @@ export async function buildSidebarDashboardSnapshot(host: AiSidebarBuildSnapshot
       : undefined,
     missionProgressStats: computeAllMissionProgressStats(missions),
     focusedMissionBlueprintProgress: focusedMission ? computeBlueprintProgress(focusedMission) : undefined,
+    missionPrograms: host.programDirectory.list(),
+    focusedMissionProgram: focusedMission?.programId ? host.programDirectory.get(focusedMission.programId) ?? null : null,
     ...memSlice,
     consoleLines,
     agents,

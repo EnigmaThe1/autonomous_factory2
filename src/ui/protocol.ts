@@ -1,4 +1,4 @@
-import { AgentRole, Mission } from "../types";
+import { AgentRole, Mission, MissionProgram } from "../types";
 import type { TraceLevel, TraceRecord } from "../diagnostics/traceTypes";
 import type { BlueprintProgress } from "../missions/blueprintProgress";
 
@@ -210,6 +210,10 @@ export interface SidebarSnapshot {
   missionProgressStats?: Record<string, MissionProgressStats>;
   /** Focused mission: approved blueprint step progress (required steps only). */
   focusedMissionBlueprintProgress?: BlueprintProgress;
+  /** Persisted cross-mission programs (roadmaps). */
+  missionPrograms?: MissionProgram[];
+  /** Resolved program for focused mission when `programId` is set. */
+  focusedMissionProgram?: MissionProgram | null;
   globalMemoryRecent: Array<{ id: string; ts: number; kind: string; text: string }>;
   consoleLines: string[];
   agents: SidebarAgentStatus[];

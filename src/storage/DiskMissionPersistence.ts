@@ -1,7 +1,17 @@
 import * as vscode from "vscode";
 import { MemoryItem, Mission } from "../types";
 import { WorkspacePaths } from "./WorkspacePaths";
-import { unwrapGlobalMemory, unwrapMcpSessions, unwrapMission, wrapGlobalMemory, wrapMcpSessions, wrapMission } from "./PersistenceCodec";
+import {
+  unwrapGlobalMemory,
+  unwrapMcpSessions,
+  unwrapMission,
+  unwrapPrograms,
+  wrapGlobalMemory,
+  wrapMcpSessions,
+  wrapMission,
+  wrapPrograms
+} from "./PersistenceCodec";
+import type { MissionProgram } from "../types";
 import { shouldIgnorePersistenceReadError } from "./persistenceLoadIssue";
 import { atomicTempFsPath } from "../util";
 import { isLikelyFileExistsFilesystemError, isLikelyMissingPathFilesystemError } from "./atomicRenameGuard";
@@ -117,6 +127,27 @@ export class DiskMissionPersistence {
     if (!uri) return;
     await this.ensureFolders();
     await this.writeJsonAtomic(uri, wrapMcpSessions(items));
+  }
+
+  async loadPrograms(): Promise<MissionProgram[]> {
+    const uri = this.paths.programsFile();
+    if (!uri) return [];
+    try {
+      const bytes = await vscode.workspace.fs.readFile(uri);
+      return unwrapPrograms(JSON.parse(Buffer.from(bytes).toString("utf8")));
+    } catch (err) {
+      if (shouldIgnorePersistenceReadError(err)) return [];
+      this.loadIssues.push(`Failed to load programs: ${err instanceof Error ? err.message : String(err)}`);
+      return [];
+    }
+  }
+
+  async savePrograms(programs: MissionProgram[]): Promise<void> {
+    if (!vscode.workspace.getConfiguration().get<boolean>("myAi.missions.portableJson", true)) return;
+    const uri = this.paths.programsFile();
+    if (!uri) return;
+    await this.ensureFolders();
+    await this.writeJsonAtomic(uri, wrapPrograms(programs));
   }
 
   async writeApprovalPreview(approvalId: string, beforeText: string, afterText: string): Promise<{before: vscode.Uri; after: vscode.Uri} | undefined> {
