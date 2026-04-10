@@ -44,13 +44,31 @@ export interface PreBlueprintClarificationState {
   status: "awaiting_answers" | "complete";
 }
 
-export type AgentRole =
-  | "planner"
-  | "researcher"
-  | "implementer"
-  | "reviewer"
-  | "validator"
-  | "architect";
+/**
+ * Canonical mission agent role constants (JSON-safe string values).
+ * Use `MissionAgentRole.X` in code; persisted missions may use the same string literals.
+ */
+export const MissionAgentRole = {
+  Planner: "planner",
+  Researcher: "researcher",
+  Implementer: "implementer",
+  Reviewer: "reviewer",
+  Validator: "validator",
+  Architect: "architect"
+} as const;
+
+export type MissionAgentRole = (typeof MissionAgentRole)[keyof typeof MissionAgentRole];
+
+export type AgentRole = MissionAgentRole;
+
+/** The five primary mission agents (orchestrator schedules these; architect is separate). */
+export const FIVE_MISSION_AGENT_ROLES: readonly MissionAgentRole[] = [
+  MissionAgentRole.Planner,
+  MissionAgentRole.Researcher,
+  MissionAgentRole.Implementer,
+  MissionAgentRole.Reviewer,
+  MissionAgentRole.Validator
+];
 
 export interface MissionPolicy {
   closureRequired: boolean;
@@ -390,6 +408,11 @@ export interface Mission {
   programId?: string;
 }
 
+/** Phase 4: tool allowlist attached by runWorkItem for policy + prompt filtering. */
+export interface MissionRoleDispatchMeta {
+  allowedToolIds: readonly string[];
+}
+
 export interface ChatContext {
   workspaceName?: string;
   fileName?: string;
@@ -405,6 +428,8 @@ export interface ChatContext {
   allDiagnosticsSummary?: string;
   /** Current git status (branch, modified files, short diff). */
   gitStatus?: string;
+  /** When set, BaseAgent uses role-scoped optional context and tool instructions. */
+  roleDispatch?: MissionRoleDispatchMeta;
 }
 
 export interface ChatHistoryEntry {

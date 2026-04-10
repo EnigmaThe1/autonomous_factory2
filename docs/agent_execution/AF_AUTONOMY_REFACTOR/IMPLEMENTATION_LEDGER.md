@@ -120,3 +120,28 @@ The extension had no pre-existing `IMPLEMENTATION_LEDGER.md`. This file is the c
 **Follow-ups**
 
 - Periodic audit for remaining hard-coded `status === "running"` outside lifecycle helpers; optional snapshot fields for recovery chains in additional UI surfaces.
+
+## Phase 4 — Agent dispatch & role-scoped context (2026-04-10)
+
+**Status:** DONE
+
+**What changed**
+
+- `src/types.ts`: canonical `MissionAgentRole` const object (JSON-safe string values), `FIVE_MISSION_AGENT_ROLES`, `ChatContext.roleDispatch` / `MissionRoleDispatchMeta`.
+- New `src/missions/agentDispatch/`: `roleAllowedTools.ts` (`isMissionToolAllowedForRole`, enforcement-aligned allowlists), `roleContextBuilder.ts` (keyword policy, researcher targeting, filtered context, tailored user prompt cores, `attachRoleDispatchMeta`), `roleToolPromptLines.ts` (role-budget TOOL lines), `index.ts`.
+- `missionOrchestratorWorkItemRunner`: `missionWorkItemContextKeywords` for `collectForMission`; post-collect filter + `roleDispatch`; tool loop denies disallowed tools with `[role_dispatch]` events.
+- `BaseAgent.askModel`: uses `buildRoleSpecificUserPromptCoreLines`, `shouldAttachOptionalContextLabel`, `getRoleScopedToolInstructionLines` when `roleDispatch` is set.
+- Tests: `src/test/agentDispatch.test.ts`, `src/test/missionAgentDispatch.integration.test.ts`; `missionOrchestratorUncaughtErrorReconcile` uses implementer for writeFile throw path.
+
+**Evidence pack**
+
+- `autonomous_factory/.dev/docs/_autogen/refactoring/refactoring__2026_04_10__AF_Autonomy_Phase4_Agent_Dispatch/` (`02_code_map`, `05_decisions`, `07_validation/01_agent_dispatch_tests.txt`, `08_final_report/FINAL_REPORT.md`).
+
+**Validation**
+
+- `npm run typecheck` — PASS  
+- `npm test` — PASS (log under evidence pack `07_validation/`).
+
+**Follow-ups**
+
+- Optional MCP read-vs-write classification; harness scripts for explicit validator-BLOCKER + multi-replan ordering assertions.

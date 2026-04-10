@@ -55,7 +55,7 @@ test("executeWorkItemToolCalls path: tool execute throw becomes ok:false tool_fa
   const { orchestrator, store } = await createOrchestrator(agent, toolImpl);
   const m = await store.create("reconcile-tool-throw", "p", "ollama", undefined, balancedIntegrationPolicy);
   await store.enqueue(m.id, [
-    { id: "wi-r2", title: "Research with tools", role: "researcher", status: "todo", prompt: "Use writeFile." }
+    { id: "wi-r2", title: "Implement with tools", role: "implementer", status: "todo", prompt: "Use writeFile." }
   ]);
   await orchestrator.runMission(m.id);
   const mid = store.get(m.id)!;

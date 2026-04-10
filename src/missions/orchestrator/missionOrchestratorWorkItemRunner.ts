@@ -48,8 +48,13 @@ import { buildFailureInvestigationWave } from "../failureInvestigationEnqueue";
 import { resolveActiveStatusForWorkItem } from "../workItemLifecycle";
 import { READONLY_MISSION_TOOL_IDS } from "../readonlyMissionToolIds";
 import {
+  missionWorkItemContextKeywords,
+  filterChatContextForWorkItem,
+  attachRoleDispatchMeta,
+  isMissionToolAllowedForRole
+} from "../agentDispatch";
+import {
   checkpointSummaryForTerminalWorkItem,
-  extractKeywords,
   flattenSubItems,
   isPotentiallyMutatingToolCall,
   mutatingToolTarget,
@@ -164,6 +169,18 @@ export class MissionOrchestratorWorkItemRunner {
       if (mission.dryRun && MUTATING_TOOLS.has(call.tool)) {
         toolResultSummaries.push(`[DRY-RUN] Skipped mutating tool: ${call.tool} ${JSON.stringify(call.args).slice(0, 200)}`);
         await this.host.store.saveEvent(mission.id, { level: "info", source: "orchestrator", message: `[DRY-RUN] Would execute: ${call.tool}` });
+        continue;
+      }
+      if (!isMissionToolAllowedForRole(item.role, call.tool)) {
+        attemptedToolInvocations += 1;
+        const denyMsg = `Tool ${call.tool} is not allowed for role ${item.role} (mission agent dispatch).`;
+        toolResultSummaries.push(`[role_dispatch] ${denyMsg}`);
+        await this.host.store.saveEvent(mission.id, {
+          level: "warn",
+          source: "orchestrator",
+          message: denyMsg,
+          data: { tool: call.tool, role: item.role, workItemId: item.id }
+        });
         continue;
       }
       attemptedToolInvocations += 1;
@@ -1048,13 +1065,16 @@ export class MissionOrchestratorWorkItemRunner {
       } catch { /* git not available — skip */ }
     }
 
-    const completedCount = mission.queue.filter((w) => w.status === "done" || w.status === "skipped").length;
-    const context = this.host.collector instanceof EnhancedContextCollector
+    const missionSnap = this.host.store.get(mission.id)!;
+    const completedCount = missionSnap.queue.filter((w) => w.status === "done" || w.status === "skipped").length;
+    const keywords = missionWorkItemContextKeywords(missionSnap, item);
+    let context: ChatContext = this.host.collector instanceof EnhancedContextCollector
       ? await this.host.collector.collectForMission({
         isFirstWorkItem: completedCount === 0,
-        keywords: extractKeywords(item.prompt, 5),
+        keywords
       })
       : await this.host.collector.collect();
+    context = attachRoleDispatchMeta(item.role, filterChatContextForWorkItem(missionSnap, item, context));
     this.host.missionWorkAbort.get(mission.id)?.abort();
     const ac = new AbortController();
     this.host.missionWorkAbort.set(mission.id, ac);

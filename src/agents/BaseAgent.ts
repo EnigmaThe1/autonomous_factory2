@@ -7,6 +7,11 @@ import { trimText } from "../util";
 import { GlobalMemoryStore } from "../memory/GlobalMemoryStore";
 import { loadWorkspaceSkillsForAgents } from "../skills/workspaceSkillsLoader";
 import { getAgentToolInstructionLines } from "./toolPromptCatalog";
+import {
+  buildRoleSpecificUserPromptCoreLines,
+  shouldAttachOptionalContextLabel
+} from "../missions/agentDispatch/roleContextBuilder";
+import { getRoleScopedToolInstructionLines } from "../missions/agentDispatch/roleToolPromptLines";
 import { CLAIM_STATUS_INSTRUCTIONS } from "../missions/claimTrust";
 import { EXTENSION_MISSION_DISCIPLINE_RULES, EXTENSION_TOOL_HARD_RULES_MISSION } from "./extensionToolHardRules";
 import { GOAL_FIRST_DISCIPLINE_SYSTEM } from "./goalFirstDiscipline";
@@ -49,24 +54,9 @@ export abstract class BaseAgent {
     const trimmedSections: string[] = [];
 
     const coreSections = [
-      `MISSION: ${mission.title}`,
-      `MISSION PROMPT: ${mission.prompt}`,
-      `ROLE: ${item.role}`,
-      `TASK: ${item.title}`,
-      `TASK PROMPT: ${item.prompt}`,
-      item.scopeSummary?.trim() ? `SCOPE (in bounds): ${item.scopeSummary.trim()}` : "",
-      item.validationHint?.trim() ? `VALIDATION HINT: ${item.validationHint.trim()}` : "",
-      item.retryCount
-        ? `RETRY ATTEMPT: ${item.retryCount}. A previous attempt failed. Analyze the error below and try a DIFFERENT approach.`
-        : "",
-      item.previousError
-        ? `PREVIOUS ERROR:\n${item.previousError}`
-        : "",
-      mission.policy.closureRequired
-        ? "CLOSURE REQUIRED: do not assume first-tranche completion. Continue until validation passes or a real blocker exists."
-        : "",
-      vscode.workspace.getConfiguration().get<boolean>("myAi.missions.claimDiscipline", true) ? CLAIM_STATUS_INSTRUCTIONS : "",
-    ];
+      ...buildRoleSpecificUserPromptCoreLines(mission, item),
+      vscode.workspace.getConfiguration().get<boolean>("myAi.missions.claimDiscipline", true) ? CLAIM_STATUS_INSTRUCTIONS : ""
+    ].filter(Boolean);
 
     // Budget-aware optional sections — ordered by trim priority (last trimmed first)
     const optionalSections: Array<{ label: string; content: string; priority: number }> = [];
@@ -96,6 +86,9 @@ export abstract class BaseAgent {
     const includedOptional: string[] = [];
 
     for (const section of optionalSections) {
+      if (!shouldAttachOptionalContextLabel(mission, item, section.label)) {
+        continue;
+      }
       if (totalChars + section.content.length > maxPromptChars * 0.8) {
         trimmedSections.push(section.label);
         continue;
@@ -108,7 +101,7 @@ export abstract class BaseAgent {
       ...coreSections,
       ...includedOptional,
       trimmedSections.length ? `[Budget: trimmed ${trimmedSections.join(", ")} to fit context window]` : "",
-      ...getAgentToolInstructionLines()
+      ...(context.roleDispatch ? getRoleScopedToolInstructionLines(item.role) : getAgentToolInstructionLines())
     ]
       .filter(Boolean)
       .join("\n\n");
