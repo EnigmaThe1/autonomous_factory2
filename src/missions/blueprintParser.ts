@@ -141,6 +141,10 @@ export function parseBlueprintModelOutput(
       : undefined;
     const scopeRaw = typeof r.scopeSummary === "string" ? r.scopeSummary.trim() : "";
     const valRaw = typeof r.validationHint === "string" ? r.validationHint.trim() : "";
+    const touchesProtected =
+      r.touchesProtectedPath === true ||
+      r.touches_protected_path === true ||
+      r.touchesProtectedPaths === true;
     steps.push({
       id,
       title: title.slice(0, maxField),
@@ -151,7 +155,8 @@ export function parseBlueprintModelOutput(
       status: "pending",
       optional: r.optional === true,
       ...(scopeRaw ? { scopeSummary: scopeRaw.slice(0, 2000) } : {}),
-      ...(valRaw ? { validationHint: valRaw.slice(0, 2000) } : {})
+      ...(valRaw ? { validationHint: valRaw.slice(0, 2000) } : {}),
+      ...(touchesProtected ? { touchesProtectedPath: true } : {})
     });
   }
 

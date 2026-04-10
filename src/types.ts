@@ -285,6 +285,8 @@ export interface WorkItem {
   scopeSummary?: string;
   /** How to validate this step (optional). */
   validationHint?: string;
+  /** From blueprint step: step may touch protected workspace / extension paths. */
+  touchesProtectedPath?: boolean;
 }
 
 /** Cross-mission program / roadmap (persisted under workspace `.my-ai-extension`; missions link via `programId`). */

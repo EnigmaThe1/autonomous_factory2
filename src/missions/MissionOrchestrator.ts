@@ -38,6 +38,7 @@ import { MissionOrchestratorApprovalResolver } from "./orchestrator/missionOrche
 import { MissionOrchestratorBlueprintFlow } from "./orchestrator/missionOrchestratorBlueprintFlow";
 import { MissionOrchestratorHardStopTelemetry } from "./orchestrator/missionOrchestratorHardStopTelemetry";
 import { waitForMissionTerminalLifecycleWhileIdle } from "./orchestrator/missionOrchestratorLifecycleWaits";
+import { blueprintStructuredFlowEnabled, normalizeBlueprintModeSetting } from "./missionBlueprintMode";
 
 import type { MissionAgentRunForTest, MissionToolExecutor } from "./missionOrchestratorContracts";
 export type { MissionAgentRunForTest, MissionToolExecutor } from "./missionOrchestratorContracts";
@@ -155,8 +156,10 @@ export class MissionOrchestrator {
   async startMission(title: string, prompt: string, providerId: string, model?: string): Promise<StartMissionResult> {
     const mission = await this.store.create(title, prompt, providerId, model);
     await this.recordMissionStartBaseline(mission);
-    const blueprintMode = vscode.workspace.getConfiguration().get<boolean>("myAi.missions.blueprintMode", false);
-    if (blueprintMode) {
+    const blueprintMode = normalizeBlueprintModeSetting(
+      vscode.workspace.getConfiguration().get<unknown>("myAi.missions.blueprintMode", "off")
+    );
+    if (blueprintStructuredFlowEnabled(blueprintMode)) {
       const preQ = vscode.workspace.getConfiguration().get<boolean>("myAi.missions.preBlueprintClarification", false);
       if (preQ) {
         await this.store.enqueue(mission.id, [
@@ -540,7 +543,9 @@ export class MissionOrchestrator {
   private async recordMissionStartBaseline(mission: Mission): Promise<void> {
     const names = vscode.workspace.workspaceFolders?.map((f) => f.name) ?? [];
     const rootHint = names.length ? names.join(", ") : "(no workspace folder)";
-    const blueprintMode = vscode.workspace.getConfiguration().get<boolean>("myAi.missions.blueprintMode", false);
+    const blueprintMode = normalizeBlueprintModeSetting(
+      vscode.workspace.getConfiguration().get<unknown>("myAi.missions.blueprintMode", "off")
+    );
     const preset = mission.policy.policyPreset ?? "custom";
     const text = `Mission start baseline: workspace folder(s): ${rootHint}; policy preset: ${preset}; blueprintMode: ${blueprintMode}.`;
     await this.store.addMemory(mission.id, {

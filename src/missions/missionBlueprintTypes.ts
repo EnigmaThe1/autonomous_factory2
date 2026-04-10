@@ -21,6 +21,8 @@ export interface BlueprintStep {
   scopeSummary?: string;
   /** Optional validation hint for synthesized work items. */
   validationHint?: string;
+  /** When true, synthesized work item carries `touchesProtectedPath` for policy-aware prompts. */
+  touchesProtectedPath?: boolean;
 }
 
 export interface BlueprintAmendment {

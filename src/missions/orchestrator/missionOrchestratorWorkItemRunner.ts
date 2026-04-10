@@ -60,6 +60,15 @@ import {
   mutatingToolTarget,
   readinessMessageText
 } from "./orchestratorLeafHelpers";
+import { normalizeBlueprintModeSetting } from "../missionBlueprintMode";
+import {
+  buildBlueprintParseRecoveryWorkItem,
+  buildDynamicDecompositionPlannerItem,
+  buildPreBlueprintSoftFallbackBlueprintGenerateItem,
+  finalizeParsedBlueprint,
+  planBlueprintParseFailureOutcome,
+  planPreBlueprintParseFailureOutcome
+} from "../blueprint/missionBlueprintController";
 import { normalizeRunCommandPreview } from "../runCommandPreviewNormalize";
 import { extractValidationVerdictFromSummary } from "../validatorVerdictExtract";
 import { maybeMissionGitCheckpointAfterWorkItem } from "../missionGitCheckpoint";
@@ -1024,6 +1033,9 @@ export class MissionOrchestratorWorkItemRunner {
   public async runWorkItem(mission: Mission, item: WorkItem): Promise<"continue" | "awaiting_input" | "blocked"> {
     let blueprintAwaitingApproval = false;
     let preBlueprintAwaitingAnswers = false;
+    const blueprintMissionMode = normalizeBlueprintModeSetting(
+      vscode.workspace.getConfiguration().get<unknown>("myAi.missions.blueprintMode", "off")
+    );
     const fresh = this.host.store.get(mission.id)!;
     if (shouldSkipRedundantValidatorWork(fresh, item)) {
       await this.host.store.updateWorkItem(mission.id, item.id, {
@@ -1388,7 +1400,11 @@ export class MissionOrchestratorWorkItemRunner {
           }
         });
         const preAttempts = freshPre.runtime?.preBlueprintParseRecoveryAttempts ?? 0;
-        if (decPre.route === "replan" && preAttempts < 2) {
+        const prePlan = planPreBlueprintParseFailureOutcome({
+          mode: blueprintMissionMode,
+          replanAllowed: decPre.route === "replan" && preAttempts < 2
+        });
+        if (prePlan === "replan") {
           await this.host.store.updateRuntime(mission.id, { preBlueprintParseRecoveryAttempts: preAttempts + 1 });
           await this.host.updateWorkItemWithHardStopInvariant(mission.id, item, {
             status: "failed",
@@ -1413,6 +1429,25 @@ export class MissionOrchestratorWorkItemRunner {
               ].join("\n\n")
             }
           ]);
+          await this.host.store.noteProgress(mission.id);
+          return "continue";
+        }
+        if (prePlan === "soft_blueprint_direct") {
+          await this.host.updateWorkItemWithHardStopInvariant(mission.id, item, {
+            status: "failed",
+            output: parsed.errors.join("\n")
+          });
+          await this.host.store.updateMission(mission.id, {
+            status: "queued",
+            blocker: undefined,
+            blockReasonCode: undefined
+          });
+          await this.host.store.enqueue(mission.id, [buildPreBlueprintSoftFallbackBlueprintGenerateItem(uid("work"))]);
+          await this.host.store.saveEvent(mission.id, {
+            level: "warn",
+            source: "pre_blueprint",
+            message: "Pre-blueprint clarification failed repeatedly (soft mode); continuing with blueprint JSON generation without Q&A."
+          });
           await this.host.store.noteProgress(mission.id);
           return "continue";
         }
