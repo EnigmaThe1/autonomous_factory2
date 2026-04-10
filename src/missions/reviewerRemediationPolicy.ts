@@ -1,4 +1,9 @@
 import type { AgentRole, WorkItem } from "../types";
+import {
+  extractReviewerStructuredOutcome,
+  reviewerStructuredOutcomeIsExplicitlyApproved,
+  reviewerStructuredOutcomeRequiresImplementerFollowUp
+} from "./reviewerOutcomeExtract";
 
 /**
  * Heuristic used by reviewer auto-remediation: model text looks like it reported problems without
@@ -34,10 +39,11 @@ export function shouldEnqueueReviewerAutoRemediation(args: {
   summary: string;
   nextWorkItems: WorkItem[];
 }): boolean {
-  return (
-    args.itemRole === "reviewer" &&
-    !args.skipBecauseAlreadySatisfiedNoTool &&
-    args.autoCreateFixTasksSetting &&
-    reviewerModelOutputSuggestsRemediation(args.summary, args.nextWorkItems)
-  );
+  if (args.itemRole !== "reviewer" || args.skipBecauseAlreadySatisfiedNoTool || !args.autoCreateFixTasksSetting) {
+    return false;
+  }
+  const structured = extractReviewerStructuredOutcome(args.summary);
+  if (reviewerStructuredOutcomeIsExplicitlyApproved(structured)) return false;
+  if (reviewerStructuredOutcomeRequiresImplementerFollowUp(structured, args.summary, args.nextWorkItems)) return true;
+  return reviewerModelOutputSuggestsRemediation(args.summary, args.nextWorkItems);
 }

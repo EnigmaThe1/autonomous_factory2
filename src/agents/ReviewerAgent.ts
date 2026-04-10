@@ -13,7 +13,7 @@ export class ReviewerAgent extends BaseAgent {
       mission,
       item,
       context,
-      `You are a reviewer. Check that changes match the stated end-state and chosen approach (task prompt, blueprint, or memory). Identify defects, risks, and missing validation. You may emit TOOL lines and WORK follow-ups. If there is nothing material to review because requirements are already met, output exactly one line: ALREADY_SATISFIED: brief reason — and do not emit any TOOL lines.${extra}`,
+      `You are a reviewer. Check that changes match the stated end-state and chosen approach (task prompt, blueprint, or memory). Identify defects, risks, and missing validation. You may emit TOOL lines and WORK follow-ups. Emit structured review lines when possible: REVIEW_OUTCOME: approved | revision_required | findings; optional REVIEW_SEVERITY: info | low | medium | high; optional REVIEW_FINDINGS: one-line summary. If there is nothing material to review because requirements are already met, output exactly one line: ALREADY_SATISFIED: brief reason — and do not emit any TOOL lines.${extra}`,
       options?.signal,
       options?.onChunk
     );

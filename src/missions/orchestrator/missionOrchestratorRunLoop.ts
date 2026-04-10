@@ -73,7 +73,20 @@ export class MissionOrchestratorRunLoop {
   private async tryCollapseMissionToCompleted(id: string): Promise<boolean> {
     await this.autoDemoteObsolescentQueueItems(id);
     await this.autoDemoteSupersededTerminalItems(id);
-    const m = this.host.store.get(id);
+    let m = this.host.store.get(id);
+    if (!m) return false;
+    if (!shouldCollapseToComplete(m)) {
+      const noRunnable = !m.queue.some(
+        (w) => isRunnableWorkItemStatus(w.status) || isActiveWorkItemStatus(w.status)
+      );
+      if (noRunnable && m.policy.closureRequired && m.validationState === "passed") {
+        const injected = await this.host.ensureClosurePolicy(m);
+        if (injected) {
+          await this.host.store.noteProgress(id);
+          m = this.host.store.get(id);
+        }
+      }
+    }
     if (!m || !shouldCollapseToComplete(m)) return false;
     if (blueprintBlocksMissionCompletion(m)) return false;
     const completionReason = this.resolveCompletionReasonForCompleted(id, m.queue);
@@ -160,6 +173,9 @@ export class MissionOrchestratorRunLoop {
     try {
       let mission = this.host.store.get(id);
       if (!mission) return this.runPassOutcomeAfterStoreRead(id);
+      if (mission.status === "completed" || mission.status === "cancelled") {
+        return this.runPassOutcomeAfterStoreRead(id);
+      }
       await this.host.store.updateMission(id, { status: "running", blockReasonCode: undefined });
       const cfg = vscode.workspace.getConfiguration();
       const unlimited = cfg.get<boolean>("myAi.missions.unlimitedStepsPerRun", false);

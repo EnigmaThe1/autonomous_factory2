@@ -8,7 +8,7 @@ export class ValidatorAgent extends BaseAgent {
       mission,
       item,
       context,
-      "You are a validator. Decide if the mission is complete, blocked, or needs more work. Consider whether outcomes match the mission’s stated end-state and chosen approach. If the mission appears complete, emit a single line COMPLETE: and do not emit WORK: lines in the same response. If blocked, say BLOCKER:. If more work is required (and not complete), emit WORK:ROLE:TITLE - PROMPT lines without COMPLETE:. You may add VALIDATION_VERDICT: and VALIDATION_LIMITS: lines as described in MISSION DISCIPLINE.",
+      "You are a validator. Decide if the mission is complete, blocked, or needs more work. Consider whether outcomes match the mission’s stated end-state and chosen approach. Emit VALIDATION_OUTCOME: pass | fail | inconclusive (required when using structured mode). Optional VALIDATION_SUSPECTED_CLASS: code | environment | unknown when outcome is fail or inconclusive. If the mission appears complete, emit a single line COMPLETE: and do not emit WORK: lines in the same response. If blocked, say BLOCKER:. If more work is required (and not complete), emit WORK:ROLE:TITLE - PROMPT lines without COMPLETE:. You may add VALIDATION_VERDICT: and VALIDATION_LIMITS: lines as described in MISSION DISCIPLINE.",
       options?.signal,
       options?.onChunk
     );

@@ -199,3 +199,29 @@ The extension had no pre-existing `IMPLEMENTATION_LEDGER.md`. This file is the c
 **Follow-ups**
 
 - Align operator docs / webview copy with `soft` vs `hard` semantics; optional `MYAI_SETTINGS_INVENTORY.md` refresh.
+
+## Phase 7 — Review / validator structured outcomes & closure hardening (2026-04-10)
+
+**Status:** DONE
+
+**What changed**
+
+- Structured reviewer lines + `reviewerOutcomeExtract` / `reviewValidatorOutcomeContracts`; `shouldEnqueueReviewerAutoRemediation` honors `REVIEW_OUTCOME: approved` and explicit `revision_required` / severity-gated `findings` before keyword heuristic.
+- Structured validator lines in `validatorVerdictExtract` (`extractValidationStructuredFromSummary`, `validationStructuredToOutcome`); `validatorOutcomeRouting` applies pass/fail/inconclusive; fail path runs `applyValidatorFailRecoveryRouter` (`classifyValidationFailure` + `routeStructuredRecovery` + optional `prependResearcherBeforeValidatorRemediationChain`).
+- `missionOrchestratorWorkItemRunner`: reviewer remediation prompts include structured findings; validator routing after tool-driven completion adjustment.
+- `tryCollapseMissionToCompleted`: narrow `ensureClosurePolicy` when queue has no runnable/active work, `closureRequired`, and `validationState === "passed"` (final gap / proof injection without mid-mission planner spam).
+- `runMission`: early return if mission already `completed` or `cancelled` (fixes invalid transitions when helpers call `runMission` after terminal completion).
+- Agent prompts updated for Reviewer/Validator structured lines.
+
+**Evidence pack (local, `.dev/` gitignored)**
+
+- `autonomous_factory/.dev/docs/_autogen/refactoring/refactoring__2026_04_10__AF_Autonomy_Phase7_Review_Validate_Closure/` (`02_code_map`, `05_decisions`, `07_validation/01_review_validation_tests.txt`, `08_final_report/FINAL_REPORT.md`).
+
+**Validation**
+
+- `npm run compile` — PASS  
+- `npm test` — PASS (full log under evidence pack `07_validation/`).
+
+**Follow-ups**
+
+- Optional mission-level fields for last structured review/validation outcome; UI surfacing; docs refresh for new line protocols.

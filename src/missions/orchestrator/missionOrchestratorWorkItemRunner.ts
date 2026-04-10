@@ -68,7 +68,15 @@ import {
   planPreBlueprintParseFailureOutcome
 } from "../blueprint/missionBlueprintController";
 import { normalizeRunCommandPreview } from "../runCommandPreviewNormalize";
-import { extractValidationVerdictFromSummary } from "../validatorVerdictExtract";
+import {
+  extractValidationStructuredFromSummary,
+  validationStructuredToOutcome
+} from "../validatorVerdictExtract";
+import {
+  applyValidatorStructuredOutcomeToTurn,
+  prependResearcherBeforeValidatorRemediationChain
+} from "../validatorOutcomeRouting";
+import { extractReviewerStructuredOutcome } from "../reviewerOutcomeExtract";
 import { maybeMissionGitCheckpointAfterWorkItem } from "../missionGitCheckpoint";
 import type { MissionAgentRunForTest, MissionToolExecutor } from "../missionOrchestratorContracts";
 import type { MissionStore } from "../MissionStore";
@@ -785,6 +793,64 @@ export class MissionOrchestratorWorkItemRunner {
   }
 
   /**
+   * Validator FAIL with structured lines: classify like post-mutation validation, record recovery routing,
+   * and optionally prepend researcher before implementer remediation when environmental / replan.
+   */
+  private async applyValidatorFailRecoveryRouter(
+    mission: Mission,
+    validatorItem: WorkItem,
+    summary: string,
+    chain: WorkItem[]
+  ): Promise<WorkItem[]> {
+    if (!chain.length) return chain;
+    const sf = classifyValidationFailure({ tool: "validator_decision", summary: summary.slice(0, 8000) });
+    const fresh = this.host.store.get(mission.id)!;
+    const fp = computeRecoveryFingerprint({
+      missionId: mission.id,
+      workItemId: validatorItem.id,
+      failure: sf,
+      missionQueueLength: fresh.queue.length,
+      missionValidationState: fresh.validationState
+    });
+    const st = nextRecoveryStreakState(
+      fresh.runtime?.lastStructuredRecoveryFingerprint,
+      fresh.runtime?.structuredRecoverySameFingerprintStreak ?? 0,
+      fp
+    );
+    await this.host.store.updateRuntime(mission.id, {
+      lastStructuredRecoveryFingerprint: st.fingerprint,
+      structuredRecoverySameFingerprintStreak: st.streak
+    });
+    const cfg = vscode.workspace.getConfiguration();
+    const invEnabled = cfg.get<boolean>("myAi.missions.failureInvestigation.enabled", false);
+    const wavesRem = this.failureInvestigationWavesRemaining(mission.id);
+    const decision = routeStructuredRecovery(sf, {
+      sameFingerprintStreak: st.streak,
+      failureInvestigationEnabled: invEnabled,
+      failureInvestigationWavesRemaining: wavesRem,
+      workItemRole: "validator",
+      allowTerminalMissionFail: true
+    });
+    await this.host.store.saveEvent(mission.id, {
+      level: "warn",
+      source: "orchestrator",
+      telemetryKind: "recovery_attempt",
+      message: `Validator decision failure classified: ${sf.class}/${sf.code} → ${decision.route}`,
+      data: {
+        structuredFailure: sf,
+        recoveryRoute: decision.route,
+        recoveryReason: decision.reason,
+        recoveryFingerprint: fp,
+        recoveryStreak: st.streak
+      }
+    });
+    if (sf.class === "environmental" || decision.route === "replan") {
+      return prependResearcherBeforeValidatorRemediationChain(validatorItem, summary, chain);
+    }
+    return chain;
+  }
+
+  /**
    * Resolves `executeWorkItemToolCalls` early exits: tool-failure blocks may enqueue a recovery wave
    * instead of pausing the mission.
    */
@@ -1018,8 +1084,19 @@ export class MissionOrchestratorWorkItemRunner {
         nextWorkItems
       })
     ) {
+      const revStructured = extractReviewerStructuredOutcome(summary);
+      const findingHint = revStructured.findings
+        ? `\n\nStructured REVIEW_FINDINGS: ${revStructured.findings.slice(0, 1500)}`
+        : "";
+      const sevHint = revStructured.severity ? `\nREVIEW_SEVERITY: ${revStructured.severity}` : "";
       const remediation: WorkItem[] = [
-        { id: uid("work"), title: `Reviewer remediation for ${item.title}`, role: "implementer", status: "todo", prompt: `Address the concrete reviewer findings from this output and make bounded fixes with evidence: ${summary.slice(0, 500)}` },
+        {
+          id: uid("work"),
+          title: `Reviewer remediation for ${item.title}`,
+          role: "implementer",
+          status: "todo",
+          prompt: `Address the concrete reviewer findings from this output and make bounded fixes with evidence:${sevHint}\n\nReviewer output excerpt:\n${summary.slice(0, 500)}${findingHint}`
+        },
         { id: uid("work"), title: `Re-review after ${item.title}`, role: "reviewer", status: "todo", prompt: "Re-review the remediation and confirm whether the reported defects were closed." },
         { id: uid("work"), title: `Re-validation after ${item.title}`, role: "validator", status: "todo", prompt: "Validate the remediation and decide whether further work is required." }
       ];
@@ -1342,6 +1419,21 @@ export class MissionOrchestratorWorkItemRunner {
       }
     }
 
+    if (item.role === "validator") {
+      const vex = extractValidationStructuredFromSummary(result.summary || "");
+      const vst = validationStructuredToOutcome(vex);
+      if (vst) {
+        result = applyValidatorStructuredOutcomeToTurn(item, vst, result);
+        if (vst.outcome === "fail") {
+          const ch = result.nextWorkItems || [];
+          result = {
+            ...result,
+            nextWorkItems: await this.applyValidatorFailRecoveryRouter(mission, item, result.summary || "", ch)
+          };
+        }
+      }
+    }
+
     if (result.events?.length) {
       for (const event of result.events) await this.host.store.saveEvent(mission.id, event);
     }
@@ -1635,7 +1727,7 @@ export class MissionOrchestratorWorkItemRunner {
     const patch: Partial<Mission> = { currentStep: updated.currentStep + 1, blocker: undefined, blockReasonCode: undefined };
     if (item.role === "validator") {
       patch.validationState = result.decision === "complete" ? "passed" : result.decision === "blocked" ? "failed" : "pending";
-      const ve = extractValidationVerdictFromSummary(result.summary || "");
+      const ve = extractValidationStructuredFromSummary(result.summary || "");
       if (ve.validationVerdict) patch.validationVerdict = ve.validationVerdict;
       if (ve.validationLimits) patch.validationLimits = ve.validationLimits;
     }
