@@ -2,11 +2,11 @@
  * End-to-end regression: real ToolRegistry.writeFile + MissionOrchestrator under default
  * in-workspace approval policy (no mock toolResult.requiresApproval injection).
  *
- * Historical counterfactual (fix 9791601): parent commit 5652877 reintroduces the bug
- * (ToolRegistry defaulted requireApprovalForInWorkspaceWrites to false). Automated proof:
- * `npm run test:approval-e2e-counterfactual` (clean tree) — expect fail on pre-fix, pass after
- * restore. Manual: `git checkout 5652877`, materialize `main:src/test/missionToolRegistryWriteApprovalE2e.test.ts`,
- * `npm run compile`, run this test — expect `completed` vs `awaiting_input` failure.
+ * Historical counterfactual: some older clones carried a legacy pre-fix SHA pair
+ * (5652877 / 9791601) from a different repo lineage. `npm run test:approval-e2e-counterfactual`
+ * still runs that historical checkout when a reachable commit is available, but this repo now
+ * skips the pre-fix hop gracefully when the legacy SHA is absent and always validates the fixed
+ * tree. To force a reachable historical revision, set `PRE_FIX_SHA_OVERRIDE=<commit>`.
  */
 import test, { afterEach, beforeEach } from "node:test";
 import assert from "node:assert/strict";
