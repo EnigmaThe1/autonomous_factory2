@@ -12,8 +12,17 @@ function statusToken(status: MissionStatus): string {
   return status;
 }
 
-export function presentStartMissionOutcomeEvent(_out: StartMissionResult): string {
-  return "Mission start requested; execution was scheduled.";
+export function presentStartMissionOutcomeEvent(out: StartMissionResult): string {
+  if (out.pass.kind === "scheduled_pass") {
+    return "Mission start requested; execution was scheduled.";
+  }
+  if (out.pass.reason === "compiler_blocked") {
+    return "Mission start requested; compiler preflight blocked execution before scheduling.";
+  }
+  if (out.pass.reason === "compiler_invalid") {
+    return "Mission start requested; compiler preflight returned an invalid contract before scheduling.";
+  }
+  return "Mission start requested; compiler preflight failed before scheduling.";
 }
 
 export function presentResumeMissionOutcomeEvent(out: ResumeMissionOutcome): string | null {
@@ -51,4 +60,3 @@ export function presentResolveApprovalOutcomeEvent(out: ResolveApprovalOutcome):
     }
   }
 }
-

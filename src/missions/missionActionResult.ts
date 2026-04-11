@@ -47,8 +47,18 @@ export type ResolveApprovalOutcome =
   | { kind: "rejected_mission_blocked"; missionId: string; statusAfter: MissionStatus }
   | { kind: "approved_continuation_scheduled"; missionId: string };
 
-/** Result of `startMission`: created mission plus explicit fire-and-forget pass schedule. */
+export type StartMissionPass =
+  | { kind: "scheduled_pass"; missionId: string }
+  | {
+      kind: "blocked_before_schedule";
+      missionId: string;
+      statusAfter: "blocked";
+      reason: "compiler_blocked" | "compiler_failed" | "compiler_invalid";
+      summary: string;
+    };
+
+/** Result of `startMission`: created mission plus explicit schedule/block outcome. */
 export type StartMissionResult = {
   mission: Mission;
-  pass: { kind: "scheduled_pass"; missionId: string };
+  pass: StartMissionPass;
 };

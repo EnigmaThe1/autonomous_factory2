@@ -51,6 +51,20 @@ test("event mapping: startMission scheduled_pass logs event text", async () => {
   assert.match(events[0].message, /start requested/i);
 });
 
+test("event mapping: startMission blocked_before_schedule logs compiler text", () => {
+  const msg = presentStartMissionOutcomeEvent({
+    mission: { id: "m1" } as any,
+    pass: {
+      kind: "blocked_before_schedule",
+      missionId: "m1",
+      statusAfter: "blocked",
+      reason: "compiler_failed",
+      summary: "boom"
+    }
+  });
+  assert.match(msg, /compiler preflight failed/i);
+});
+
 test("event mapping: resumeMission joined_in_flight_pass", () => {
   const msg = presentResumeMissionOutcomeEvent({ kind: "joined_in_flight_pass", missionId: "m1" });
   assert.match(msg || "", /joined/i);
@@ -88,4 +102,3 @@ test("anti-spam: identical consecutive event is not duplicated", async () => {
   await saveOperatorActionMissionEventIfChanged({ store, missionId: "m1", message: "X" });
   assert.equal(events.length, 0);
 });
-

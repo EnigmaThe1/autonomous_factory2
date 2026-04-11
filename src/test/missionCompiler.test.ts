@@ -1,6 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { compileMissionPreflight } from "../missions/missionCompiler";
+import { compileMissionPreflight, normalizeMissionCompiledContract } from "../missions/missionCompiler";
 import { buildRoleSpecificUserPromptCoreLines } from "../missions/agentDispatch/roleContextBuilder";
 import { resolveExpectedDeliverableRelPathsForImplementer } from "../missions/implementerDeliverableContract";
 import { createOrchestrator, balancedIntegrationPolicy } from "./missionOrchestratorTestHarness";
@@ -92,6 +92,44 @@ test("mission compiler: compiled contract is available before startMission sched
   assert.ok(mission.compiledContract);
   assert.ok(mission.events.some((event) => event.telemetryKind === "compiler_preflight"));
   assert.ok((mission.runtime?.compilerPreflightAt || 0) > 0);
+});
+
+test("mission compiler: blocking findings stop scheduling but keep a visible mission", async () => {
+  const { orchestrator, store } = await createOrchestrator(
+    async () => ({ summary: "Plan.", nextWorkItems: [] }),
+    async () => ({ ok: true, summary: "noop" })
+  );
+  const started = await orchestrator.startMission(
+    "Compiler-blocked-start",
+    "Create /tmp/compiler_outside_workspace.md as the output artifact.",
+    "ollama"
+  );
+
+  assert.equal(started.pass.kind, "blocked_before_schedule");
+  if (started.pass.kind === "blocked_before_schedule") {
+    assert.equal(started.pass.reason, "compiler_blocked");
+  }
+  const mission = store.get(started.mission.id)!;
+  assert.equal(mission.status, "blocked");
+  assert.equal(mission.queue.length, 0);
+  assert.ok(mission.compiledContract);
+  assert.equal(mission.runtime?.compilerPreflightStatus, "blocked");
+  assert.match(mission.blocker || "", /blocked execution before scheduling/i);
+});
+
+test("mission compiler: malformed persisted contract is normalized safely", async () => {
+  const normalized = normalizeMissionCompiledContract({
+    normalizedObjective: "Keep this objective",
+    findings: [{ code: "x", summary: "y" }],
+    inputPaths: ["docs/input.md", "docs/input.md"],
+    policyBinding: { extensionCoreMutationPolicy: "deny" }
+  });
+  assert.ok(normalized);
+  assert.equal(normalized?.normalizedObjective, "Keep this objective");
+  assert.deepEqual(normalized?.inputPaths, ["docs/input.md"]);
+  assert.deepEqual(normalized?.findings.map((finding) => finding.code), ["x"]);
+  assert.equal(normalized?.policyBinding.extensionCoreMutationPolicy, "deny");
+  assert.equal(typeof normalized?.metrics.blockingIssues, "number");
 });
 
 test("mission compiler: downstream role prompts include compiled contract lines", async () => {

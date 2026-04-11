@@ -4,8 +4,8 @@ import { EnhancedContextCollector } from "../context/EnhancedContextCollector";
 import { ProviderRegistry } from "../providers/ProviderRegistry";
 import { MissionStore } from "./MissionStore";
 import { AgentFactory } from "../agents/AgentFactory";
-import { Mission, WorkItem } from "../types";
-import { uid } from "../util";
+import { Mission, MissionCompiledContract, WorkItem } from "../types";
+import { trimText, uid } from "../util";
 import { ApprovalManager } from "../approvals/ApprovalManager";
 import { GlobalMemoryStore } from "../memory/GlobalMemoryStore";
 import { isMissionTerminalLifecycleStatus } from "./LifecycleRules";
@@ -39,7 +39,7 @@ import { MissionOrchestratorBlueprintFlow } from "./orchestrator/missionOrchestr
 import { MissionOrchestratorHardStopTelemetry } from "./orchestrator/missionOrchestratorHardStopTelemetry";
 import { waitForMissionTerminalLifecycleWhileIdle } from "./orchestrator/missionOrchestratorLifecycleWaits";
 import { blueprintStructuredFlowEnabled, normalizeBlueprintModeSetting } from "./missionBlueprintMode";
-import { compileMissionPreflight } from "./missionCompiler";
+import { compileMissionPreflight, normalizeMissionCompiledContract } from "./missionCompiler";
 
 import type { MissionAgentRunForTest, MissionToolExecutor } from "./missionOrchestratorContracts";
 export type { MissionAgentRunForTest, MissionToolExecutor } from "./missionOrchestratorContracts";
@@ -156,8 +156,22 @@ export class MissionOrchestrator {
    */
   async startMission(title: string, prompt: string, providerId: string, model?: string): Promise<StartMissionResult> {
     const mission = await this.store.create(title, prompt, providerId, model);
-    await this.compileMissionContractPreflight(mission.id);
+    await this.store.updateRuntime(mission.id, {
+      compilerPreflightStatus: "pending",
+      compilerPreflightSummary: "Mission compiler preflight pending before execution scheduling."
+    });
+    let preflight:
+      | { kind: "ready"; compiledContract: MissionCompiledContract }
+      | StartMissionResult["pass"];
+    try {
+      preflight = await this.compileMissionContractPreflight(mission.id);
+    } catch (error) {
+      preflight = await this.handleMissionCompilerStartFailure(mission.id, error);
+    }
     const compiledMission = this.store.get(mission.id) || mission;
+    if (preflight.kind !== "ready") {
+      return { mission: compiledMission, pass: preflight };
+    }
     await this.recordMissionStartBaseline(compiledMission);
     const blueprintMode = normalizeBlueprintModeSetting(
       vscode.workspace.getConfiguration().get<unknown>("myAi.missions.blueprintMode", "off")
@@ -567,10 +581,96 @@ export class MissionOrchestrator {
     });
   }
 
-  private async compileMissionContractPreflight(missionId: string): Promise<void> {
+  private summarizeCompilerBlockingIssues(contract: MissionCompiledContract): string {
+    const blockingFindings = contract.findings.filter((finding) => finding.resolution === "blocking");
+    if (!blockingFindings.length) {
+      return "Mission compiler preflight found blocking ambiguities before execution could be scheduled.";
+    }
+    return trimText(
+      `Mission compiler preflight blocked execution before scheduling: ${blockingFindings
+        .slice(0, 3)
+        .map((finding) => finding.summary)
+        .join(" | ")}`,
+      600
+    );
+  }
+
+  private async handleMissionCompilerStartFailure(
+    missionId: string,
+    error: unknown
+  ): Promise<StartMissionResult["pass"]> {
     const mission = this.store.get(missionId);
-    if (!mission) return;
-    const compiledContract = await compileMissionPreflight(mission);
+    if (!mission) throw new Error(`Mission not found: ${missionId}`);
+    const detail = error instanceof Error ? error.message : String(error || "Unknown compiler error");
+    const summary = trimText(
+      `Mission compiler preflight failed before execution could be scheduled: ${detail}`,
+      600
+    );
+    await this.store.updateMission(missionId, {
+      status: "blocked",
+      blocker: summary,
+      blockReasonCode: "generic_blocked"
+    });
+    await this.store.updateRuntime(missionId, {
+      compilerPreflightStatus: "failed",
+      compilerPreflightSummary: summary
+    });
+    await this.store.saveEvent(missionId, {
+      level: "error",
+      source: "mission_compiler",
+      telemetryKind: "compiler_preflight",
+      message: summary,
+      data: { error: detail }
+    });
+    return {
+      kind: "blocked_before_schedule",
+      missionId,
+      statusAfter: "blocked",
+      reason: "compiler_failed",
+      summary
+    };
+  }
+
+  private async compileMissionContractPreflight(
+    missionId: string
+  ): Promise<{ kind: "ready"; compiledContract: MissionCompiledContract } | StartMissionResult["pass"]> {
+    const mission = this.store.get(missionId);
+    if (!mission) {
+      return {
+        kind: "blocked_before_schedule",
+        missionId,
+        statusAfter: "blocked",
+        reason: "compiler_invalid",
+        summary: `Mission not found during compiler preflight: ${missionId}`
+      };
+    }
+    const compiledContract = normalizeMissionCompiledContract(await compileMissionPreflight(mission));
+    if (!compiledContract) {
+      const summary = "Mission compiler preflight returned an invalid contract; execution was not scheduled.";
+      await this.store.updateMission(mission.id, {
+        status: "blocked",
+        blocker: summary,
+        blockReasonCode: "generic_blocked",
+        compiledContract: undefined
+      });
+      await this.store.updateRuntime(mission.id, {
+        compilerPreflightStatus: "failed",
+        compilerPreflightSummary: summary
+      });
+      await this.store.saveEvent(mission.id, {
+        level: "error",
+        source: "mission_compiler",
+        telemetryKind: "compiler_preflight",
+        message: summary
+      });
+      return {
+        kind: "blocked_before_schedule",
+        missionId: mission.id,
+        statusAfter: "blocked",
+        reason: "compiler_invalid",
+        summary
+      };
+    }
     await this.store.updateMission(mission.id, { compiledContract });
     await this.store.updateRuntime(mission.id, {
       compilerPreflightAt: compiledContract.compiledAt,
@@ -579,7 +679,12 @@ export class MissionOrchestrator {
         compiledContract.metrics.inputPathsClassified + compiledContract.metrics.outputPathsClassified,
       compilerContradictionsFound: compiledContract.metrics.contradictionsFound,
       compilerAssumptionsFilled: compiledContract.metrics.assumptionsFilled,
-      compilerBlockingIssues: compiledContract.metrics.blockingIssues
+      compilerBlockingIssues: compiledContract.metrics.blockingIssues,
+      compilerPreflightStatus: compiledContract.metrics.blockingIssues > 0 ? "blocked" : "passed",
+      compilerPreflightSummary:
+        compiledContract.metrics.blockingIssues > 0
+          ? this.summarizeCompilerBlockingIssues(compiledContract)
+          : "Mission compiler preflight passed; execution can be scheduled."
     });
     await this.store.addMemory(mission.id, {
       kind: "decision",
@@ -614,6 +719,31 @@ export class MissionOrchestrator {
         findings: compiledContract.findings
       }
     });
+    if (compiledContract.metrics.blockingIssues > 0) {
+      const summary = this.summarizeCompilerBlockingIssues(compiledContract);
+      await this.store.updateMission(mission.id, {
+        status: "blocked",
+        blocker: summary,
+        blockReasonCode: "generic_blocked"
+      });
+      await this.store.saveEvent(mission.id, {
+        level: "warn",
+        source: "mission_compiler",
+        telemetryKind: "mission_blocked",
+        message: summary,
+        data: {
+          blockingFindings: compiledContract.findings.filter((finding) => finding.resolution === "blocking")
+        }
+      });
+      return {
+        kind: "blocked_before_schedule",
+        missionId: mission.id,
+        statusAfter: "blocked",
+        reason: "compiler_blocked",
+        summary
+      };
+    }
+    return { kind: "ready", compiledContract };
   }
 
   private async updateWorkItemWithHardStopInvariant(

@@ -239,7 +239,7 @@ export function registerMissionCommands(
       const started = await orchestrator.startMission(title, prompt, providerId, model);
       sidebar.reveal();
       sidebar.focusMission(started.mission.id);
-      void vscode.window.setStatusBarMessage(`Started fixture mission: ${fixtureName}`, 4000);
+      void vscode.window.setStatusBarMessage(`Fixture mission: ${presentStartMissionOutcome(started)}`, 4000);
       // Best-effort: export a reproducible mission snapshot for this fixture run on terminal transition.
       // This is intentionally "side effect only" and must never block the mission run loop.
       void (async () => {

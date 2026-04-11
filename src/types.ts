@@ -155,6 +155,10 @@ export interface MissionRuntime {
   compilerAssumptionsFilled?: number;
   /** Count of blocking ambiguities or impossible assumptions detected during compiler preflight. */
   compilerBlockingIssues?: number;
+  /** Compiler lifecycle for mission start: pending until preflight finishes, then passed/blocked/failed. */
+  compilerPreflightStatus?: "pending" | "passed" | "blocked" | "failed";
+  /** Operator-facing summary of the latest compiler preflight result. */
+  compilerPreflightSummary?: string;
 }
 
 export type MissionCompilerFindingResolution =

@@ -32,12 +32,23 @@ let exactMapCache: ReadonlyMap<string, string> | undefined;
 function buildExactOperatorActionHeadlineMap(): ReadonlyMap<string, string> {
   if (exactMapCache) return exactMapCache;
   const dummyMission = { id: "m" } as Mission;
-  const start: StartMissionResult = {
+  const startScheduled: StartMissionResult = {
     mission: dummyMission,
     pass: { kind: "scheduled_pass", missionId: "m" }
   };
+  const startBlocked: StartMissionResult = {
+    mission: dummyMission,
+    pass: {
+      kind: "blocked_before_schedule",
+      missionId: "m",
+      statusAfter: "blocked",
+      reason: "compiler_blocked",
+      summary: "Compiler blocked start."
+    }
+  };
   const entries: Array<[string, string]> = [
-    [presentStartMissionOutcomeEvent(start), "Start: execution scheduled"]
+    [presentStartMissionOutcomeEvent(startScheduled), "Start: execution scheduled"],
+    [presentStartMissionOutcomeEvent(startBlocked), "Start: compiler blocked"]
   ];
 
   const resumeStatic: Array<{ out: ResumeMissionOutcome; headline: string }> = [

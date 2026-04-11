@@ -13,6 +13,21 @@ test("presentStartMissionOutcome: scheduled_pass", () => {
   assert.ok(!/completed/i.test(msg));
 });
 
+test("presentStartMissionOutcome: blocked_before_schedule", () => {
+  const msg = presentStartMissionOutcome({
+    mission: { id: "m1" } as any,
+    pass: {
+      kind: "blocked_before_schedule",
+      missionId: "m1",
+      statusAfter: "blocked",
+      reason: "compiler_blocked",
+      summary: "compiler blocked"
+    }
+  });
+  assert.match(msg, /blocked execution/i);
+  assert.ok(!/completed/i.test(msg));
+});
+
 test("presentResumeMissionOutcome: joined_in_flight_pass", () => {
   const msg = presentResumeMissionOutcome({ kind: "joined_in_flight_pass", missionId: "m1" });
   assert.match(msg, /already running/i);
@@ -68,4 +83,3 @@ test("presentBundleOperatorUiFeedback: resolved vs noop and no completion claim"
   assert.match(okReject, /Bundle rejected \(4 item\(s\)\)/);
   assert.match(okReject, /not complete/i);
 });
-

@@ -35,6 +35,32 @@ test("action result: startMission returns mission + scheduled_pass", async () =>
   assert.equal(out.pass.missionId, out.mission.id);
 });
 
+test("action result: startMission compile failure still returns visible blocked mission", async () => {
+  const { orchestrator, store } = await createOrchestrator(
+    async () => ({ summary: "Plan.", nextWorkItems: [] }),
+    noop
+  );
+  const seenPersistedBeforeThrow: boolean[] = [];
+  (orchestrator as any).compileMissionContractPreflight = async (missionId: string) => {
+    seenPersistedBeforeThrow.push(Boolean(store.get(missionId)));
+    throw new Error("compiler exploded");
+  };
+
+  const out = await orchestrator.startMission("ar-start-compiler-fail", "p", "ollama");
+  assert.deepEqual(seenPersistedBeforeThrow, [true]);
+  assert.equal(out.pass.kind, "blocked_before_schedule");
+  assert.equal(out.pass.missionId, out.mission.id);
+  if (out.pass.kind === "blocked_before_schedule") {
+    assert.equal(out.pass.reason, "compiler_failed");
+    assert.match(out.pass.summary, /compiler preflight failed/i);
+  }
+
+  const mission = store.get(out.mission.id)!;
+  assert.equal(mission.status, "blocked");
+  assert.match(mission.blocker || "", /compiler preflight failed/i);
+  assert.equal(mission.queue.length, 0);
+});
+
 test("action result: resumeMission on completed is noop_terminal", async () => {
   (vscode as VscodeTestApi).__setTestConfig?.("myAi.missions.maxStepsPerRun", 32);
   const agent = roleScript({

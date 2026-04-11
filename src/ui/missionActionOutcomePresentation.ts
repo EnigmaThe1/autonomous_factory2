@@ -30,7 +30,13 @@ function statusLabel(status: MissionStatus): string {
 export function presentStartMissionOutcome(out: StartMissionResult): string {
   // Start is fire-and-forget; do not imply completion.
   if (out.pass.kind === "scheduled_pass") return "Mission started; execution has been scheduled.";
-  return "Mission started.";
+  if (out.pass.reason === "compiler_blocked") {
+    return "Mission created, but compiler preflight blocked execution before scheduling. Open the mission for details.";
+  }
+  if (out.pass.reason === "compiler_invalid") {
+    return "Mission created, but compiler preflight returned an invalid contract. Execution was not scheduled.";
+  }
+  return "Mission created, but compiler preflight failed before execution could be scheduled.";
 }
 
 export function presentResumeMissionOutcome(out: ResumeMissionOutcome): string {
@@ -104,4 +110,3 @@ export function presentRunMissionOutcome(out: RunMissionPassOutcome): string {
     }
   }
 }
-

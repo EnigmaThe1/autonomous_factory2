@@ -26,6 +26,21 @@ const startOut: StartMissionResult = {
 test("operatorActionEventTimelineHeadline: start, resume static, approval, bundle", () => {
   assert.equal(operatorActionEventTimelineHeadline(presentStartMissionOutcomeEvent(startOut)), "Start: execution scheduled");
   assert.equal(
+    operatorActionEventTimelineHeadline(
+      presentStartMissionOutcomeEvent({
+        mission: dummyMission,
+        pass: {
+          kind: "blocked_before_schedule",
+          missionId: "m",
+          statusAfter: "blocked",
+          reason: "compiler_blocked",
+          summary: "blocked"
+        }
+      })
+    ),
+    "Start: compiler blocked"
+  );
+  assert.equal(
     operatorActionEventTimelineHeadline(presentResumeMissionOutcomeEvent({ kind: "joined_in_flight_pass", missionId: "m" })!),
     "Resume: joined active pass"
   );

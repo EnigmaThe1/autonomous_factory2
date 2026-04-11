@@ -28,6 +28,90 @@ const OUTPUT_INTENT_HINT_RE = /\b(write|create|generate|produce|deliver|output|a
 const URL_PREFIX_RE = /^(?:https?:|app:\/\/|plugin:\/\/)/i;
 const execFileAsync = promisify(execFile);
 
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return Boolean(value) && typeof value === "object" && !Array.isArray(value);
+}
+
+function asString(value: unknown, fallback = ""): string {
+  return typeof value === "string" ? value : fallback;
+}
+
+function asOptionalString(value: unknown): string | undefined {
+  return typeof value === "string" ? value : undefined;
+}
+
+function asFiniteNumber(value: unknown, fallback = 0): number {
+  return typeof value === "number" && Number.isFinite(value) ? value : fallback;
+}
+
+function uniqueStrings(value: unknown, limit = 128): string[] {
+  if (!Array.isArray(value)) return [];
+  const out: string[] = [];
+  for (const entry of value) {
+    if (typeof entry !== "string") continue;
+    const trimmed = entry.trim();
+    if (!trimmed || out.includes(trimmed)) continue;
+    out.push(trimmed);
+    if (out.length >= limit) break;
+  }
+  return out;
+}
+
+function sanitizeCompilerPathReference(value: unknown): MissionCompilerPathReference | undefined {
+  if (!isRecord(value)) return undefined;
+  const rawPath = asString(value.rawPath).trim();
+  if (!rawPath) return undefined;
+  const role = value.role === "input" || value.role === "output" || value.role === "ambiguous" ? value.role : "ambiguous";
+  const existence =
+    value.existence === "exists" ||
+    value.existence === "corrected_exists" ||
+    value.existence === "planned_output" ||
+    value.existence === "unresolved"
+      ? value.existence
+      : "unresolved";
+  const policyZone =
+    value.policyZone === "workspace_open" ||
+    value.policyZone === "workspace_protected" ||
+    value.policyZone === "workspace_blocked" ||
+    value.policyZone === "outside_workspace" ||
+    value.policyZone === "extension_core"
+      ? value.policyZone
+      : undefined;
+  return {
+    rawPath,
+    normalizedPath: asOptionalString(value.normalizedPath),
+    role,
+    existence,
+    evidence: asString(value.evidence),
+    correctionKind: asOptionalString(value.correctionKind),
+    policyZone
+  };
+}
+
+function sanitizeCompilerFinding(value: unknown): MissionCompilerFinding | undefined {
+  if (!isRecord(value)) return undefined;
+  const code = asString(value.code).trim();
+  const summary = asString(value.summary).trim();
+  if (!code || !summary) return undefined;
+  const severity = value.severity === "info" || value.severity === "warn" || value.severity === "error" ? value.severity : "warn";
+  const resolution =
+    value.resolution === "safe_auto_resolved" ||
+    value.resolution === "conservative_default" ||
+    value.resolution === "needs_attention" ||
+    value.resolution === "blocking"
+      ? value.resolution
+      : "needs_attention";
+  return {
+    code,
+    severity,
+    resolution,
+    summary,
+    detail: asOptionalString(value.detail),
+    affectedPath: asOptionalString(value.affectedPath),
+    correctedPath: asOptionalString(value.correctedPath)
+  };
+}
+
 function normalizePromptLine(raw: string): string {
   return String(raw || "").trim();
 }
@@ -401,6 +485,52 @@ function buildCompilerMetrics(contract: Omit<MissionCompiledContract, "metrics">
     assumptionsFilled: contract.findings.filter((finding) => finding.resolution === "conservative_default").length,
     blockingIssues: contract.findings.filter((finding) => finding.resolution === "blocking").length,
     unresolvedPaths: contract.pathReferences.filter((ref) => ref.existence === "unresolved").length
+  };
+}
+
+export function normalizeMissionCompiledContract(contract: unknown): MissionCompiledContract | undefined {
+  if (!isRecord(contract)) return undefined;
+  const pathReferences = Array.isArray(contract.pathReferences)
+    ? contract.pathReferences.map((entry) => sanitizeCompilerPathReference(entry)).filter(Boolean) as MissionCompilerPathReference[]
+    : [];
+  const findings = Array.isArray(contract.findings)
+    ? contract.findings.map((entry) => sanitizeCompilerFinding(entry)).filter(Boolean) as MissionCompilerFinding[]
+    : [];
+  const policyBinding = isRecord(contract.policyBinding) ? contract.policyBinding : undefined;
+  const contractBase: Omit<MissionCompiledContract, "metrics"> = {
+    compilerVersion: asString(contract.compilerVersion, "unknown"),
+    compiledAt: asFiniteNumber(contract.compiledAt, Date.now()),
+    normalizedObjective: asString(contract.normalizedObjective),
+    normalizedScope: uniqueStrings(contract.normalizedScope),
+    normalizedConstraints: uniqueStrings(contract.normalizedConstraints),
+    successCriteria: uniqueStrings(contract.successCriteria),
+    inputPaths: uniqueStrings(contract.inputPaths),
+    outputPaths: uniqueStrings(contract.outputPaths),
+    ambiguousPaths: uniqueStrings(contract.ambiguousPaths),
+    outputRootHint: asOptionalString(contract.outputRootHint),
+    pathReferences,
+    findings,
+    unresolvedAmbiguities: uniqueStrings(contract.unresolvedAmbiguities),
+    policyBinding: {
+      workspaceRootName: asOptionalString(policyBinding?.workspaceRootName),
+      workspaceRootPath: asOptionalString(policyBinding?.workspaceRootPath),
+      autonomyMode: asString(policyBinding?.autonomyMode),
+      blueprintMode: asString(policyBinding?.blueprintMode),
+      restrictToWorkspace: Boolean(policyBinding?.restrictToWorkspace),
+      extensionCoreMutationPolicy:
+        policyBinding?.extensionCoreMutationPolicy === "deny" ||
+        policyBinding?.extensionCoreMutationPolicy === "require_approval"
+          ? policyBinding.extensionCoreMutationPolicy
+          : "deny",
+      protectedPathGlobs: uniqueStrings(policyBinding?.protectedPathGlobs),
+      blockedPathGlobs: uniqueStrings(policyBinding?.blockedPathGlobs)
+    },
+    repoTopLevelEntries: uniqueStrings(contract.repoTopLevelEntries)
+  };
+
+  return {
+    ...contractBase,
+    metrics: buildCompilerMetrics(contractBase)
   };
 }
 

@@ -6,6 +6,7 @@ import { isAllowedMissionStatusTransition } from "./LifecycleRules";
 import { canonicalizeStoredRouting, snapshotRoutingFromWorkspace } from "./missionRouting";
 import { isLikelyOperatorTestMission } from "./missionTestHeuristic";
 import { normalizeWorkItemQueue } from "./workItemLifecycle";
+import { normalizeMissionCompiledContract } from "./missionCompiler";
 
 const MISSIONS_KEY = "myAi.missions";
 const ACTIVE_IDS_KEY = "myAi.activeMissionIds";
@@ -435,6 +436,7 @@ export class MissionStore {
       runtime: { ...this.defaultRuntime(), ...(mission.runtime || {}) },
       routing: canonicalizeStoredRouting(mission.routing),
       archivedAt: mission.archivedAt,
+      compiledContract: normalizeMissionCompiledContract(mission.compiledContract),
       queue: normalizeWorkItemQueue(mission.queue || [])
     };
   }

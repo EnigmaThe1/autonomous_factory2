@@ -494,3 +494,57 @@ The extension had no pre-existing `IMPLEMENTATION_LEDGER.md`. This file is the c
 - The compiler still uses conservative text heuristics for some scope/success extraction; a later Mission Compiler phase could make more of the contract schema-driven.
 - Compile-time findings are classified and surfaced, but only obviously impossible conditions should automatically stop execution today; a future operator-input layer could formalize stronger compile-time blocking semantics.
 - Inspector/dashboard surfaces could expose compiled contract findings and compiler metrics more directly for operators.
+
+## Phase 14 — Mission start regression after compiler integration (2026-04-11)
+
+**Status:** DONE
+
+**Problem addressed**
+
+- After Mission Compiler integration, `Start mission` could appear to do nothing.
+- The real regression was not missing first persistence; it was that mission start still awaited compiler/preflight inline and had no canonical “persisted but blocked before scheduling” outcome.
+- When compiler/preflight threw, command/UI callers never reached their reveal/focus/message path, so the operator saw an invisible start failure.
+- Persisted `compiledContract` data also lacked normalization in `MissionStore.normalizeMission(...)`, leaving compiler fields less persistence/snapshot-safe than the rest of the mission document.
+
+**Files changed**
+
+- `src/missions/MissionOrchestrator.ts`
+- `src/missions/MissionStore.ts`
+- `src/missions/missionCompiler.ts`
+- `src/missions/missionActionResult.ts`
+- `src/ui/missionActionOutcomePresentation.ts`
+- `src/missions/missionActionOutcomeEventPresentation.ts`
+- `src/missions/missionOperatorActionEventPresentation.ts`
+- `src/types.ts`
+- `src/commands/registerMissionCommands.ts`
+- `src/commands/registerTemplateCommands.ts`
+- `src/test/missionCompiler.test.ts`
+- `src/test/missionActionResultContract.test.ts`
+- `src/test/missionActionOutcomePresentation.test.ts`
+- `src/test/missionActionOutcomeEventLogging.test.ts`
+- `src/test/missionOperatorActionEventPresentation.test.ts`
+- `docs/agent_execution/AF_AUTONOMY_REFACTOR/IMPLEMENTATION_LEDGER.md`
+
+**Design decision summary**
+
+- Kept the Mission Compiler in the canonical start path, but made mission start persistence-first and compile-second.
+- Added a start-result contract that can now represent:
+  - `scheduled_pass`
+  - `blocked_before_schedule`
+- Compiler exceptions, invalid compiled contracts, and blocking compiler findings now attach visible blocked mission state instead of escaping as invisible start failure.
+- Added normalized compiler-contract persistence via `normalizeMissionCompiledContract(...)` so malformed compiler fields cannot destabilize mission list/snapshot reads.
+- Preserved all existing autonomy, mission-root, evidence-sufficiency, review-scope, and deliverable-guard behavior.
+
+**Validation summary**
+
+- `npm run compile` — PASS
+- targeted mission-start / compiler / operator contract suites — PASS
+  - 53 tests passed
+- `npm test` — PASS
+  - 925 dist tests passed
+  - 78 webview smoke tests passed
+
+**Residual follow-ups**
+
+- A future UI pass could expose compiler-preflight status more prominently on cards/inspector rows.
+- If operators need a dedicated “repair mission contract and retry preflight” action, add it as an explicit canonical workflow rather than overloading generic resume semantics.

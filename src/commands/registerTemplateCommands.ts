@@ -4,6 +4,7 @@ import { MissionStore } from "../missions/MissionStore";
 import { MissionOrchestrator } from "../missions/MissionOrchestrator";
 import { AiSidebarProvider } from "../ui/AiSidebarProvider";
 import { MissionTemplate } from "../types";
+import { presentStartMissionOutcome } from "../ui/missionActionOutcomePresentation";
 import { chooseMission } from "./commandHelpers";
 
 async function chooseTemplate(templates: MissionTemplateStore, placeHolder: string): Promise<MissionTemplate | undefined> {
@@ -73,8 +74,9 @@ export function registerTemplateCommands(
       if (Object.keys(patch).length) {
         await missionStore.updateMission(mission.id, patch);
       }
-      vscode.window.showInformationMessage(`Mission "${title.trim()}" started from template.`);
+      vscode.window.showInformationMessage(presentStartMissionOutcome(result));
       sidebar.reveal();
+      sidebar.focusMission(mission.id);
     }),
 
     vscode.commands.registerCommand("myAi.listTemplates", async () => {
