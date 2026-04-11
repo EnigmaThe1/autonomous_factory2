@@ -4,6 +4,7 @@ import {
   classifyToolOutcome,
   isRunCommandBenignDiscoveryFailure
 } from "../missions/orchestrator/toolOutcomeClassifier";
+import { classifyToolFailureStructured, routeStructuredRecovery } from "../missions/failure";
 import type { ToolResult } from "../tools/ToolRegistry";
 
 test("isRunCommandBenignDiscoveryFailure: find missing directory (stderr)", () => {
@@ -102,6 +103,79 @@ test("classifyToolOutcome: required readonly probe failure still blocks when rea
     isReadFileMissing: false
   });
   assert.equal(decision.kind, "blocked");
+});
+
+test("classifyToolOutcome: preferred evidence failure can continue with degraded evidence when substitutes remain", () => {
+  const decision = classifyToolOutcome({
+    call: { tool: "git.diff", args: {} },
+    result: {
+      ok: false,
+      summary: "fatal: not a git repository"
+    },
+    isReadonlyTool: true,
+    isMutatingTool: false,
+    readonlyBudgetRemaining: false,
+    toolNecessity: "preferred",
+    evidenceFailureAssessment: {
+      strategy: "repo_scoped",
+      requirementId: "repo_history_evidence",
+      requirementDescription: "Repository-history evidence is helpful for this code-focused review.",
+      necessity: "preferred",
+      sourceKind: "repo_git",
+      requirementSatisfied: false,
+      substituteEvidenceAvailable: true,
+      handling: "continue_degraded",
+      reason: "Other allowed evidence sources can still satisfy this requirement."
+    },
+    isReadFileMissing: false
+  });
+  assert.equal(decision.kind, "continue");
+  if (decision.kind === "continue") {
+    assert.equal(decision.category, "degraded_evidence");
+  }
+});
+
+test("classifyToolOutcome: insufficient preferred evidence routes to replan instead of hard block", () => {
+  const decision = classifyToolOutcome({
+    call: { tool: "git.diff", args: {} },
+    result: {
+      ok: false,
+      summary: "fatal: not a git repository"
+    },
+    isReadonlyTool: true,
+    isMutatingTool: false,
+    readonlyBudgetRemaining: false,
+    toolNecessity: "preferred",
+    evidenceFailureAssessment: {
+      strategy: "repo_scoped",
+      requirementId: "repo_history_evidence",
+      requirementDescription: "Repository-history evidence is helpful for this code-focused review.",
+      necessity: "preferred",
+      sourceKind: "repo_git",
+      requirementSatisfied: false,
+      substituteEvidenceAvailable: false,
+      handling: "replan",
+      reason: "Preferred evidence is unavailable and no safe substitute remains; replan to recover evidence."
+    },
+    isReadFileMissing: false
+  });
+  assert.equal(decision.kind, "blocked");
+  if (decision.kind === "blocked") {
+    assert.equal(decision.category, "insufficient_evidence");
+  }
+  const structured = classifyToolFailureStructured(
+    decision,
+    { tool: "git.diff", args: {} },
+    { ok: false, summary: "fatal: not a git repository" }
+  );
+  assert.equal(structured.code, "insufficient_evidence_after_tool_failure");
+  const routed = routeStructuredRecovery(structured, {
+    sameFingerprintStreak: 1,
+    failureInvestigationEnabled: false,
+    failureInvestigationWavesRemaining: 0,
+    workItemRole: "reviewer"
+  });
+  assert.equal(routed.route, "replan");
 });
 
 test("classifyToolOutcome: runCommand missing-path failure falls through to agent retry when probe exhausted but agent retry budget remains", () => {

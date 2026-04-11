@@ -428,6 +428,11 @@ export interface Mission {
 /** Phase 4: tool allowlist attached by runWorkItem for policy + prompt filtering. */
 export interface MissionRoleDispatchMeta {
   allowedToolIds: readonly string[];
+  evidenceStrategy?: "artifact_scoped" | "repo_scoped" | "mixed";
+  primaryArtifactRoot?: string;
+  requiredEvidence?: readonly string[];
+  preferredEvidence?: readonly string[];
+  optionalEvidence?: readonly string[];
 }
 
 export interface ChatContext {

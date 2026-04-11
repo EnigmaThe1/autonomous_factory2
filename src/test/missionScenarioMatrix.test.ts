@@ -183,6 +183,80 @@ test("matrix: optional reviewer git probe failure degrades and review continues 
   }));
 });
 
+test("matrix: optional diagnostics probe failure also degrades when artifact evidence remains", async () => {
+  const policy = {
+    ...balancedIntegrationPolicy,
+    minCompletedWorkItems: 2,
+    requireImplementerBeforeComplete: false
+  };
+  const tool = async (_mid: string, call: ToolCall) => {
+    if (call.tool === "getDiagnostics") {
+      return { ok: false, summary: "Diagnostics provider unavailable" };
+    }
+    if (call.tool === "listFiles") {
+      return { ok: true, summary: "Listed mission-root files.", data: ["docs/run_optional/phase_outputs/phase2/04_current_phase_review.md"] };
+    }
+    if (call.tool === "readFile") {
+      return {
+        ok: true,
+        summary: `Read ${String(call.args.path || "")}`,
+        data: "# Current phase review\n\nScoped artifact evidence was available.\n"
+      };
+    }
+    return { ok: true, summary: `noop:${call.tool}` };
+  };
+  const agent = roleScript({
+    reviewer: [
+      {
+        summary: "Reviewed scoped artifact after diagnostics probe failed.",
+        toolCalls: [
+          { tool: "getDiagnostics", args: {} },
+          { tool: "listFiles", args: { glob: "docs/run_optional/**/*" } },
+          { tool: "readFile", args: { path: "docs/run_optional/phase_outputs/phase2/04_current_phase_review.md" } }
+        ]
+      }
+    ],
+    validator: [{ summary: "COMPLETE:", decision: "complete", toolCalls: [] }]
+  });
+  const { orchestrator, store } = await createOrchestrator(agent, tool as any);
+  const m = await store.create(
+    "matrix-optional-diagnostics-probe",
+    [
+      "Phase-scoped document review mission.",
+      "Only review docs/run_optional/phase_outputs/phase2/04_current_phase_review.md.",
+      "Prefer artifact evidence over workspace diagnostics."
+    ].join("\n"),
+    "ollama",
+    undefined,
+    policy
+  );
+  await store.updateRuntime(m.id, { resolvedArtifactRootRelative: "docs/run_optional" });
+  await store.enqueue(m.id, [
+    {
+      id: "rev0",
+      title: "Review current phase artifacts",
+      role: "reviewer",
+      status: "todo",
+      prompt: "Review only docs/run_optional/phase_outputs/phase2/04_current_phase_review.md and stay inside the current mission root."
+    },
+    {
+      id: "val0",
+      title: "Validate review closure",
+      role: "validator",
+      status: "todo",
+      prompt: "Validate the document review."
+    }
+  ]);
+  await orchestrator.runMission(m.id);
+  const fin = store.get(m.id)!;
+  assert.equal(fin.status, "completed");
+  assert.notEqual(fin.blockReasonCode, "tool_failure");
+  assert.ok(fin.events.some((e) => {
+    const d = e.data as { category?: string; evidenceSourceKind?: string } | undefined;
+    return d?.category === "optional_probe_degraded" && d?.evidenceSourceKind === "diagnostics";
+  }));
+});
+
 test("matrix: explicit git-required reviewer probe failure still blocks", async () => {
   const policy = {
     ...balancedIntegrationPolicy,

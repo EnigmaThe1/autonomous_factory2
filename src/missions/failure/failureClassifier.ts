@@ -40,6 +40,9 @@ export function classifyToolFailureStructured(
   if (decision.kind === "blocked" && decision.category === "out_of_scope_review_read") {
     return sf("repairable", "tool", "premature_or_out_of_scope_read", summary, tool);
   }
+  if (decision.kind === "blocked" && decision.category === "insufficient_evidence") {
+    return sf("repairable", "tool", "insufficient_evidence_after_tool_failure", summary, tool);
+  }
   if (decision.kind !== "blocked" || decision.category !== "tool_failure") {
     return sf("repairable", "tool", "unexpected_non_blocked_tool_failure", summary, tool);
   }

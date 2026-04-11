@@ -2,6 +2,7 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import { MissionAgentRole, type Mission } from "../types";
 import {
+  attachRoleDispatchMeta,
   buildRoleSpecificUserPromptCoreLines,
   isMissionToolAllowedForRole,
   missionWorkItemContextKeywords,
@@ -9,7 +10,10 @@ import {
   shouldAttachOptionalContextLabel
 } from "../missions/agentDispatch";
 import {
+  assessToolFailureEvidence,
+  buildWorkItemEvidenceContract,
   classifyToolEvidenceNecessity,
+  shouldPreferRepositoryHistoryEvidence,
   shouldPreferArtifactScopedEvidence
 } from "../missions/missionEvidenceContract";
 
@@ -110,7 +114,7 @@ test("reviewer evidence contract prefers artifact-scoped evidence and does not a
   );
   assert.equal(shouldAttachOptionalContextLabel(m, item as any, "GIT STATUS"), false);
   const lines = buildRoleSpecificUserPromptCoreLines(m, item as any).join("\n");
-  assert.match(lines, /Repo-level git probes are optional/);
+  assert.match(lines, /REPO GIT EVIDENCE \(optional\): Repository-state probes are optional context/);
 });
 
 test("explicit git review contract marks git probe as required", () => {
@@ -131,6 +135,63 @@ test("explicit git review contract marks git probe as required", () => {
     "required"
   );
   assert.equal(shouldAttachOptionalContextLabel(m, item as any, "GIT STATUS"), true);
+});
+
+test("code-focused review can treat git evidence as preferred without making it mandatory", () => {
+  const m = minimalMission({ filesModified: ["src/orchestrator.ts"] });
+  const item = {
+    id: "w",
+    title: "Review code change",
+    role: MissionAgentRole.Reviewer,
+    status: "todo",
+    prompt: "Review the changed implementation in src/orchestrator.ts and check the diff if helpful."
+  };
+  assert.equal(shouldPreferRepositoryHistoryEvidence(m, item as any), true);
+  const contract = buildWorkItemEvidenceContract(m, item as any);
+  const repoReq = contract.requirements.find((req) => req.id === "repo_history_evidence");
+  assert.equal(repoReq?.necessity, "preferred");
+  assert.equal(shouldAttachOptionalContextLabel(m, item as any, "GIT STATUS"), true);
+});
+
+test("assessToolFailureEvidence degrades reviewer git probe when substitute artifact evidence remains", () => {
+  const m = minimalMission({
+    prompt: "Review only docs/run_1/report.md.",
+    runtime: { stalledHeartbeats: 0, autoReplans: 0, loopGuardTrips: 0, resolvedArtifactRootRelative: "docs/run_1" }
+  } as Mission);
+  const item = {
+    id: "w",
+    title: "Review scoped artifact",
+    role: MissionAgentRole.Reviewer,
+    status: "todo",
+    prompt: "Review docs/run_1/report.md only."
+  };
+  const assessment = assessToolFailureEvidence({
+    mission: m,
+    item: item as any,
+    call: { tool: "git.status", args: {} }
+  });
+  assert.equal(assessment?.necessity, "optional");
+  assert.equal(assessment?.handling, "continue_degraded");
+  assert.equal(assessment?.substituteEvidenceAvailable, true);
+});
+
+test("attachRoleDispatchMeta includes evidence contract summary for reviewer packets", () => {
+  const m = minimalMission({
+    prompt: "Review only docs/run_1/report.md.",
+    runtime: { stalledHeartbeats: 0, autoReplans: 0, loopGuardTrips: 0, resolvedArtifactRootRelative: "docs/run_1" }
+  } as Mission);
+  const item = {
+    id: "w",
+    title: "Review scoped artifact",
+    role: MissionAgentRole.Reviewer,
+    status: "todo",
+    prompt: "Review docs/run_1/report.md only."
+  };
+  const ctx = attachRoleDispatchMeta(MissionAgentRole.Reviewer, {}, m, item as any);
+  assert.equal(ctx.roleDispatch?.evidenceStrategy, "artifact_scoped");
+  assert.equal(ctx.roleDispatch?.primaryArtifactRoot, "docs/run_1");
+  assert.ok(ctx.roleDispatch?.requiredEvidence?.includes("direct_scope_evidence"));
+  assert.ok(ctx.roleDispatch?.optionalEvidence?.includes("repo_history_evidence"));
 });
 
 test("buildRoleSpecificUserPromptCoreLines: validator mentions VALIDATION STATE", () => {

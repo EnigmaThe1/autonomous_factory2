@@ -2,7 +2,9 @@ import { trimText } from "../../util";
 import { MissionAgentRole, type AgentRole, type ChatContext, type Mission, type WorkItem } from "../../types";
 import { extractKeywords } from "../orchestrator/orchestratorLeafHelpers";
 import {
+  buildWorkItemEvidenceContract,
   buildReviewerValidatorEvidenceContractLines,
+  shouldPreferRepositoryHistoryEvidence,
   workItemExplicitlyRequestsGitEvidence
 } from "../missionEvidenceContract";
 import { allowedToolIdsForRole } from "./roleAllowedTools";
@@ -82,7 +84,7 @@ export function shouldAttachOptionalContextLabel(mission: Mission, item: WorkIte
   if (label === OPTIONAL_LABELS.missionMemory || label === OPTIONAL_LABELS.globalMemory) return true;
   if (label === OPTIONAL_LABELS.gitStatus) {
     if (r === MissionAgentRole.Reviewer || r === MissionAgentRole.Validator) {
-      return workItemExplicitlyRequestsGitEvidence(mission, item);
+      return workItemExplicitlyRequestsGitEvidence(mission, item) || shouldPreferRepositoryHistoryEvidence(mission, item);
     }
     return true;
   }
@@ -204,9 +206,28 @@ export function buildRoleSpecificUserPromptCoreLines(mission: Mission, item: Wor
   ];
 }
 
-export function attachRoleDispatchMeta(role: AgentRole, ctx: ChatContext): ChatContext {
+export function attachRoleDispatchMeta(role: AgentRole, ctx: ChatContext, mission?: Mission, item?: WorkItem): ChatContext {
+  const contract =
+    mission && item ? buildWorkItemEvidenceContract(mission, item) : undefined;
   return {
     ...ctx,
-    roleDispatch: { allowedToolIds: allowedToolIdsForRole(role) }
+    roleDispatch: {
+      allowedToolIds: allowedToolIdsForRole(role),
+      ...(contract
+        ? {
+            evidenceStrategy: contract.strategy,
+            primaryArtifactRoot: contract.primaryArtifactRoot,
+            requiredEvidence: contract.requirements
+              .filter((req) => req.necessity === "required")
+              .map((req) => req.id),
+            preferredEvidence: contract.requirements
+              .filter((req) => req.necessity === "preferred")
+              .map((req) => req.id),
+            optionalEvidence: contract.requirements
+              .filter((req) => req.necessity === "optional")
+              .map((req) => req.id)
+          }
+        : {})
+    }
   };
 }

@@ -54,7 +54,12 @@ import {
   normalizeWorkspaceRelPath
 } from "../missionReviewReadScope";
 import { findMissingExpectedDeliverablePaths } from "../implementerDeliverableVerification";
-import { classifyToolEvidenceNecessity } from "../missionEvidenceContract";
+import {
+  assessToolFailureEvidence,
+  classifyToolEvidenceNecessity,
+  classifyToolEvidenceSource,
+  type ToolEvidenceSourceKind
+} from "../missionEvidenceContract";
 import {
   missionWorkItemContextKeywords,
   filterChatContextForWorkItem,
@@ -176,6 +181,7 @@ export class MissionOrchestratorWorkItemRunner {
     const maxWriteFileAgentRetry = recoveryLimits.maxWriteFileAgentRetry;
     const maxApplyPatchAgentRetry = recoveryLimits.maxApplyPatchAgentRetry;
     const successfulToolSteps: Array<{ tool: string; applyPatchNoop?: boolean }> = [];
+    const acquiredEvidenceSources = new Set<ToolEvidenceSourceKind>();
     const toolResultSummaries: string[] = [];
     let hadMutatingSideEffect = false;
     let attemptedToolInvocations = 0;
@@ -291,6 +297,12 @@ export class MissionOrchestratorWorkItemRunner {
         }
       }
 
+      const evidenceAssessment = assessToolFailureEvidence({
+        mission,
+        item,
+        call: callWithMeta,
+        acquiredEvidenceSources
+      });
       const decision = classifyToolOutcome({
         call: callWithMeta,
         result: toolResult,
@@ -298,6 +310,7 @@ export class MissionOrchestratorWorkItemRunner {
         isMutatingTool,
         readonlyBudgetRemaining,
         toolNecessity: classifyToolEvidenceNecessity({ mission, item, call: callWithMeta }),
+        evidenceFailureAssessment: evidenceAssessment,
         isReadFileMissing: effectiveReadFileMissing,
         transientMutatingBudgetRemaining,
         runCommandProbeBudgetRemaining,
@@ -333,6 +346,7 @@ export class MissionOrchestratorWorkItemRunner {
             case "recoverable_readonly":
               return this.recoveryBudget.peek(budgetKey);
             case "optional_probe_degraded":
+            case "degraded_evidence":
               return undefined;
             case "transient_mutating":
               return this.recoveryBudget.peek(transientKey);
@@ -359,7 +373,12 @@ export class MissionOrchestratorWorkItemRunner {
             tool: callWithMeta.tool,
             category: decision.category,
             necessity: classifyToolEvidenceNecessity({ mission, item, call: callWithMeta }),
-            attempt: recoveryAttemptNumber
+            attempt: recoveryAttemptNumber,
+            evidenceRequirement: evidenceAssessment?.requirementId,
+            evidenceSourceKind: evidenceAssessment?.sourceKind,
+            evidenceHandling: evidenceAssessment?.handling,
+            evidenceSubstituteAvailable: evidenceAssessment?.substituteEvidenceAvailable,
+            evidenceReason: evidenceAssessment?.reason
           }
         });
         toolResultSummaries.push(`[${callWithMeta.tool}] ${toolResult.summary}`);
@@ -504,6 +523,7 @@ export class MissionOrchestratorWorkItemRunner {
       }
 
       successfulToolSteps.push({ tool: callWithMeta.tool, applyPatchNoop: toolResult.applyPatchNoop });
+      acquiredEvidenceSources.add(classifyToolEvidenceSource(callWithMeta));
       toolResultSummaries.push(`[${callWithMeta.tool}] ${toolResult.summary}`);
       const isApplyPatchNoop = toolResult.applyPatchNoop === true;
       if (toolResult.ok && MUTATING_TOOLS.has(callWithMeta.tool) && !isApplyPatchNoop) {
@@ -1214,7 +1234,7 @@ export class MissionOrchestratorWorkItemRunner {
         keywords
       })
       : await this.host.collector.collect();
-    context = attachRoleDispatchMeta(item.role, filterChatContextForWorkItem(missionSnap, item, context));
+    context = attachRoleDispatchMeta(item.role, filterChatContextForWorkItem(missionSnap, item, context), missionSnap, item);
     this.host.missionWorkAbort.get(mission.id)?.abort();
     const ac = new AbortController();
     this.host.missionWorkAbort.set(mission.id, ac);

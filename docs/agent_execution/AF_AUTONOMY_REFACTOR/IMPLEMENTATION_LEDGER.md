@@ -340,3 +340,55 @@ The extension had no pre-existing `IMPLEMENTATION_LEDGER.md`. This file is the c
 
 - Planner-emitted explicit evidence / deliverable contracts would further reduce reliance on prompt-text inference for generic missions.
 - Optional future improvement: expose the resolved evidence contract in inspector / mission event presentation for easier operator debugging.
+
+## Phase 11 — Tool necessity & evidence sufficiency layer (2026-04-11)
+
+**Status:** DONE
+
+**Problem addressed**
+
+- The prior optional-probe fix still treated necessity mostly as a per-tool flag, not as a first-class evidence sufficiency decision.
+- Reviewer / validator failures could still fall into generic tool-failure routing because the orchestrator did not explicitly track:
+  - what requirement the tool was serving
+  - whether that requirement was already satisfied
+  - whether substitute evidence remained
+  - whether the correct response was continue, replan, or block
+- Role packets still carried only tool allowlists, so evidence strategy existed mainly as prompt text.
+
+**Files changed**
+
+- `src/missions/missionEvidenceContract.ts`
+- `src/missions/orchestrator/toolOutcomeClassifier.ts`
+- `src/missions/orchestrator/missionOrchestratorWorkItemRunner.ts`
+- `src/missions/agentDispatch/roleContextBuilder.ts`
+- `src/missions/failure/failureClassifier.ts`
+- `src/missions/failure/recoveryRouter.ts`
+- `src/types.ts`
+- `src/test/agentDispatch.test.ts`
+- `src/test/toolOutcomeClassifier.test.ts`
+- `src/test/missionScenarioMatrix.test.ts`
+
+**Design decision summary**
+
+- Expanded the canonical evidence-contract layer to define `WorkItemEvidenceContract`, `EvidenceRequirement`, and `ToolFailureEvidenceAssessment`.
+- Reviewer / validator work items now derive mission-sensitive evidence strategies:
+  - `artifact_scoped`
+  - `repo_scoped`
+  - `mixed`
+- The runner now assesses failed tools against evidence sufficiency before deciding to block.
+- Added a canonical `insufficient_evidence` / `insufficient_evidence_after_tool_failure` path so preferred-evidence failure without substitutes replans instead of becoming a generic pause.
+- Added evidence metadata to `roleDispatch`, aligning the control plane and agent packet around the same contract.
+- Preserved the existing deliverable guard as the canonical implementer completion proof path; no sidecar completion flow was introduced.
+
+**Validation summary**
+
+- `npm run compile` — PASS
+- targeted evidence / orchestrator regression suites — PASS
+- `npm test` — PASS
+  - 914 dist tests passed
+  - 78 webview smoke tests passed
+
+**Residual follow-ups**
+
+- A future Mission Compiler should emit explicit evidence contracts instead of relying on text inference from prompts and scope hints.
+- Inspector / dashboard surfaces could expose evidence strategy and degraded-evidence telemetry more directly for operators.

@@ -1,18 +1,20 @@
 import type { ToolCall } from "../../types";
 import type { ToolResult } from "../../tools/ToolRegistry";
-import type { ToolEvidenceNecessity } from "../missionEvidenceContract";
+import type { ToolEvidenceNecessity, ToolFailureEvidenceAssessment } from "../missionEvidenceContract";
 
 export type ToolOutcomeCategory =
   | "approval_required"
   | "policy_denied"
   | "recoverable_readonly"
   | "optional_probe_degraded"
+  | "degraded_evidence"
   | "recoverable_mutating"
   | "transient_mutating"
   | "run_command_probe"
   | "run_command_agent_retry"
   | "write_file_agent_retry"
   | "apply_patch_agent_retry"
+  | "insufficient_evidence"
   | "tool_failure"
   /** Reviewer/validator readFile missing outside current deliverable scope (phase/root mismatch). */
   | "out_of_scope_review_read";
@@ -43,7 +45,7 @@ export function isRunCommandBenignDiscoveryFailure(result: ToolResult): boolean 
 export type ToolOutcomeDecision =
   | { kind: "continue"; category: ToolOutcomeCategory; tags?: string[]; hintLines?: string[] }
   | { kind: "awaiting_input"; category: "approval_required" }
-  | { kind: "blocked"; category: "policy_denied" | "tool_failure" | "out_of_scope_review_read" };
+  | { kind: "blocked"; category: "policy_denied" | "tool_failure" | "out_of_scope_review_read" | "insufficient_evidence" };
 
 export function classifyToolOutcome(input: {
   call: ToolCall;
@@ -52,6 +54,7 @@ export function classifyToolOutcome(input: {
   isMutatingTool: boolean;
   readonlyBudgetRemaining: boolean;
   toolNecessity?: ToolEvidenceNecessity;
+  evidenceFailureAssessment?: ToolFailureEvidenceAssessment;
   isReadFileMissing: boolean;
   transientMutatingBudgetRemaining?: boolean;
   runCommandProbeBudgetRemaining?: boolean;
@@ -96,6 +99,26 @@ export function classifyToolOutcome(input: {
           "[hint] Shell command failed with a missing-path style error. Re-list the real directory (e.g. ls docs/autonomy_factory_stress_test*), do not trust MEMORY that names paths you have not listed this turn, then retry with paths that exist."
         ]
       };
+    }
+    if (input.evidenceFailureAssessment?.handling === "continue_degraded") {
+      const assessment = input.evidenceFailureAssessment;
+      return {
+        kind: "continue",
+        category: assessment.necessity === "optional" ? "optional_probe_degraded" : "degraded_evidence",
+        tags: [
+          "non_fatal",
+          "degraded_evidence",
+          `evidence_requirement:${assessment.requirementId}`,
+          `evidence_source:${assessment.sourceKind}`,
+          `evidence_necessity:${assessment.necessity}`
+        ],
+        hintLines: [
+          `[hint] ${assessment.reason} Continue with remaining evidence for requirement "${assessment.requirementDescription}"${assessment.primaryArtifactRoot ? ` under ${assessment.primaryArtifactRoot}` : ""}.`
+        ]
+      };
+    }
+    if (input.evidenceFailureAssessment?.handling === "replan") {
+      return { kind: "blocked", category: "insufficient_evidence" };
     }
     if (input.toolNecessity === "optional" && isReadonlyTool) {
       return {

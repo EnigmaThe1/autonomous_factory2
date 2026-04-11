@@ -19,6 +19,14 @@ export function routeStructuredRecovery(failure: StructuredFailure, ctx: Recover
     };
   }
 
+  if (failure.domain === "tool" && failure.code === "insufficient_evidence_after_tool_failure") {
+    return {
+      route: "replan",
+      reason:
+        "The failed tool was serving only preferred evidence and no sufficient substitute remained; replan for a different evidence strategy instead of pausing the mission."
+    };
+  }
+
   if (failure.domain === "policy" && failure.class === "hard_deny") {
     return { route: "block", reason: "Policy hard denial (host/outside workspace or explicit deny)." };
   }
