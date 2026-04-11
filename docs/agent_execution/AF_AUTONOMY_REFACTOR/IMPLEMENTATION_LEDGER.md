@@ -392,3 +392,52 @@ The extension had no pre-existing `IMPLEMENTATION_LEDGER.md`. This file is the c
 
 - A future Mission Compiler should emit explicit evidence contracts instead of relying on text inference from prompts and scope hints.
 - Inspector / dashboard surfaces could expose evidence strategy and degraded-evidence telemetry more directly for operators.
+
+## Phase 12 — Regression mission matrix generator (2026-04-11)
+
+**Status:** DONE
+
+**Problem addressed**
+
+- The AF autonomy program had a canonical implementation ledger but no durable, reusable regression mission pack for systematically testing mission behavior across:
+  - workspace artifact missions
+  - source-code change missions
+  - mixed missions
+  - failure-injection missions
+  - long-run resilience missions
+- Operators had no canonical result-sheet template or traceability map for scoring mission quality across root binding, deliverable discipline, tool necessity, evidence sufficiency, recovery quality, boundary safety, pass continuity, and operator clarity.
+
+**Files added/changed**
+
+- `docs/agent_execution/AF_AUTONOMY_REFACTOR/REGRESSION_MISSION_MATRIX/REGRESSION_MISSION_MATRIX.md`
+- `docs/agent_execution/AF_AUTONOMY_REFACTOR/REGRESSION_MISSION_MATRIX/REGRESSION_RESULT_SHEET_TEMPLATE.md`
+- `docs/agent_execution/AF_AUTONOMY_REFACTOR/REGRESSION_MISSION_MATRIX/REGRESSION_OPERATOR_GUIDE.md`
+- `docs/agent_execution/AF_AUTONOMY_REFACTOR/REGRESSION_MISSION_MATRIX/REGRESSION_TRACEABILITY.md`
+- `docs/agent_execution/AF_AUTONOMY_REFACTOR/REGRESSION_MISSION_MATRIX/missions/workspace_artifact_simple.md`
+- `docs/agent_execution/AF_AUTONOMY_REFACTOR/REGRESSION_MISSION_MATRIX/missions/workspace_artifact_phase_scoped.md`
+- `docs/agent_execution/AF_AUTONOMY_REFACTOR/REGRESSION_MISSION_MATRIX/missions/workspace_artifact_optional_probe_failure.md`
+- `docs/agent_execution/AF_AUTONOMY_REFACTOR/REGRESSION_MISSION_MATRIX/missions/code_change_bounded.md`
+- `docs/agent_execution/AF_AUTONOMY_REFACTOR/REGRESSION_MISSION_MATRIX/missions/code_change_required_validation_failure.md`
+- `docs/agent_execution/AF_AUTONOMY_REFACTOR/REGRESSION_MISSION_MATRIX/missions/protected_path_boundary.md`
+- `docs/agent_execution/AF_AUTONOMY_REFACTOR/REGRESSION_MISSION_MATRIX/missions/mixed_docs_and_code.md`
+- `docs/agent_execution/AF_AUTONOMY_REFACTOR/REGRESSION_MISSION_MATRIX/missions/long_run_step_cap_chain.md`
+- `docs/agent_execution/AF_AUTONOMY_REFACTOR/IMPLEMENTATION_LEDGER.md`
+
+**Design decision summary**
+
+- Placed the regression matrix under `docs/agent_execution/AF_AUTONOMY_REFACTOR/` because that path was already the canonical durable program root for the autonomy/workspace-coder initiative.
+- Kept the mission pack operator-facing and reusable by storing it in tracked docs, not in gitignored `.dev` evidence packs.
+- Made every mission prompt self-contained and paste-ready by embedding authoritative-contract wording and execution rules directly in each mission file rather than relying on an external shared preamble.
+- Kept the work documentation-only: no runtime logic or safety behavior was changed for this phase.
+
+**Validation summary**
+
+- required file existence checks — PASS
+- self-contained prompt audit across all 8 missions — PASS
+- traceability coverage across all 8 missions — PASS
+- `npm run compile` — PASS
+
+**Residual follow-ups**
+
+- Add future mission variants for provider-comparison batches or release-candidate certification bundles if the operator workflow needs larger matrix suites.
+- Optional future improvement: provide pre-filled result-sheet examples from real runs so operator scoring calibrates faster.
