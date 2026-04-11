@@ -26,6 +26,13 @@ export function createMessageHandler(deps) {
     globalMemory:   { seqKey: "lastAppliedGlobalMemorySectionSeq",    apply: applyGlobalMemorySectionSnapshot }
   };
 
+  function setMissionActionStatus(text) {
+    const missionStatusEl = globalThis.document?.getElementById?.("missionActionStatus");
+    if (missionStatusEl && typeof text === "string") {
+      missionStatusEl.textContent = text;
+    }
+  }
+
   function handleSnapshotSection(msg) {
     const curPub = state.lastSnapshotPublishSeq;
     const base = msg.sectionBasePublishSeq;
@@ -115,6 +122,8 @@ export function createMessageHandler(deps) {
         const m = msg.message;
         if (
           m.startsWith("Mission ") ||
+          m.startsWith("Mission start") ||
+          m.startsWith("Start mission") ||
           m.startsWith("Approval ") ||
           m.startsWith("Abort ")
         ) {
@@ -128,6 +137,9 @@ export function createMessageHandler(deps) {
         event: "render_error",
         data: { phase: "ext_to_ui_error", message: msg.message }
       });
+      if (typeof msg.message === "string") {
+        setMissionActionStatus(msg.message);
+      }
       state.chatBuffer = trimSidebarChatBuffer(`${state.chatBuffer}\n\nError: ${msg.message}`);
       renderChat(state.snapshot);
     } else if (msg.type === "providerKeyCleared") {

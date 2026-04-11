@@ -453,9 +453,10 @@ export class AiSidebarProvider implements vscode.WebviewViewProvider {
   /**
    * Focus a mission for dashboard UI. Posts the missions `snapshotSection` immediately from store truth; then
    * schedules a single coalesced background full refresh (not interaction-priority) so provider/MCP/aux
-   * slices eventually reconcile without doubling queue pressure. Call sites that use `postWithInteractionId`
-   * must set `suppressTrailingDashboardRefresh` when handling the message so the generic trailing
-   * `refreshDashboard(interactionId)` does not duplicate work.
+   * slices eventually reconcile without doubling queue pressure. Most call sites suppress the generic
+   * handler-tail full refresh when they invoke this helper; mission-start intentionally opts into both the
+   * immediate section post and a guaranteed trailing full refresh so a newly created mission always becomes
+   * visible even when no prior full snapshot baseline exists.
    */
   focusMission(id: string, interactionId?: string) {
     this.focusedMissionId = id;
@@ -541,8 +542,18 @@ export class AiSidebarProvider implements vscode.WebviewViewProvider {
         }
       } catch (err) {
         const msgText = err instanceof Error ? err.message : String(err);
+        this.traceLogger.log({
+          level: "error",
+          side: "host",
+          category: "protocol",
+          event: "ui_message_dispatch_failed",
+          messageType: msg.type,
+          interactionId: msgInteractionId,
+          ok: false,
+          data: { error: msgText }
+        });
         void vscode.window.showErrorMessage(`Autonomous Factory: ${msgText}`);
-        this.postMessage({ type: "error", message: msgText });
+        this.postMessage({ type: "error", message: msgText }, { interactionId: msgInteractionId });
       }
     });
 

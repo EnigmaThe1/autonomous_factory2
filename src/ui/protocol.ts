@@ -281,7 +281,7 @@ export type UiToExtMessage =
   | { type: "ready" }
   | { type: "sendChat"; prompt: string; providerId?: string; model?: string }
   | { type: "clearChatHistory" }
-  | { type: "startMission"; title: string; prompt: string; providerId?: string; model?: string }
+  | { type: "startMission"; title: string; prompt: string; providerId?: string; model?: string; interactionId?: string }
   | { type: "resumeMission"; missionId: string }
   | { type: "abortMissionLlm"; missionId: string }
   | { type: "refreshDashboard"; interactionId?: string }

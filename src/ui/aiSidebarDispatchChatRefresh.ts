@@ -9,6 +9,16 @@ import {
 } from "../missions/missionActionOutcomeEventPresentation";
 import { saveOperatorActionMissionEventIfChanged } from "../missions/missionActionOutcomeEventLogging";
 
+function normalizeUiStartMissionInput(msg: Extract<UiToExtMessage, { type: "startMission" }>): {
+  title: string;
+  prompt: string;
+} | { error: string } {
+  const title = typeof msg.title === "string" && msg.title.trim() ? msg.title.trim() : "Autonomous Mission";
+  const prompt = typeof msg.prompt === "string" ? msg.prompt.trim() : "";
+  if (!prompt) return { error: "Mission start requires a prompt." };
+  return { title, prompt };
+}
+
 export async function dispatchUi_ready(host: AiSidebarUiDispatchHost): Promise<boolean> {
   const job = host.getRefreshQueue().then(async () => {
     const buildStartedAt = Date.now();
@@ -51,20 +61,53 @@ export async function dispatchUi_startMission(
   host: AiSidebarUiDispatchHost,
   msg: Extract<UiToExtMessage, { type: "startMission" }>
 ): Promise<boolean> {
+  const normalized = normalizeUiStartMissionInput(msg);
+  host.traceLogger.log({
+    level: "info",
+    side: "host",
+    category: "protocol",
+    event: "ui_start_mission_dispatch_begin",
+    interactionId: msg.interactionId,
+    data:
+      "error" in normalized
+        ? { valid: false, reason: "empty_prompt" }
+        : { valid: true, title: normalized.title, providerId: msg.providerId || "workspace_default" }
+  });
+  if ("error" in normalized) {
+    host.postMessage({ type: "error", message: normalized.error }, { interactionId: msg.interactionId });
+    host.traceLogger.log({
+      level: "info",
+      side: "host",
+      category: "protocol",
+      event: "ui_start_mission_dispatch_rejected",
+      interactionId: msg.interactionId,
+      data: { reason: "empty_prompt" }
+    });
+    return true;
+  }
   const cfg = vscode.workspace.getConfiguration();
   const pid = msg.providerId || cfg.get<string>("myAi.defaultProvider", "ollama");
   const explicit = msg.model?.trim() || undefined;
   const resolvedModel = resolveModelForProvider(pid, explicit, (k, d) => cfg.get(k, d));
-  const started = await host.orchestrator.startMission(msg.title, msg.prompt, pid, resolvedModel);
+  const started = await host.orchestrator.startMission(normalized.title, normalized.prompt, pid, resolvedModel);
   const mission = started.mission;
-  host.focusMission(mission.id);
-  host.postMessage({ type: "info", message: presentStartMissionOutcome(started) });
+  host.focusMission(mission.id, msg.interactionId);
+  host.postMessage({ type: "info", message: presentStartMissionOutcome(started) }, { interactionId: msg.interactionId });
+  host.traceLogger.log({
+    level: "info",
+    side: "host",
+    category: "protocol",
+    event: "ui_start_mission_dispatch_outcome",
+    interactionId: msg.interactionId,
+    data: { missionId: mission.id, passKind: started.pass.kind, missionStatus: mission.status }
+  });
   await saveOperatorActionMissionEventIfChanged({
     store: host.missionStore,
     missionId: mission.id,
     message: presentStartMissionOutcomeEvent(started)
   });
-  return true;
+  // Mission start is user-critical; always allow the handler-tail full refresh to run.
+  return false;
 }
 
 export async function dispatchUi_resumeMission(

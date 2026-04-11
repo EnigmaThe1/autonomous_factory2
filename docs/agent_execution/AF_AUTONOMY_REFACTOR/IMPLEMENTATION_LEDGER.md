@@ -548,3 +548,51 @@ The extension had no pre-existing `IMPLEMENTATION_LEDGER.md`. This file is the c
 
 - A future UI pass could expose compiler-preflight status more prominently on cards/inspector rows.
 - If operators need a dedicated “repair mission contract and retry preflight” action, add it as an explicit canonical workflow rather than overloading generic resume semantics.
+
+## Phase 15 — Start Mission end-to-end deep regression fix (2026-04-11)
+
+**Status:** DONE
+
+**Problem addressed**
+
+- Clicking Start Mission in the sidebar could still appear to do absolutely nothing even after the persistence-first mission-start fix.
+- The remaining regression was end-to-end, not purely orchestrator-level:
+  - the webview button could fail locally before posting any host message
+  - the click-path interaction id was not preserved through the posted message
+  - the successful start path still suppressed the guaranteed handler-tail full refresh and depended on a missions-section fast path that could not publish without a prior full snapshot baseline
+  - mission-start error feedback in the webview was still too easy to miss
+
+**Files changed**
+
+- `media/chat/webviewDomWire.js`
+- `media/chat/webviewMessageHandler.js`
+- `src/ui/aiSidebarDispatchChatRefresh.ts`
+- `src/ui/AiSidebarProvider.ts`
+- `src/ui/protocol.ts`
+- `src/test/aiSidebarStartMissionDispatch.test.ts`
+- `scripts/webview-modular-smoke.mjs`
+- `docs/agent_execution/AF_AUTONOMY_REFACTOR/IMPLEMENTATION_LEDGER.md`
+
+**Design decision summary**
+
+- Kept the canonical orchestrator start contract from Phase 14 and fixed the real remaining failure in the UI/bridge/refresh layers instead of adding another sidecar start path.
+- Preserved one `interactionId` from the Start Mission click through the posted host message and host dispatch outcome.
+- Removed the webview’s silent empty-prompt no-op by surfacing immediate mission-action status text.
+- Made `dispatchUi_startMission(...)` validate payloads visibly, emit explicit start begin/rejected/outcome trace events, and preserve `interactionId` through focus/outcome messaging.
+- Changed the UI start handler to allow the handler-tail full refresh, guaranteeing that a newly created mission becomes visible even when no prior full snapshot baseline exists.
+- Hardened visible mission-action feedback for `error` messages in the webview.
+
+**Validation summary**
+
+- `npm run compile` — PASS
+- targeted start/orchestrator/compiler suite — PASS
+  - 18 tests passed
+- webview smoke suite — PASS
+  - 81 tests passed
+- sidebar stability/section contract suite — PASS
+  - 28 tests passed
+
+**Residual follow-ups**
+
+- If operators want richer diagnostics, expose start-attempt trace IDs or dispatch-failure summaries directly in the sidebar inspector.
+- Command-palette and sidebar button start are now behaviorally aligned around the same orchestrator engine; a later cleanup could extract a shared presenter helper for the remaining duplicated focus/message orchestration.

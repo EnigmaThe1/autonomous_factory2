@@ -1604,6 +1604,49 @@ test("createMessageHandler: init, snapshot, snapshotSection x4, chatChunk, memor
   assert.ok(calls.includes("renderMissions"));
 });
 
+test("createMessageHandler: error messages surface mission action status for visible failure feedback", async () => {
+  const { createMessageHandler } = await import(mediaChatUrl("webviewMessageHandler.js"));
+  const missionActionStatus = mockEl();
+  globalThis.document = {
+    getElementById: (id) => (id === "missionActionStatus" ? missionActionStatus : mockEl())
+  };
+  const state = {
+    lastSnapshotPublishSeq: null,
+    lastAppliedMissionsSectionSeq: 0,
+    lastAppliedAuxiliarySectionSeq: 0,
+    lastAppliedProviderChromeSectionSeq: 0,
+    lastAppliedGlobalMemorySectionSeq: 0,
+    memorySearchResults: [],
+    chatBuffer: "",
+    chatHistory: mockChatHistory(),
+    activeTab: "chat",
+    snapshot: minimalSidebarSnapshot(),
+    missionReportCache: null,
+    dirty: { quickSettings: false, providersForm: false, chatRow: false, routingPanel: false }
+  };
+  const handler = createMessageHandler({
+    state,
+    els: { chatPrompt: mockEl() },
+    emitHostTrace: () => {},
+    renderTraceLogSnapshot: () => {},
+    applyMissionSectionSnapshot: () => {},
+    applyAuxiliarySectionSnapshot: () => {},
+    applyProviderChromeSectionSnapshot: () => {},
+    applyGlobalMemorySectionSnapshot: () => {},
+    renderSnapshot: () => {},
+    renderChat: () => {},
+    renderMemory: () => {},
+    renderMissions: () => {},
+    updateQuickDirtyBadge: () => {},
+    updateProvidersDirtyBadge: () => {},
+    setActiveTab: () => {}
+  });
+
+  handler({ data: { type: "error", message: "Mission start requires a prompt." } });
+  assert.equal(missionActionStatus.textContent, "Mission start requires a prompt.");
+  assert.match(state.chatBuffer, /Mission start requires a prompt\./);
+});
+
 test("createSnapshotApply: renderSnapshot invokes renderMissions before chat (order)", async () => {
   const { createSnapshotApply } = await import(mediaChatUrl("webviewSnapshotApply.js"));
   const { createPanelSigCache } = await import(mediaChatUrl("webviewSigCache.js"));
@@ -2407,6 +2450,142 @@ test("chat, settings, and routing save paths remain target-local", async () => {
   assert.equal(routing.activeProviderId, "ollama");
   assert.equal(routing.activeModel, "qwen2.5-coder");
   assert.deepEqual(routing.roles[0], { role: "planner", providerId: "openai", model: "gpt-4.1" });
+  assert.equal(typeof start.interactionId, "string");
+});
+
+test("wireChatDomEvents: startMission preserves one interaction id from click trace through posted payload", async () => {
+  const { wireChatDomEvents } = await import(mediaChatUrl("webviewDomWire.js"));
+  const posted = [];
+  const traces = [];
+  globalThis.document = {
+    body: { addEventListener: () => {} },
+    getElementById: () => mockEl(),
+    querySelectorAll: () => ({ forEach: () => {} }),
+    addEventListener: () => {}
+  };
+  const listeners = {};
+  const els = new Proxy(
+    {
+      chatPrompt: mockEl(),
+      sendChat: mockEl(),
+      startMission: mockEl({ addEventListener(type, fn) { listeners.startMission = fn; } }),
+      chatProviderSelect: { value: "openai", addEventListener: () => {} },
+      chatModelInput: { value: "gpt-4.1", addEventListener: () => {} },
+      missionTitle: { value: "Trace start" },
+      missionPrompt: { value: "Make the start mission visible" }
+    },
+    { get: (t, p) => (t[p] ??= mockEl()) }
+  );
+  wireChatDomEvents({
+    vscode: {},
+    state: {
+      snapshot: minimalSidebarSnapshot(),
+      chatBuffer: "",
+      chatHistory: mockChatHistory(),
+      dirty: { quickSettings: false, providersForm: false, chatRow: false, routingPanel: false },
+      memorySearchResults: [],
+      timelineFilterText: "",
+      timelineFilterLevel: "all",
+      timelineFocusedOnly: false,
+      selectedApproval: null,
+      selectedBundle: null,
+      routingDraft: null
+    },
+    els,
+    post: (type, extra = {}, interactionId) => posted.push({ type, interactionId, ...extra }),
+    postWithInteractionId: () => {
+      throw new Error("startMission should preserve its own interaction id instead of generating a second one");
+    },
+    setActiveTab: () => {},
+    emitHostTrace: (entry) => traces.push(entry),
+    renderChat: () => {},
+    renderApprovals: () => {},
+    renderBundles: () => {},
+    renderTimeline: () => {},
+    renderMemory: () => {},
+    renderProvidersPanel: () => {},
+    renderSettings: () => {},
+    syncChatProviderRow: () => {},
+    renderRouting: () => {},
+    updateQuickDirtyBadge: () => {},
+    updateProvidersDirtyBadge: () => {},
+    stopTraceAutoRefresh: () => {},
+    startTraceAutoRefresh: () => {}
+  });
+
+  listeners.startMission();
+  const clickTrace = traces.find((entry) => entry.event === "start_mission_click");
+  const start = posted.find((entry) => entry.type === "startMission");
+  assert.ok(clickTrace);
+  assert.ok(start);
+  assert.equal(start.interactionId, clickTrace.interactionId);
+  assert.equal(start.providerId, "openai");
+  assert.equal(start.model, "gpt-4.1");
+});
+
+test("wireChatDomEvents: blank startMission shows visible status instead of silent no-op", async () => {
+  const { wireChatDomEvents } = await import(mediaChatUrl("webviewDomWire.js"));
+  const missionActionStatus = mockEl();
+  const posted = [];
+  const traces = [];
+  const listeners = {};
+  globalThis.document = {
+    body: { addEventListener: () => {} },
+    getElementById: (id) => (id === "missionActionStatus" ? missionActionStatus : mockEl()),
+    querySelectorAll: () => ({ forEach: () => {} }),
+    addEventListener: () => {}
+  };
+  const els = new Proxy(
+    {
+      chatPrompt: mockEl(),
+      sendChat: mockEl(),
+      startMission: mockEl({ addEventListener(type, fn) { listeners.startMission = fn; } }),
+      chatProviderSelect: { value: "openai", addEventListener: () => {} },
+      chatModelInput: { value: "gpt-4.1", addEventListener: () => {} },
+      missionTitle: { value: "No prompt mission" },
+      missionPrompt: { value: "   " }
+    },
+    { get: (t, p) => (t[p] ??= mockEl()) }
+  );
+  wireChatDomEvents({
+    vscode: {},
+    state: {
+      snapshot: minimalSidebarSnapshot(),
+      chatBuffer: "",
+      chatHistory: mockChatHistory(),
+      dirty: { quickSettings: false, providersForm: false, chatRow: false, routingPanel: false },
+      memorySearchResults: [],
+      timelineFilterText: "",
+      timelineFilterLevel: "all",
+      timelineFocusedOnly: false,
+      selectedApproval: null,
+      selectedBundle: null,
+      routingDraft: null
+    },
+    els,
+    post: (type, extra = {}, interactionId) => posted.push({ type, interactionId, ...extra }),
+    postWithInteractionId: () => posted.push({ type: "unexpectedPostWithInteractionId" }),
+    setActiveTab: () => {},
+    emitHostTrace: (entry) => traces.push(entry),
+    renderChat: () => {},
+    renderApprovals: () => {},
+    renderBundles: () => {},
+    renderTimeline: () => {},
+    renderMemory: () => {},
+    renderProvidersPanel: () => {},
+    renderSettings: () => {},
+    syncChatProviderRow: () => {},
+    renderRouting: () => {},
+    updateQuickDirtyBadge: () => {},
+    updateProvidersDirtyBadge: () => {},
+    stopTraceAutoRefresh: () => {},
+    startTraceAutoRefresh: () => {}
+  });
+
+  listeners.startMission();
+  assert.equal(posted.length, 0);
+  assert.equal(missionActionStatus.textContent, "Mission start requires a prompt.");
+  assert.ok(traces.some((entry) => entry.event === "start_mission_click_rejected"));
 });
 
 test("wireChatDomEvents: model picker selection marks the right surface dirty and updates the field", async () => {

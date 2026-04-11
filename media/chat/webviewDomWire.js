@@ -161,6 +161,11 @@ function chatPostPayload() {
   };
 }
 
+function setMissionActionStatus(text) {
+  const statusEl = globalThis.document?.getElementById?.("missionActionStatus");
+  if (statusEl) statusEl.textContent = text || "";
+}
+
 els.chatModelInput?.addEventListener('input', () => { state.dirty.chatRow = true; });
 els.chatModelInput?.addEventListener('change', () => { state.dirty.chatRow = true; });
 
@@ -177,9 +182,27 @@ els.chatPrompt?.addEventListener('keydown', e => {
   if ((e.ctrlKey || e.metaKey) && e.key === 'Enter') { e.preventDefault(); els.sendChat.click(); }
 });
 els.startMission?.addEventListener('click', () => {
+  const interactionId = newInteractionId();
+  emitHostTrace({
+    level: 'info',
+    event: 'start_mission_click',
+    interactionId,
+    data: { hasTitle: !!els.missionTitle?.value?.trim(), hasPrompt: !!els.missionPrompt?.value?.trim() }
+  });
   const title = els.missionTitle.value.trim() || 'Autonomous Mission';
-  const prompt = els.missionPrompt.value.trim(); if (!prompt) return;
-  post('startMission', { title, prompt, ...chatPostPayload() });
+  const prompt = els.missionPrompt.value.trim();
+  if (!prompt) {
+    setMissionActionStatus('Mission start requires a prompt.');
+    emitHostTrace({
+      level: 'warn',
+      event: 'start_mission_click_rejected',
+      interactionId,
+      data: { reason: 'empty_prompt' }
+    });
+    return;
+  }
+  setMissionActionStatus('Mission start requested…');
+  post('startMission', { title, prompt, interactionId, ...chatPostPayload() }, interactionId);
 });
 els.openProvidersFromChat?.addEventListener('click', () => setActiveTab('providers'));
 els.refreshDashboard?.addEventListener('click', () => postWithInteractionId('refreshDashboard'));
