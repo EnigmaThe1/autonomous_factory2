@@ -143,6 +143,99 @@ export interface MissionRuntime {
   promotionState?: "experimental" | "verified" | "promoted";
   /** Timestamp (ms) when promotionState last changed. */
   promotionStateAt?: number;
+  /** Timestamp (ms) when mission compiler preflight last ran. */
+  compilerPreflightAt?: number;
+  /** Count of safe path corrections applied during compiler preflight. */
+  compilerPathCorrectionsApplied?: number;
+  /** Count of input/output reclassifications applied during compiler preflight. */
+  compilerIoReclassificationsApplied?: number;
+  /** Count of contradiction findings raised during compiler preflight. */
+  compilerContradictionsFound?: number;
+  /** Count of assumption-fill defaults applied during compiler preflight. */
+  compilerAssumptionsFilled?: number;
+  /** Count of blocking ambiguities or impossible assumptions detected during compiler preflight. */
+  compilerBlockingIssues?: number;
+}
+
+export type MissionCompilerFindingResolution =
+  | "safe_auto_resolved"
+  | "conservative_default"
+  | "needs_attention"
+  | "blocking";
+
+export type MissionCompilerPathExistence =
+  | "exists"
+  | "corrected_exists"
+  | "planned_output"
+  | "unresolved";
+
+export type MissionCompilerPathRole = "input" | "output" | "ambiguous";
+
+export interface MissionCompilerPathReference {
+  rawPath: string;
+  normalizedPath?: string;
+  role: MissionCompilerPathRole;
+  existence: MissionCompilerPathExistence;
+  evidence: string;
+  correctionKind?: string;
+  policyZone?:
+    | "workspace_open"
+    | "workspace_protected"
+    | "workspace_blocked"
+    | "outside_workspace"
+    | "extension_core";
+}
+
+export interface MissionCompilerFinding {
+  code: string;
+  severity: "info" | "warn" | "error";
+  resolution: MissionCompilerFindingResolution;
+  summary: string;
+  detail?: string;
+  affectedPath?: string;
+  correctedPath?: string;
+}
+
+export interface MissionCompilerMetrics {
+  pathReferencesDetected: number;
+  pathCorrectionsApplied: number;
+  inputPathsClassified: number;
+  outputPathsClassified: number;
+  ambiguousPathsClassified: number;
+  contradictionsFound: number;
+  assumptionsFilled: number;
+  blockingIssues: number;
+  unresolvedPaths: number;
+}
+
+export interface MissionCompilerPolicyBinding {
+  workspaceRootName?: string;
+  workspaceRootPath?: string;
+  autonomyMode: string;
+  blueprintMode: string;
+  restrictToWorkspace: boolean;
+  extensionCoreMutationPolicy: "deny" | "require_approval";
+  protectedPathGlobs: string[];
+  blockedPathGlobs: string[];
+}
+
+export interface MissionCompiledContract {
+  compilerVersion: string;
+  compiledAt: number;
+  normalizedObjective: string;
+  normalizedScope: string[];
+  normalizedConstraints: string[];
+  successCriteria: string[];
+  inputPaths: string[];
+  outputPaths: string[];
+  ambiguousPaths: string[];
+  outputRootHint?: string;
+  pathReferences: MissionCompilerPathReference[];
+  findings: MissionCompilerFinding[];
+  unresolvedAmbiguities: string[];
+  policyBinding: MissionCompilerPolicyBinding;
+  repoTopLevelEntries: string[];
+  metrics: MissionCompilerMetrics;
 }
 
 /**
@@ -150,6 +243,7 @@ export interface MissionRuntime {
  * Omitted on legacy events; prefer setting on new orchestrator and runner paths.
  */
 export type MissionTelemetryKind =
+  | "compiler_preflight"
   | "work_started"
   | "work_completed"
   | "work_failed"
@@ -423,6 +517,8 @@ export interface Mission {
   preBlueprintClarification?: PreBlueprintClarificationState;
   /** Optional link to a persisted `MissionProgram` (multi-mission governance). */
   programId?: string;
+  /** Canonical compiler/preflight output used instead of relying on raw prompt text alone. */
+  compiledContract?: MissionCompiledContract;
 }
 
 /** Phase 4: tool allowlist attached by runWorkItem for policy + prompt filtering. */

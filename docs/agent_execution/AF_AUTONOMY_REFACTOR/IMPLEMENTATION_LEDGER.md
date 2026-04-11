@@ -441,3 +441,56 @@ The extension had no pre-existing `IMPLEMENTATION_LEDGER.md`. This file is the c
 
 - Add future mission variants for provider-comparison batches or release-candidate certification bundles if the operator workflow needs larger matrix suites.
 - Optional future improvement: provide pre-filled result-sheet examples from real runs so operator scoring calibrates faster.
+
+## Phase 13 — Mission compiler preflight and sanity-check (2026-04-11)
+
+**Status:** DONE
+
+**Problem addressed**
+
+- The orchestrator still persisted and forwarded raw mission prompts directly into planner / blueprint kickoff with only a lightweight start baseline.
+- This left the system vulnerable to prompt literalism when:
+  - prompt paths were wrong relative to repo truth
+  - read-only input files were confused with intended outputs
+  - output roots were not normalized against the actual git root
+  - contradictions and weak assumptions were only discovered after execution had already started
+- Existing downstream protections (mission-root binding, review-scope controls, evidence sufficiency, deliverable guards) were strong but still had to compensate for an upstream mission contract that was too weak.
+
+**Files changed**
+
+- `src/missions/missionCompiler.ts`
+- `src/missions/MissionOrchestrator.ts`
+- `src/missions/agentDispatch/roleContextBuilder.ts`
+- `src/missions/missionEvidenceContract.ts`
+- `src/missions/implementerDeliverableContract.ts`
+- `src/types.ts`
+- `src/test/missionCompiler.test.ts`
+- `docs/agent_execution/AF_AUTONOMY_REFACTOR/IMPLEMENTATION_LEDGER.md`
+
+**Design decision summary**
+
+- Added a canonical mission compiler / preflight subsystem in the orchestrator control plane and invoked it from `MissionOrchestrator.startMission(...)` before any planner / blueprint work is enqueued.
+- Introduced persisted `Mission.compiledContract` data with:
+  - normalized objective / scope / constraints / success criteria
+  - input/output/ambiguous path declarations
+  - compiler findings
+  - policy binding
+  - repo-top-level context
+  - compiler metrics
+- Path reconciliation now uses discovered git repo truth instead of treating the broader workspace folder as the only root of truth.
+- Role prompts, evidence contract inference, and implementer deliverable shaping now consume the compiled contract so downstream execution is less dependent on raw prompt wording alone.
+- Added compiler telemetry (`compiler_preflight`) plus runtime metrics to support later quality/latency analysis.
+
+**Validation summary**
+
+- `npm run compile` — PASS
+- targeted compiler / mission-root / scenario-matrix suite — PASS
+- `npm test` — PASS
+  - 920 dist tests passed
+  - 78 webview smoke tests passed
+
+**Residual follow-ups**
+
+- The compiler still uses conservative text heuristics for some scope/success extraction; a later Mission Compiler phase could make more of the contract schema-driven.
+- Compile-time findings are classified and surfaced, but only obviously impossible conditions should automatically stop execution today; a future operator-input layer could formalize stronger compile-time blocking semantics.
+- Inspector/dashboard surfaces could expose compiled contract findings and compiler metrics more directly for operators.

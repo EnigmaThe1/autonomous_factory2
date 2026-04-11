@@ -7,6 +7,7 @@ import {
   shouldPreferRepositoryHistoryEvidence,
   workItemExplicitlyRequestsGitEvidence
 } from "../missionEvidenceContract";
+import { buildCompiledMissionContractLines } from "../missionCompiler";
 import { allowedToolIdsForRole } from "./roleAllowedTools";
 
 const OPTIONAL_LABELS = {
@@ -121,6 +122,7 @@ export function buildRoleSpecificUserPromptCoreLines(mission: Mission, item: Wor
     return [
       `MISSION: ${mission.title}`,
       `MISSION GOAL:\n${mission.prompt}`,
+      ...buildCompiledMissionContractLines(mission),
       mission.blocker ? `CURRENT BLOCKER / PAUSE:\n${mission.blocker}` : "",
       `QUEUE (work items):\n${formatQueueSummary(mission)}`,
       mission.blueprint ? `BLUEPRINT STATUS: ${mission.blueprint.status}` : "",
@@ -135,6 +137,7 @@ export function buildRoleSpecificUserPromptCoreLines(mission: Mission, item: Wor
     return [
       `MISSION: ${mission.title}`,
       `MISSION GOAL (context only):\n${trimText(mission.prompt, 2500)}`,
+      ...buildCompiledMissionContractLines(mission),
       targeted
         ? "MODE: Targeted research / diagnosis — gather evidence (web or repo reads) and record MEMORY lines others can rely on."
         : "MODE: Lightweight pass — prefer existing mission MEMORY; avoid broad repo scans unless the task explicitly requires new evidence.",
@@ -149,6 +152,7 @@ export function buildRoleSpecificUserPromptCoreLines(mission: Mission, item: Wor
     return [
       `MISSION: ${mission.title}`,
       `MISSION PROMPT:\n${mission.prompt}`,
+      ...buildCompiledMissionContractLines(mission),
       `ROLE: implementer`,
       `TASK: ${item.title}`,
       `TASK PROMPT:\n${item.prompt}`,
@@ -169,6 +173,7 @@ export function buildRoleSpecificUserPromptCoreLines(mission: Mission, item: Wor
     const cf = changedFilesSummary(mission, item);
     return [
       `MISSION: ${mission.title}`,
+      ...buildCompiledMissionContractLines(mission),
       `REVIEW TARGET: ${item.title}`,
       `STEP / TASK CONTEXT (canonical scope — do not chase end-state filenames from the overall mission unless this task or CHANGED AREAS names them):\n${trimText(item.prompt, 3500)}`,
       cf ? `CHANGED / TOUCHED AREAS:\n${cf}` : "(No mission-level modified file list yet — discover paths with listFiles only under hints above; avoid speculative final-report reads.)",
@@ -185,6 +190,7 @@ export function buildRoleSpecificUserPromptCoreLines(mission: Mission, item: Wor
   if (r === MissionAgentRole.Validator) {
     return [
       `MISSION: ${mission.title}`,
+      ...buildCompiledMissionContractLines(mission),
       `VALIDATION TARGET: ${item.title}`,
       `MISSION VALIDATION STATE: ${mission.validationState}`,
       item.validationScopeHint?.trim() ? `VALIDATION SCOPE HINT:\n${item.validationScopeHint.trim()}` : "",
@@ -200,6 +206,7 @@ export function buildRoleSpecificUserPromptCoreLines(mission: Mission, item: Wor
   return [
     `MISSION: ${mission.title}`,
     `MISSION PROMPT:\n${mission.prompt}`,
+    ...buildCompiledMissionContractLines(mission),
     `ROLE: ${item.role}`,
     `TASK: ${item.title}`,
     `TASK PROMPT:\n${item.prompt}`

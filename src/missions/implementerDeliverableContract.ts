@@ -1,4 +1,5 @@
 import type { Mission, WorkItem } from "../types";
+import { isCompiledMissionInputPath, isCompiledMissionOutputPath } from "./missionCompiler";
 import { normalizeWorkspaceRelPath } from "./missionReviewReadScope";
 
 const FILE_PATH_LIKE =
@@ -149,5 +150,12 @@ export function resolveExpectedDeliverableRelPathsForImplementer(args: {
     if (normalized) resolved.push(normalized);
   }
 
-  return [...new Set(resolved)].slice(0, 48);
+  return [...new Set(resolved)]
+    .filter((relPath) => {
+      if (isCompiledMissionInputPath(mission, relPath) && !isCompiledMissionOutputPath(mission, relPath)) {
+        return false;
+      }
+      return true;
+    })
+    .slice(0, 48);
 }

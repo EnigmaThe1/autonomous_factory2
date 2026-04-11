@@ -39,6 +39,7 @@ import { MissionOrchestratorBlueprintFlow } from "./orchestrator/missionOrchestr
 import { MissionOrchestratorHardStopTelemetry } from "./orchestrator/missionOrchestratorHardStopTelemetry";
 import { waitForMissionTerminalLifecycleWhileIdle } from "./orchestrator/missionOrchestratorLifecycleWaits";
 import { blueprintStructuredFlowEnabled, normalizeBlueprintModeSetting } from "./missionBlueprintMode";
+import { compileMissionPreflight } from "./missionCompiler";
 
 import type { MissionAgentRunForTest, MissionToolExecutor } from "./missionOrchestratorContracts";
 export type { MissionAgentRunForTest, MissionToolExecutor } from "./missionOrchestratorContracts";
@@ -155,7 +156,9 @@ export class MissionOrchestrator {
    */
   async startMission(title: string, prompt: string, providerId: string, model?: string): Promise<StartMissionResult> {
     const mission = await this.store.create(title, prompt, providerId, model);
-    await this.recordMissionStartBaseline(mission);
+    await this.compileMissionContractPreflight(mission.id);
+    const compiledMission = this.store.get(mission.id) || mission;
+    await this.recordMissionStartBaseline(compiledMission);
     const blueprintMode = normalizeBlueprintModeSetting(
       vscode.workspace.getConfiguration().get<unknown>("myAi.missions.blueprintMode", "off")
     );
@@ -561,6 +564,55 @@ export class MissionOrchestrator {
       level: "info",
       source: "orchestrator",
       message: `Mission start baseline recorded (folders: ${rootHint}; preset ${preset}).`
+    });
+  }
+
+  private async compileMissionContractPreflight(missionId: string): Promise<void> {
+    const mission = this.store.get(missionId);
+    if (!mission) return;
+    const compiledContract = await compileMissionPreflight(mission);
+    await this.store.updateMission(mission.id, { compiledContract });
+    await this.store.updateRuntime(mission.id, {
+      compilerPreflightAt: compiledContract.compiledAt,
+      compilerPathCorrectionsApplied: compiledContract.metrics.pathCorrectionsApplied,
+      compilerIoReclassificationsApplied:
+        compiledContract.metrics.inputPathsClassified + compiledContract.metrics.outputPathsClassified,
+      compilerContradictionsFound: compiledContract.metrics.contradictionsFound,
+      compilerAssumptionsFilled: compiledContract.metrics.assumptionsFilled,
+      compilerBlockingIssues: compiledContract.metrics.blockingIssues
+    });
+    await this.store.addMemory(mission.id, {
+      kind: "decision",
+      text: [
+        `Mission compiler preflight normalized objective: ${compiledContract.normalizedObjective}`,
+        compiledContract.outputRootHint ? `Output root hint: ${compiledContract.outputRootHint}` : "",
+        compiledContract.inputPaths.length ? `Inputs: ${compiledContract.inputPaths.join(", ")}` : "",
+        compiledContract.outputPaths.length ? `Outputs: ${compiledContract.outputPaths.join(", ")}` : "",
+        compiledContract.findings.length
+          ? `Findings: ${compiledContract.findings.slice(0, 4).map((finding) => finding.summary).join(" | ")}`
+          : "Findings: none."
+      ]
+        .filter(Boolean)
+        .join("\n"),
+      tags: ["mission_compiler", "preflight"],
+      sourceMissionId: mission.id
+    });
+    await this.store.saveEvent(mission.id, {
+      level: compiledContract.metrics.blockingIssues > 0 ? "warn" : "info",
+      source: "mission_compiler",
+      telemetryKind: "compiler_preflight",
+      message:
+        `Mission compiler preflight completed: ${compiledContract.metrics.pathReferencesDetected} path refs, ` +
+        `${compiledContract.metrics.pathCorrectionsApplied} corrections, ` +
+        `${compiledContract.metrics.contradictionsFound} contradictions, ` +
+        `${compiledContract.metrics.blockingIssues} blocking issue(s).`,
+      data: {
+        compilerVersion: compiledContract.compilerVersion,
+        normalizedObjective: compiledContract.normalizedObjective,
+        outputRootHint: compiledContract.outputRootHint,
+        metrics: compiledContract.metrics,
+        findings: compiledContract.findings
+      }
     });
   }
 

@@ -1,4 +1,5 @@
 import { MissionAgentRole, type Mission, type ToolCall, type WorkItem } from "../types";
+import { compiledMissionContractTexts } from "./missionCompiler";
 
 export type ToolEvidenceNecessity = "required" | "preferred" | "optional";
 export type ToolEvidenceSourceKind =
@@ -62,6 +63,7 @@ function collectContractTexts(mission: Mission, item: WorkItem): string[] {
     item.scopeSummary,
     item.validationHint,
     item.validationScopeHint,
+    ...compiledMissionContractTexts(mission),
     mission.prompt?.slice(0, 12000)
   ].filter((v): v is string => Boolean(v?.trim()));
 }
