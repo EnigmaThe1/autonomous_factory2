@@ -1,123 +1,142 @@
 # Autonomous Factory
 
-A modular VS Code AI assistant with a unified sidebar for:
+Autonomous Factory is a VS Code / Cursor extension for AI-assisted software delivery. It brings chat, provider management, autonomous missions, approvals, tools, memory, trace output and MCP integration into one unified sidebar.
 
-- chat
-- provider management
-- live provider model catalogs
-- autonomous missions
-- approvals and bundles
-- routing and DAG editing
-- tools and MCP integration
-- mission and global memory
-- trace and console views
+The project is designed as an experimental agentic-development workspace: an operator can define a mission, route it through structured agent-style workflows, review approval-gated actions, inspect trace output and manage model providers from the same interface.
 
-The extension is designed around a single sidebar workflow instead of scattered commands and panels. It supports human-in-the-loop approvals, autonomous mission execution, provider-aware model selection, and a modular host/webview runtime.
+## Portfolio summary
 
----
+This repository demonstrates hands-on work with:
+
+- VS Code extension development
+- TypeScript extension-host architecture
+- Webview UI design
+- Multi-provider AI model routing
+- Agentic mission workflows
+- Human-in-the-loop approvals
+- MCP tool/session integration
+- Workspace memory and mission persistence
+- Trace, diagnostics and operator-facing status design
+- Packaging and test automation for extension delivery
 
 ## What it does
 
-### Unified sidebar
+Autonomous Factory adds a unified sidebar with tabs for:
 
-The extension adds an **Autonomous Factory** activity bar view with a webview-based sidebar that includes these tabs:
+- Chat
+- Providers
+- Missions
+- Routing
+- Approvals
+- Bundles
+- Timeline
+- Agents
+- Tools
+- Memory
+- Console
+- Trace
+- Settings
 
-- **Chat**
-- **Providers**
-- **Missions**
-- **Routing**
-- **Approvals**
-- **Bundles**
-- **Timeline**
-- **Agents**
-- **Tools**
-- **Memory**
-- **Console**
-- **Trace**
-- **Settings**
+The extension is built around a single operator workflow rather than scattered commands and panels. It supports provider-aware chat, structured autonomous mission execution, approval-gated tool/file/terminal operations, persistent mission state and diagnostic trace views.
 
-When **Chat & Missions** is active, the view header (title bar) exposes four shortcuts, same as the Command Palette: **Open MCP Config** (JSON icon), **Open Agent Capabilities Roadmap** (map), **Open Mission Autonomy Blueprint** (book), **Open Mission Settings** (gear — VS Code Settings filtered to `myAi.missions`).
+## Key features
+
+### Unified AI sidebar
+
+The sidebar acts as the main operator interface for chat, missions, providers, tools, memory and diagnostics.
 
 ### Multi-provider model support
 
-Supports multiple model providers with per-provider defaults and live model-catalog refresh:
+The project supports provider-aware model selection and catalog refresh for:
 
-- **Ollama**
-- **OpenAI**
-- **OpenAI-compatible**
-- **Anthropic**
-- **Gemini**
-- **VS Code LM**
+- Ollama
+- OpenAI
+- OpenAI-compatible endpoints
+- Anthropic
+- Gemini
+- VS Code Language Model APIs
 
 Model handling is designed to be:
 
 - provider-aware
-- free-text friendly
 - dynamically refreshable
 - shortlist-first in the UI
+- free-text friendly when a model is not listed
 - fallback-safe when live catalogs are unavailable
 
-### Missions and autonomous workflows
+### Autonomous missions
 
-The extension can run structured autonomous missions with:
+Missions are structured workflows that can include:
 
 - planner / implementer / reviewer / validator style routing
-- resumable mission execution
+- resumable execution
 - dependency graphs
-- closure policies
-- validation gating
+- mission policies
+- validation gates
 - background heartbeats and recovery
 - persistent mission state in workspace files
 
-### Human approval workflow
+### Human-in-the-loop approvals
 
-Supports approval-gated operations such as:
+Approval-gated operations can include:
 
-- file writes / patches
+- file writes and patches
 - terminal commands
 - MCP tool calls
 - external adapter calls
 - grouped approval bundles
-- diff / hunk review flows
+- diff and hunk review flows
 
-### Memory
+This keeps the system useful for real development work while preserving operator control over risky actions.
 
-Supports both:
+### Tools and MCP integration
 
-- **mission memory**
-- **global semantic memory**
-
-with configurable recall limits and scoring thresholds.
-
-### Tools and MCP
-
-The extension can use:
+The extension can work with:
 
 - built-in tools
 - MCP tools and sessions
 - external HTTP-backed adapters
 - terminal execution
-- file operations restricted to the workspace if desired
+- workspace-restricted file operations
+
+### Memory
+
+The project includes support for:
+
+- mission memory
+- global semantic memory
+- configurable recall limits
+- scoring thresholds
+- memory views in the sidebar
 
 ### Trace and diagnostics
 
-Includes a unified trace system for host and webview behavior, with:
+The trace system gives the operator visibility into host and webview behaviour with:
 
-- output channel visibility
-- trace level selection
+- output-channel visibility
+- trace-level selection
 - optional file persistence
-- export / clear controls
-- operator-friendly status messages in the UI
+- export and clear controls
+- readable status messages in the UI
 
----
+## Architecture overview
 
-## Current architecture
+The extension is split between host-side TypeScript services and a modular webview runtime.
 
-The sidebar runtime is modularized on both the host and webview sides.
+```text
+VS Code / Cursor
+  -> extension host
+  -> sidebar provider
+  -> provider/model services
+  -> mission orchestration services
+  -> approval/tool/memory services
+  -> webview UI
+  -> workspace persistence
+```
 
 ### Host side
 
-The host is centered on `src/ui/AiSidebarProvider.ts`, with major responsibilities extracted into focused modules for:
+The host side is centred on `src/ui/AiSidebarProvider.ts`, with responsibilities split into focused modules for:
 
 - refresh orchestration
 - snapshot building
@@ -128,136 +147,18 @@ The host is centered on `src/ui/AiSidebarProvider.ts`, with major responsibiliti
 
 ### Webview side
 
-The webview runtime is centered on `media/chat/main.js`, with extracted modules for:
+The webview runtime is centred on `media/chat/main.js`, with extracted modules for:
 
 - message handling
-- snapshot and snapshotSection apply logic
+- snapshot and section-apply logic
 - panel rendering
 - DOM wiring
 - tab control
-- signatures / no-op skips
-- trace / persistence helpers
+- trace and persistence helpers
 
-This architecture is intended to keep behavior stable while making future changes safer and easier to review.
+This modular structure is intended to keep behaviour stable while making future changes safer and easier to review.
 
----
-
-## Features
-
-### Chat
-
-- unified chat tab
-- provider/model-aware send path
-- optional context from selection / active file / diagnostics
-- streaming chunk handling
-- provider row sync with sidebar settings
-
-### Providers
-
-- provider status / credentials overview
-- per-provider saved model
-- live catalog refresh
-- shortlist-style catalog picker plus free-text input
-- provider connection testing
-- model refresh feedback in the UI
-
-### Missions
-
-- autonomous mission execution
-- resume / archive / delete / bulk cleanup flows
-- mission inspector
-- grouped timeline
-- dependency graph / DAG editing
-- routing and policy editing
-
-### Approvals and bundles
-
-- approve / reject pending actions
-- next-hunk review
-- approval bundle summary review
-- grouped approval handling
-- diff / hunk review support
-
-### Tools
-
-- MCP tools
-- MCP sessions
-- external adapters
-- terminal / file tooling
-- approval-aware execution model
-
-### Memory
-
-- mission event memory
-- global memory search
-- semantic recall controls
-- UI memory views
-
-### Trace / console
-
-- trace level control
-- trace export / clear
-- trace snapshot view
-- console view for sidebar activity
-
----
-
-## Supported providers
-
-### Ollama
-
-- configurable local base URL
-- per-provider saved model
-- intended for local/self-hosted model use
-
-### OpenAI
-
-- configurable API base URL
-- live model catalog refresh
-- per-provider saved model
-- shortlist-first picker plus manual model input
-
-### OpenAI-compatible
-
-- configurable base URL
-- intended for vLLM / llama.cpp-server / similar endpoints
-
-### Anthropic
-
-- configurable Anthropic API root
-- live model catalog support
-- per-provider saved model
-
-### Gemini
-
-- configurable Generative Language API root
-- live model catalog refresh
-- per-provider saved model
-
-### VS Code LM
-
-- optional model/family hint
-- integrates with available VS Code LM capabilities when present
-
----
-
-## Installation
-
-### From VSIX
-
-Package the extension:
-
-```bash
-npm run package
-```
-
-This writes the packaged extension to:
-
-`.vsix/`
-
-Then install the generated `.vsix` in VS Code or Cursor using the Extensions UI.
-
-### Development setup
+## Installation and development
 
 Install dependencies:
 
@@ -271,157 +172,83 @@ Compile:
 npm run compile
 ```
 
-Run the extension in an Extension Development Host from VS Code as usual.
-
-### Development scripts
-
-**`npm run ci`** is an alias for **`npm run test`** (TypeScript compile once, then host tests and webview smoke).
-
-Compile:
-
-```bash
-npm run compile
-```
-
-Watch:
-
-```bash
-npm run watch
-```
-
-Test:
+Run tests:
 
 ```bash
 npm run test
 ```
 
-This currently runs:
-
-- TypeScript compile
-- extension/unit tests under `dist/test` (including **HttpClient** live **httpbin.org** tests **skipped** unless `MY_AI_RUN_HTTP_INTEGRATION=1`)
-- webview modular smoke harness
-
-Live **HttpClient** integration (real **httpbin.org**, no mocks; needs outbound HTTPS):
-
-```bash
-npm run test:http-integration
-```
-
-Webview smoke only:
-
-```bash
-npm run test:webview-smoke
-```
-
-CI:
+Run the CI script:
 
 ```bash
 npm run ci
 ```
 
-Package VSIX:
+Package the extension:
 
 ```bash
 npm run package
 ```
 
-Summarize trace output:
+The generated VSIX package is written to:
+
+```text
+.vsix/
+```
+
+Install the generated `.vsix` in VS Code or Cursor using the Extensions UI.
+
+## Test and validation commands
 
 ```bash
+npm run compile
+npm run test
+npm run test:webview-smoke
+npm run ci
+npm run package
 npm run trace:summarize
 ```
 
-### Configuration
+Optional real-network HTTP integration tests are skipped by default and can be run when outbound HTTPS is available:
 
-The extension contributes many settings under the `myAi.*` keys (shown under **Autonomous Factory** in Settings).
+```bash
+npm run test:http-integration
+```
 
-#### Provider defaults
+## Configuration
 
-Examples:
+The extension contributes settings under `myAi.*`, including:
 
-- `myAi.defaultProvider`
-- `myAi.defaultModel`
-- `myAi.models.openai`
-- `myAi.models.ollama`
-- `myAi.models.anthropic`
-- `myAi.models.gemini`
-- `myAi.models.openaiCompat`
-- `myAi.models.vscodeLm`
+- provider defaults
+- provider base URLs
+- mission controls
+- tool and approval controls
+- memory controls
+- MCP controls
+- UI and trace behaviour
+- workspace indexing options
 
-#### Provider base URLs
+Examples include:
 
-Examples:
+```text
+myAi.defaultProvider
+myAi.defaultModel
+myAi.models.openai
+myAi.models.ollama
+myAi.models.anthropic
+myAi.models.gemini
+myAi.openai.baseUrl
+myAi.ollama.baseUrl
+myAi.missions.maxStepsPerRun
+myAi.tools.requireApprovalForWrite
+myAi.tools.requireApprovalForTerminal
+myAi.mcp.configPath
+myAi.trace.level
+```
 
-- `myAi.openai.baseUrl`
-- `myAi.openaiCompat.baseUrl`
-- `myAi.anthropic.baseUrl`
-- `myAi.gemini.baseUrl`
-- `myAi.ollama.baseUrl`
+See `package.json` for the full current configuration surface.
 
-#### Mission controls
-
-Examples:
-
-- `myAi.missions.autoResumeOnStartup`
-- `myAi.missions.maxStepsPerRun`
-- `myAi.missions.heartbeatSeconds` (background runner tick; default 12s)
-- `myAi.missions.diskStoreFolder`
-- `myAi.missions.policyPreset`
-- `myAi.missions.maxAutoRounds`
-- `myAi.missions.requireValidationEvidence`
-
-#### Tool and approval controls
-
-Examples:
-
-- `myAi.tools.allowTerminal`
-- `myAi.tools.requireApprovalForWrite`
-- `myAi.tools.requireApprovalForTerminal`
-- `myAi.tools.requireApprovalForMcp`
-- `myAi.tools.requireApprovalForExternal`
-- `myAi.tools.restrictToWorkspace`
-
-#### Memory controls
-
-Examples:
-
-- `myAi.memory.maxRecentEvents`
-- `myAi.memory.semanticRecallLimit`
-- `myAi.memory.enableGlobalSemanticMemory`
-- `myAi.memory.globalRecallLimit`
-- `myAi.memory.minSemanticScore`
-
-#### MCP controls
-
-Examples:
-
-- `myAi.mcp.configPath`
-- `myAi.mcp.persistSessions`
-- `myAi.mcp.sessionWarmupOnStartup`
-- `myAi.mcp.sessionWarmupStaggerMs` — optional delay between MCP server warmups when startup warmup is on (reduces simultaneous spawns).
-- `myAi.mcp.toolCacheTtlSeconds`
-
-#### UI and trace
-
-Examples:
-
-- `myAi.ui.dashboardPollIntervalMs` — auto-refresh interval while the sidebar is visible (default 25s; lower = more host/MCP load).
-- `myAi.ui.traceAutoRefreshIntervalMs` — Trace tab auto-refresh interval when that checkbox is on (default 10s). Changing any key that feeds the sidebar **Settings** summary (defaults, heartbeat, blueprint toggles, MCP config path, etc.; see `MYAI_SIDEBAR_SNAPSHOT_SETTINGS_KEYS` in `aiSidebarSettingsRead.ts`) triggers an immediate full snapshot refresh while the sidebar is visible so the webview stays in sync without waiting for the poll.
-- `myAi.ui.retainWebviewContextWhenHidden` — keep webview JS state when hidden (default on; off saves memory, full reload when reopening).
-- `myAi.ui.autoRevealOnActivation`
-- `myAi.ui.defaultTab`
-- `myAi.trace.level`
-- `myAi.trace.persistToFile`
-
-#### Workspace index (`findRelevantFiles`)
-
-- `myAi.index.buildOnActivation` — when `true`, scan the workspace at extension startup; when `false` (default), indexing runs on first tool use (faster activate).
-- `myAi.index.incrementalSaveDebounceMs` — coalesce `onDidSave` re-index work (default 2000 ms).
-- Other keys: `myAi.index.maxFiles`, `includeGlobs`, `excludeGlobs` (see `package.json`).
-
-See `package.json` for the full up-to-date configuration surface.
-
-### Commands
+## Commands
 
 The extension contributes commands including:
 
@@ -442,97 +269,52 @@ The extension contributes commands including:
 - `Autonomous Factory: Edit Agent Routing`
 - `Autonomous Factory: Edit Mission DAG`
 - `Autonomous Factory: Search Global Memory`
-- `Autonomous Factory: Archive Mission`
-- `Autonomous Factory: Delete Mission`
 - `Autonomous Factory: Show Trace Log`
 - `Autonomous Factory: Export Trace Log`
 - `Autonomous Factory: Clear Trace Log`
 - `Autonomous Factory: Set Trace Level`
 
-### Storage and persistence
+## Storage and persistence
 
-The extension persists mission and related workspace data under:
+Mission and workspace data are persisted under:
 
-`.my-ai-extension`
+```text
+.my-ai-extension
+```
 
-inside the workspace, depending on your configuration.
+inside the active workspace, depending on configuration. This storage area can include mission records, approvals, adapters and related extension artifacts. Provider model catalogs may also be cached depending on the provider-catalog implementation and refresh path.
 
-This is used for mission storage, approvals, adapters, and related extension artifacts.
-Provider model catalogs may also be cached/persisted depending on the current provider-catalog implementation and refresh path.
+## Release checklist
 
-### Stability and verification
+Before treating a VSIX build as releasable:
 
-The current codebase includes targeted proof/stabilization work for:
+- `npm run ci` should pass.
+- `npm run package` should complete and produce a `.vsix` file.
+- The extension should activate successfully in a real Extension Development Host.
+- Sidebar, chat, provider refresh, mission creation, approvals, bundles, timeline, memory and trace flows should be smoke-tested manually.
+- Any visible webview crash, unhandled extension-host exception or broken mission/approval flow should be treated as a release blocker.
 
-- host refresh/poll orchestration
-- host dispatch routing
-- section contract behavior
-- webview ESM/module loading
-- webview message/apply smoke coverage
+## Current status
 
-The extension still benefits from short manual smoke checks after significant sidebar/runtime changes, especially around:
+This is a pre-release experimental project. It is useful for demonstrating agentic workflow design, extension-host architecture, webview UI development, multi-provider model routing, MCP integration and human-in-the-loop automation. It should not be treated as a production autonomous coding system without further security review, operational hardening and end-to-end validation.
 
-- provider refresh
-- chat send/stream
-- memory search
-- trace tab
-- tools panel
-- section update paths
+## Portfolio relevance
 
-#### Pre-release ship gate (VSIX considered releasable)
+This project is relevant for roles involving:
 
-**Automated (must be green)**
+- AI automation engineering
+- Agentic AI systems
+- LLM application development
+- Developer tooling
+- VS Code extension development
+- AI product prototyping
+- Technical operations automation
+- Human-in-the-loop workflow design
 
-- `npm run ci` (compile + `dist/test/**` + webview modular smoke).
-- `npm run package` completes and produces a `.vsix` under `.vsix/` (see extension packaging rules).
-- When using GitHub: **`.github/workflows/ci.yml`** runs **`npm run ci`** on push/PR. Use **Actions → CI → Run workflow** to run the optional **`http-integration`** job (live **httpbin.org**, **`npm run test:http-integration`**).
+## Repository
 
-**Optional (real network, not mocked)** — **HttpClient** integration tests call **https://httpbin.org** and DNS; they are **skipped by default** so CI and offline runs stay stable. Before a release that touches `HttpClient` or HTTP tooling, run `npm run test:http-integration` (sets `MY_AI_RUN_HTTP_INTEGRATION=1`) or `MY_AI_RUN_HTTP_INTEGRATION=1 npm test` on a machine with outbound HTTPS.
+<https://github.com/EnigmaThe1/autonomous_factory2>
 
-**Extension Development Host — manual (7 flows, pass/fail)**
+## License and commercial use
 
-Use a real workspace with valid provider credentials for the mission you start. Each flow **fails** if the webview throws visibly, the extension host logs an unhandled exception from this extension, or the stated outcome is missing.
-
-1. **Sidebar and webview load** — Open **Autonomous Factory**; switch across **Chat**, **Missions**, **Approvals**, **Timeline**. **Pass:** panes render, no persistent blank mission/approval area. **Fail:** blank webview or repeated errors in the developer console tied to the extension.
-2. **Start mission** — From **Chat**, start an autonomous mission with a short title/prompt. **Pass:** a new row appears on **Missions** with a sensible status badge and title. **Fail:** no row, or mission stuck with no visible state after a reasonable wait.
-3. **Resume** — With a mission in a resumable state (e.g. paused after max steps or stopped), use **Resume focused** or the resume command for that mission. **Pass:** status/events update or a clear operator-visible message (e.g. still blocked). **Fail:** no UI change and no explanation when a resume was expected.
-4. **Approval accept and reject** — Provoke a pending approval (e.g. write with approval required). **Pass:** item appears in **Approvals**; **Approve** clears or advances it; on a separate attempt, **Reject** is reflected in mission/approval UI. **Fail:** action does nothing or queue stays wrong.
-5. **Bundle action** — With a grouped bundle available, approve or reject from **Bundles** (or aligned command). **Pass:** bundle list and mission state stay consistent with the action. **Fail:** command vs sidebar disagree on outcome.
-6. **Missions list with multiple missions** — At least two non-archived missions; exercise quick filter (e.g. active vs all). **Pass:** list order and focus make sense; when the host supplies a headline, a non-focused card can show **Latest action:** for a non-terminal mission. **Fail:** wrong focus, empty list when missions exist, or obvious signature/render regression (e.g. missing rows).
-7. **Timeline and blocked/gated signal** — Open **Timeline**; confirm **operator-action** rows show a compact headline (not raw-only for mapped messages). Put or observe a mission in a blocked or downstream-gated state. **Pass:** timeline readable; inspector or card shows an appropriate gating/block hint where the orchestrator sets it. **Fail:** no headlines for known operator-action messages, or no visible clue for a clearly gated mission.
-
-**Release blockers**
-
-- Any automated gate red.
-- Any manual flow above **Fail**.
-- Install/load: cannot activate the extension or open the sidebar after installing the candidate `.vsix`.
-
-Pre-release product: no obligation to support old ad-hoc test missions; gate against current behavior only.
-
-### Current limitations
-
-- Some native webview controls remain partly dependent on Electron / platform behavior.
-- Provider model catalogs are dynamic, but the displayed picker intentionally favors a bounded shortlist over an unbounded raw list.
-- Free-text model entry remains supported even when a provider catalog is available.
-- Full end-to-end host↔webview runtime proof still benefits from manual smoke in a real Extension Host environment.
-
-### Repository
-
-Repository:
-
-<https://github.com/EnigmaThe1/autonomous_factory.git>
-
-License: SEE LICENSE IN LICENSE
-
-## Commercial use and licensing
-
-This project is proprietary and not licensed for use, copying, modification, distribution, hosting, resale, or deployment without prior written permission.
-
-If you want to:
-
-- use this software commercially
-- evaluate it for business/internal use
-- obtain a license
-- discuss partnership or custom terms
-
-please contact the copyright holder in writing for permission and licensing terms.
+No open-source license is currently provided. Unless a license is added, all rights are reserved by the repository owner. Commercial use, copying, modification, redistribution, hosting, resale or deployment requires prior written permission from the repository owner.
